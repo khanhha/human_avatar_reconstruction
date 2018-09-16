@@ -1,6 +1,6 @@
 # human_estimation
 set up enviroment
-    conda create --name human_estimation
+	conda create --name human_estimation
 	conda install -n human_estimation -c conda-forge opencv 
 	conda install -n human_estimation scipy numpy matplotlib
 	conda activate human_estimation
