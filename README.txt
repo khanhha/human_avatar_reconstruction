@@ -9,7 +9,8 @@
     this code preprocesses silhouette projections from Blender
     and compare silhouettes of each shape-key at values of 0 and 1
     
-3. instruction to analysize silhouete from blender's silhouette projections
-    run blender file to project 3D models to front and side silhouettes
-    update directories in the file shape_key_analyze.py to
-    run shape_key_analyze.py
+3. instruction to analysize silhouete from blender's silhouette projections	
+	- download blender projects: victoria_silhouette_projection.zip
+    	- run two blender projects to project 3D models to front and side silhouettes (update the output directories)
+    	- update directories in the file shape_key_analyze.py to point to blender silhouette directories
+    	- run shape_key_analyze.py
