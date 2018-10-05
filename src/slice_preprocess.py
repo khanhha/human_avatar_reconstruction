@@ -4,12 +4,11 @@ import argparse
 import os
 import matplotlib.pyplot as plt
 from pathlib import Path
-from src.obj_util import load_slice_template_from_obj_file, export_slice_obj
+from src.obj_util import load_vertices, export_vertices
 from shapely.geometry import MultiPoint
 from tsp_solver.greedy import solve_tsp
 
 def hack_fix_noise_vertices(slice):
-    idx = int(slice.shape[0]/2)
     good_candidate_z = np.median(slice[:,2], axis=0)
     epsilon = 0.00001
     slice_1 = []
@@ -88,6 +87,23 @@ def resample_slice(slice, n_point, debug_path = None):
 
     return slice_new
 
+def adjust_z_slice_location(slices, locs):
+    for i in range(locs.shape[0]):
+        z = locs[i,2]
+        #find slices which has the closest z
+        min_z_dif = 999999999
+        for id, slice in slices.items():
+            z_dif = np.abs(z - np.median(slice[:,2]))
+            if z_dif < min_z_dif:
+                min_z_dif = z_dif
+                closest_slice_id = id
+
+        z_adjust = np.median(slices[closest_slice_id][:,2])
+        print(f'adjust z location of slice {closest_slice_id}: z_old = {z}, z_adjust = {z_adjust}, delta = {np.abs(z-z_adjust)}')
+        locs[i,2] = z_adjust
+
+    return locs
+
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
     ap.add_argument("-i", "--in_dir", required=True, help="slice obj directory")
@@ -103,15 +119,32 @@ if __name__ == '__main__':
 
     slices = {}
     for fpath in Path(DIR_IN).glob('*.obj'):
+        if 'slice_location' in str(fpath):
+            continue
+
         print(fpath)
         debug_path =  f'{DIR_DEBUG}{fpath.stem}.png'
         print(debug_path)
         #if 'L14_Shoulder' not in str(fpath):
         #    continue
 
-        slice = load_slice_template_from_obj_file(fpath)
+        slice = load_vertices(fpath)
         slice, removed_cnt = hack_fix_noise_vertices(slice)
         if removed_cnt > 0:
             print(f'remove {removed_cnt} vertices: {fpath.stem}')
         slice = resample_slice(slice, n_point=50, debug_path=debug_path)
-        export_slice_obj(f'{DIR_OUT}/{fpath.name}', slice)
+
+        slices[fpath.stem] = slice
+
+        export_vertices(f'{DIR_OUT}/{fpath.name}', slice)
+
+    for fpath in Path(DIR_IN).glob('*.obj'):
+        if 'slice_location' in str(fpath):
+            slice_locs = load_vertices(fpath)
+            slice_locs = adjust_z_slice_location(slices,slice_locs)
+            export_vertices(f'{DIR_OUT}/{fpath.name}', slice_locs)
+
+
+
+
+

@@ -1,12 +1,12 @@
 import numpy as np
 
-def export_slice_obj(fpath, slice):
+def export_vertices(fpath, obj):
     with open(fpath, 'w') as f:
-        for i in range(slice.shape[0]):
-            co = tuple(slice[i,:])
+        for i in range(obj.shape[0]):
+            co = tuple(obj[i, :])
             f.write("v %.4f %.4f %.4f \n" % co)
 
-def load_slice_template_from_obj_file(fpath):
+def load_vertices(fpath):
     coords = []
     with open(fpath, 'r') as obj:
         file = obj.read()

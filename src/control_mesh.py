@@ -2,7 +2,7 @@ import numpy as np
 import argparse
 import os
 from pathlib import Path
-from src.obj_util import  load_slice_template_from_obj_file, export_slice_obj
+from src.obj_util import  load_vertices, export_vertices
 
 def define_id_mapping():
     mappings = {}
@@ -63,9 +63,8 @@ if __name__ == '__main__':
 
     slices = {}
     for fpath in Path(SLICE_DIR).glob('*.obj'):
-        slice = load_slice_template_from_obj_file(fpath)
-        slice = hack_fix_noise_vertices(fpath, slice)
-        export_slice_obj(fpath, slice)
+        slice = load_vertices(fpath)
+        export_vertices(fpath, slice)
         slices[fpath.stem] = slice
 
     mdata = np.load(mdata_path )
@@ -102,5 +101,5 @@ if __name__ == '__main__':
 
     for id_3d, slice in ct_mesh_slices.items():
         fpath = f'{OUT_DIR}{id_3d}.obj'
-        export_slice_obj(fpath, slice)
+        export_vertices(fpath, slice)
 
