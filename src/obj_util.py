@@ -6,6 +6,18 @@ def export_vertices(fpath, obj):
             co = tuple(obj[i, :])
             f.write("v %.4f %.4f %.4f \n" % co)
 
+def export_mesh(fpath, verts, faces):
+    with open(fpath, 'w') as f:
+        for i in range(verts.shape[0]):
+            co = tuple(verts[i, :])
+            f.write("v %.4f %.4f %.4f \n" % co)
+
+        for i in range(len(faces)):
+            f.write("f")
+            for v_idx in faces[i]:
+                f.write(" %d" % (v_idx + 1))
+            f.write("\n")
+
 def load_vertices(fpath):
     coords = []
     with open(fpath, 'r') as obj:

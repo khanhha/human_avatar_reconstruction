@@ -5,8 +5,8 @@ import os
 import matplotlib.pyplot as plt
 from pathlib import Path
 from src.obj_util import load_vertices, export_vertices
-from shapely.geometry import MultiPoint
 from tsp_solver.greedy import solve_tsp
+import pickle
 
 def hack_fix_noise_vertices(slice):
     good_candidate_z = np.median(slice[:,2], axis=0)
@@ -87,22 +87,45 @@ def resample_slice(slice, n_point, debug_path = None):
 
     return slice_new
 
-def adjust_z_slice_location(slices, locs):
+import sys
+def map_slice_location_to_slices(slices, locs):
+    loc_map = {}
     for i in range(locs.shape[0]):
-        z = locs[i,2]
+        loc = locs[i,:]
+        closest_slice_id = None
         #find slices which has the closest z
-        min_z_dif = 999999999
+        min_dst = 999999999
         for id, slice in slices.items():
-            z_dif = np.abs(z - np.median(slice[:,2]))
-            if z_dif < min_z_dif:
-                min_z_dif = z_dif
+            dst = np.linalg.norm(loc - np.mean(slice, axis=0))
+            if dst < min_dst:
+                min_dst = dst
                 closest_slice_id = id
 
+        if closest_slice_id is None:
+           print(f'cannot map slice location {loc}', file=sys.stderr)
+
+        z = loc[2]
         z_adjust = np.median(slices[closest_slice_id][:,2])
+        tolerance = 0.01
+        if np.abs(z-z_adjust) > tolerance:
+            print(f'warning, something wrong. z slice location is larger than {tolerance}', file=sys.stderr)
+
+        if closest_slice_id in loc_map:
+            print(f'ERROR: something wrong. another location: {loc} is mapped to the same slice id: {closest_slice_id}', file=sys.stderr)
+
         print(f'adjust z location of slice {closest_slice_id}: z_old = {z}, z_adjust = {z_adjust}, delta = {np.abs(z-z_adjust)}')
         locs[i,2] = z_adjust
 
-    return locs
+        loc_map[closest_slice_id] = locs[i,:]
+
+    return loc_map
+
+def is_a_leg_slice(name):
+    leg_hints=['Knee', 'Thigh', 'Ankle', 'Calf']
+    for hint in leg_hints:
+        if hint in name:
+            return True
+    return False
 
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
@@ -114,6 +137,7 @@ if __name__ == '__main__':
     DIR_OUT = args['out_dir']
     DIR_DEBUG = Path(os.path.abspath(__file__))
     DIR_DEBUG  = str(DIR_DEBUG.parent) + '/../data/debug/'
+
     for fpath in Path(DIR_OUT).glob('*.*'):
         os.remove(fpath)
 
@@ -132,17 +156,29 @@ if __name__ == '__main__':
         slice, removed_cnt = hack_fix_noise_vertices(slice)
         if removed_cnt > 0:
             print(f'remove {removed_cnt} vertices: {fpath.stem}')
-        slice = resample_slice(slice, n_point=50, debug_path=debug_path)
+
+        if is_a_leg_slice(fpath.stem):
+            resolution = 100*12
+        else:
+            resolution = 100*8
+        slice = resample_slice(slice, n_point=resolution, debug_path=debug_path)
+        assert slice.shape[0] == resolution
 
         slices[fpath.stem] = slice
 
         export_vertices(f'{DIR_OUT}/{fpath.name}', slice)
 
-    for fpath in Path(DIR_IN).glob('*.obj'):
-        if 'slice_location' in str(fpath):
-            slice_locs = load_vertices(fpath)
-            slice_locs = adjust_z_slice_location(slices,slice_locs)
-            export_vertices(f'{DIR_OUT}/{fpath.name}', slice_locs)
+    for fpath in Path(DIR_IN).glob('*.pkl'):
+        if 'victoria' in str(fpath):
+            with open(fpath, 'rb') as f:
+                data = pickle.load(f)
+
+            slice_locs = data['slice_locs']
+            loc_map = map_slice_location_to_slices(slices, slice_locs)
+            data['slice_locs'] = slice_locs
+
+            with open(f'{DIR_OUT}/{fpath.stem}.pkl', 'wb') as f:
+                pickle.dump(data, f)
 
 
 
