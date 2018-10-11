@@ -195,17 +195,20 @@ def rect_plane(rect):
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
     ap.add_argument("-vic", "--victoria", required=True, help="victoria pkl file")
-    ap.add_argument("-o", "--out_path", required=True, help="directory for expxorting control mesh slices")
+    ap.add_argument("-o", "--out_dir", required=True, help="directory for expxorting control mesh slices")
+    ap.add_argument("-w", "--weight_update", required=True, help="update weight or not: it takes several minute")
     args = vars(ap.parse_args())
 
     vic_path = args['victoria']
-    out_path = args['out_path']
+    OUT_DIR = args['out_dir']
+    update_weight = int(args['weight_update'])
 
-    slice_locs = None
+    slc_id_locs = None
     vic_height = None
     with open(vic_path, 'rb') as f:
         data = pickle.load(f)
-        slice_locs = data['slice_locs']
+        slc_id_locs = data['slice_id_locs']
+        arm_bone_locs = data['arm_bone_locs']
         vic_seg = data['height_segment']
         vic_height = np.linalg.norm(vic_seg)
         slc_id_rects = data['slice_rects']
@@ -218,31 +221,37 @@ if __name__ == '__main__':
     print('control  mesh: nverts = {0}, ntris = {1}'.format(ctl_mesh['verts'].shape[0], len(ctl_mesh['faces'])))
     print('victoria mesh: nverts = {0}, ntris = {1}'.format(tpl_mesh['verts'].shape[0], len(tpl_mesh['faces'])))
 
-    ctl_tri_bs = util.calc_triangle_local_basis(ctl_mesh['verts'], ctl_mesh['faces'])
-    vert_effect_idxs, vert_weights = calc_vertex_weigth_control_mesh(tpl_mesh['verts'], ctl_mesh['verts'], ctl_mesh['faces'])
-    #vert_effect_idxs, vert_weights = calc_vertex_weigth_control_mesh_parallel(tpl_mesh['verts'], ctl_mesh['verts'], ctl_mesh['faces'])
-    vert_UVW = parameterize(tpl_mesh['verts'], vert_effect_idxs, ctl_tri_bs)
-
-    slc_id_locs = map_slc_location_id(slc_id_rects, slice_locs)
-
-    slc_id_vert_idxs= {}
+    slc_id_vert_idxs = {}
     for id_3d, rect in slc_id_rects.items():
         idxs = extract_slice_verts_from_ctr_mesh(rect, ctl_mesh['verts'])
         assert id_3d not in slc_id_vert_idxs
         slc_id_vert_idxs[id_3d] = idxs
+
+    ctl_tri_bs = util.calc_triangle_local_basis(ctl_mesh['verts'], ctl_mesh['faces'])
+    if update_weight > 0:
+        vert_effect_idxs, vert_weights = calc_vertex_weigth_control_mesh(tpl_mesh['verts'], ctl_mesh['verts'], ctl_mesh['faces'])
+        vert_UVW = parameterize(tpl_mesh['verts'], vert_effect_idxs, ctl_tri_bs)
+
+        w_data = {}
+        w_data['template_vert_UVW'] = vert_UVW
+        w_data['template_vert_weight'] = vert_weights
+        w_data['template_vert_effect_idxs'] = vert_effect_idxs
+
+        with open(f'{OUT_DIR}/vic_weight.pkl', 'wb') as f:
+            pickle.dump(w_data, f)
 
     out_data = {}
     out_data['control_mesh'] = ctl_mesh
     out_data['control_mesh_tri_basis'] = ctl_tri_bs
 
     out_data['template_mesh'] = tpl_mesh
-    out_data['template_vert_UVW'] = vert_UVW
-    out_data['template_vert_weight'] = vert_weights
-    out_data['template_vert_effect_idxs'] = vert_effect_idxs
+
 
     out_data['template_height']  = vic_height
-    out_data['slice_locs']  = slc_id_locs
+    out_data['slice_id_locs']  = slc_id_locs
     out_data['slice_vert_idxs']  = slc_id_vert_idxs
 
-    with open(out_path, 'wb') as f:
+    out_data['arm_bone_locs']  = arm_bone_locs
+
+    with open(f'{OUT_DIR}/vic_data.pkl', 'wb') as f:
         pickle.dump(out_data, f)
