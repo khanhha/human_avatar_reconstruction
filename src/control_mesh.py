@@ -252,8 +252,8 @@ if __name__ == '__main__':
 
                 slice_out[:, 2] = slc_loc_ver + tpl_ankle_ver
 
-                #slice_hor_center = 0.5*(np.min(slice_out[:,1]) + np.max(slice_out[:,1]))
-                #slice_out[:, 1] += (-slice_hor_center + tpl_ankle_hor + slc_loc_hor)
+                slice_hor_center = 0.5*(np.min(slice_out[:,1]) + np.max(slice_out[:,1]))
+                slice_out[:, 1] += (-slice_hor_center + tpl_ankle_hor + slc_loc_hor)
 
                 ctl_new_mesh['verts'][slc_idxs, :] = slice_out
             else:
