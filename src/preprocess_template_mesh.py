@@ -1,12 +1,21 @@
 import numpy as np
 import argparse
+from collections import defaultdict
 import os
 from pathlib import Path
 import pickle
-from src.obj_util import export_mesh
 from src.util import  normalize
 import src.util as util
 from shapely.geometry import Polygon, Point
+
+from enum import Enum
+class BDPart(Enum):
+    Part_Head = 1
+    Part_LArm = 2
+    Part_RArm = 3
+    Part_LLeg = 4
+    Part_RLeg = 5
+    Part_Torso = 6
 
 def define_id_mapping():
     mappings = {}
@@ -72,7 +81,10 @@ def extract_slice_verts_from_ctr_mesh(slc_rect, verts):
     for idx in idxs:
         if convex.contains(Point(verts[idx,:2])):
             slc_idxs.append(idx)
-    assert len(slc_idxs) == 7 or len(slc_idxs) == 8 or len(slc_idxs) == 14 or len(slc_idxs) == 20
+    #if not (len(slc_idxs) == 7 or len(slc_idxs) == 8 or len(slc_idxs) == 14 or len(slc_idxs) == 20 or len(slc_idxs) == 22):
+    #    return None
+    if len(slc_idxs) < 6 or len(slc_idxs) > 22:
+        return None
     return np.array(slc_idxs)
 
 def deform_slice(slice, w, d, z = -1, slice_org = None):
@@ -88,7 +100,7 @@ def deform_slice(slice, w, d, z = -1, slice_org = None):
     nslice[:,1] *= d_ratio
     nslice = nslice + slice_org
     if z != -1:
-        nslice[:,2]  = z
+         nslice[:,2]  = z
     return nslice
 
 def dst_point_plane(point, plane_point, plane_norm):
@@ -107,7 +119,25 @@ def triangulate_quad_dominant_mesh(mesh):
     mesh['faces'] = tris
     return mesh
 
-import concurrent.futures
+def triangulate_quad_dominant_mesh_1(mesh, face_flags):
+    faces = mesh['faces']
+    tris = []
+    tri_flags = []
+    for face, flag in zip(faces,face_flags):
+        if len(face) == 4:
+            tris.append((face[0], face[1], face[2]))
+            tri_flags.append(flag)
+            tris.append((face[0], face[2], face[3]))
+            tri_flags.append(flag)
+        elif len(face) == 3:
+            tris.append(face)
+            tri_flags.append(flag)
+        else:
+            assert 'unpredicted face length {0}'.format(len(face))
+
+    mesh['faces'] = tris
+    return mesh, tri_flags
+
 def parameterize(verts, vert_effect_idxs, basis):
     print('parameterize')
     P = []
@@ -129,7 +159,6 @@ def parameterize(verts, vert_effect_idxs, basis):
 
     return P
 
-
 def vert_tri_weight(v, t_v0, t_v1, t_v2):
     beta = 1.5
     center = (t_v0+t_v1+t_v2)/3.0
@@ -141,7 +170,118 @@ def vert_tri_weight(v, t_v0, t_v1, t_v2):
     else:
         return 0.0
 
-def calc_vertex_weigth_control_mesh(verts, verts_ref, tris_ref):
+def average_circumscribed_radius_tris(verts, tris, tris_idxs):
+    rads = np.zeros(len(tris_idxs), dtype=np.float32)
+    for j, t_idx in enumerate(tris_idxs):
+        v0, v1, v2 = verts[tris[t_idx][0]], verts[tris[t_idx][1]], verts[tris[t_idx][2]]
+        center = (v0+v1+v2)/3.0
+        rads[j] = (np.linalg.norm(v0-center) + np.linalg.norm(v1-center) + np.linalg.norm(v2-center))/3.0
+    return np.mean(rads)
+
+def is_adjacent_tri(t0, t1):
+    for i in range(3):
+        v00, v01 = t0[i], t0[(i+1)%3]
+        for j in range(3):
+            v10, v11 = t1[j], t1[(j+1)%3]
+            if (v00 == v10 and v01 == v11) or (v00 == v11 and v01 == v10):
+                return True
+    return False
+
+def find_neighbour_body_part_triangles(tris_ctl, ctl_tri_bd_parts):
+    n_tris = len(tris_ctl)
+    bd_part_adj_tri_idxs = defaultdict(list)
+
+    for tri_idx, part_id in enumerate(ctl_tri_bd_parts):
+        for other_tri_idx in range(n_tris):
+            #not the triangle we are processing
+            if tri_idx == other_tri_idx:
+                continue
+
+            #not in the same body part
+            if ctl_tri_bd_parts[other_tri_idx] == part_id:
+                continue
+
+            if is_adjacent_tri(tris_ctl[tri_idx], tris_ctl[other_tri_idx]):
+                bd_part_adj_tri_idxs[part_id].append(other_tri_idx)
+
+    return bd_part_adj_tri_idxs
+
+def calc_vertex_weigth_control_mesh_local(verts_tpl, verts_ctl, tris_ctl, tpl_v_body_parts, ctl_tri_bd_parts, effective_range_factor = 2):
+
+    effect_idxs = [None]* len(verts_tpl)
+    effect_weights =[None]* len(verts_tpl)
+
+    ctl_tri_centers = np.zeros((len(tris_ctl), 3), dtype=np.float32)
+    for j, t in enumerate(tris_ctl):
+        v0, v1, v2 = verts_ctl[t[0]], verts_ctl[t[1]], verts_ctl[t[2]]
+        center = (v0+v1+v2)/3.0
+        ctl_tri_centers[j, :] = center
+
+    bd_part_ctl_tris_idxs = defaultdict(list)
+    for tri_idx, _ in enumerate(tris_ctl):
+        part_id = ctl_tri_bd_parts[tri_idx]
+        bd_part_ctl_tris_idxs[part_id].append(tri_idx)
+
+    print('generating neighbouring information for control mesh')
+    bd_part_adj_ctl_tri_idxs = find_neighbour_body_part_triangles(tris_ctl, ctl_tri_bd_parts)
+
+    bd_part_ctl_avg_rads = {id : average_circumscribed_radius_tris(verts_ctl, tris_ctl, part_tris_idxs) for id, part_tris_idxs in bd_part_ctl_tris_idxs.items()}
+    print(bd_part_ctl_avg_rads )
+
+    body_part_tpl_verts = {}
+    for i, part_id in enumerate(tpl_v_body_parts):
+        if part_id not in body_part_tpl_verts:
+            body_part_tpl_verts[part_id] = []
+        body_part_tpl_verts[part_id].append(i)
+
+    print('start calculating weights')
+    cnt_progress = 0
+    n_zero_weights = 0
+    for part_id, verts  in body_part_tpl_verts.items():
+        if part_id not in bd_part_ctl_avg_rads:
+            print(f'missing body part of ID {part_id}')
+            continue
+        print(f'processing body part {part_id}')
+        bd_part_avg_rad = bd_part_ctl_avg_rads[part_id]
+        for v_i in  verts:
+            tri_idxs = []
+            weights = []
+            v_co = verts_tpl[v_i, :]
+
+            #weights respect to control tringle in the same body part
+            ctl_tris_idxs = bd_part_ctl_tris_idxs[part_id]
+            for tri_idx in ctl_tris_idxs:
+                d = np.linalg.norm(v_co - ctl_tri_centers[tri_idx, :])
+                ratio = d / bd_part_avg_rad
+                if ratio < effective_range_factor:
+                    w = ratio / effective_range_factor
+                    w = 1 - w
+                    #w = np.exp(-4.0*w*w)
+                    tri_idxs.append(tri_idx)
+                    weights.append(w)
+
+            #weights respect to neighbour control triangle in the adjacent body part
+            ctl_tris_idxs = bd_part_adj_ctl_tri_idxs[part_id]
+            for tri_idx in ctl_tris_idxs:
+                d = np.linalg.norm(v_co - ctl_tri_centers[tri_idx, :])
+                ratio = d / bd_part_avg_rad
+                if ratio < effective_range_factor:
+                    w = 1.0 - ratio / effective_range_factor
+                    tri_idxs.append(tri_idx)
+                    weights.append(w)
+
+            cnt_progress += 1
+            if len(tri_idxs) == 0:
+                n_zero_weights += 1
+            if cnt_progress % 500 == 0:
+                print(cnt_progress, '/', verts_tpl.shape[0], 'zero weight vertices = ', n_zero_weights)
+
+            effect_idxs[v_i] = tri_idxs
+            effect_weights[v_i] = weights
+
+    return effect_idxs, effect_weights
+
+def calc_vertex_weigth_control_mesh_global(verts, verts_ref, tris_ref, effective_range_factor = 3.0):
     print('calc_vertex_weigth_control_mesh')
     effect_idxs = []
     effect_weights = []
@@ -154,28 +294,21 @@ def calc_vertex_weigth_control_mesh(verts, verts_ref, tris_ref):
         tri_centers[j, :] = center
         tri_radius[j] = (np.linalg.norm(v0-center) + np.linalg.norm(v1-center) + np.linalg.norm(v2-center))/3.0
 
-    beta = 2
     for i in range(verts.shape[0]):
         v = verts[i,:]
         idxs = []
         weights = []
 
-        #debug
-        d_min = 99999999
-        w_min = 0
-        d_min_idx = 0
         for j,t in enumerate(tris_ref):
             #w = vert_tri_weight(v, verts_ref[t[0]], verts_ref[t[1]], verts_ref[t[2]])
             d = np.linalg.norm(v-tri_centers[j,:])
             ratio = d/tri_radius[j]
-            if ratio < beta:
-                w = 1.0 - ratio/beta
+            if ratio < effective_range_factor:
+                #w = 1.0 - ratio / effective_range_factor
+                w = ratio/effective_range_factor
+                w = np.exp(-6.0*w*w)
                 idxs.append(j)
                 weights.append(w)
-                if d < d_min:
-                    d_min = d
-                    w_min = w
-                    d_min_idx = j
 
         if i % 500 == 0:
             print(i,'/',verts.shape[0])
@@ -207,29 +340,33 @@ if __name__ == '__main__':
     vic_height = None
     with open(vic_path, 'rb') as f:
         data = pickle.load(f)
-        slc_id_locs = data['slice_id_locs']
+        slc_id_locs = data['slice_locs']
         arm_bone_locs = data['arm_bone_locs']
         vic_seg = data['height_segment']
         vic_height = np.linalg.norm(vic_seg)
-        slc_id_rects = data['slice_rects']
-        ctl_mesh = data['ctl_mesh']
-        tpl_mesh = data['vic_mesh']
+        slice_id_vert_idxs = data['slice_vert_idxs']
 
-    ctl_mesh = triangulate_quad_dominant_mesh(ctl_mesh)
+        ctl_mesh = data['ctl_mesh']
+        ctl_f_body_parts = data['ctl_f_body_parts']
+
+        tpl_mesh = data['vic_mesh']
+        tpl_v_body_parts = data['vic_v_body_parts']
+
+        body_part_dict = data['body_part_dict']
+
+    print('control  mesh: nverts = {0}, nfaces = {1}'.format(ctl_mesh['verts'].shape[0], len(ctl_mesh['faces'])))
+    print('victoria mesh: nverts = {0}, nfaces = {1}'.format(tpl_mesh['verts'].shape[0], len(tpl_mesh['faces'])))
+
+    ctl_mesh, ctl_f_body_parts  = triangulate_quad_dominant_mesh_1(ctl_mesh, ctl_f_body_parts)
     tpl_mesh = triangulate_quad_dominant_mesh(tpl_mesh)
 
     print('control  mesh: nverts = {0}, ntris = {1}'.format(ctl_mesh['verts'].shape[0], len(ctl_mesh['faces'])))
     print('victoria mesh: nverts = {0}, ntris = {1}'.format(tpl_mesh['verts'].shape[0], len(tpl_mesh['faces'])))
 
-    slc_id_vert_idxs = {}
-    for id_3d, rect in slc_id_rects.items():
-        idxs = extract_slice_verts_from_ctr_mesh(rect, ctl_mesh['verts'])
-        assert id_3d not in slc_id_vert_idxs
-        slc_id_vert_idxs[id_3d] = idxs
-
     ctl_tri_bs = util.calc_triangle_local_basis(ctl_mesh['verts'], ctl_mesh['faces'])
     if update_weight > 0:
-        vert_effect_idxs, vert_weights = calc_vertex_weigth_control_mesh(tpl_mesh['verts'], ctl_mesh['verts'], ctl_mesh['faces'])
+        vert_effect_idxs, vert_weights = calc_vertex_weigth_control_mesh_global(tpl_mesh['verts'], ctl_mesh['verts'], ctl_mesh['faces'])
+        #vert_effect_idxs, vert_weights = calc_vertex_weigth_control_mesh_local(tpl_mesh['verts'], ctl_mesh['verts'], ctl_mesh['faces'], tpl_v_body_parts, ctl_f_body_parts)
         vert_UVW = parameterize(tpl_mesh['verts'], vert_effect_idxs, ctl_tri_bs)
 
         w_data = {}
@@ -248,8 +385,8 @@ if __name__ == '__main__':
 
 
     out_data['template_height']  = vic_height
-    out_data['slice_id_locs']  = slc_id_locs
-    out_data['slice_vert_idxs']  = slc_id_vert_idxs
+    out_data['slice_locs']  = slc_id_locs
+    out_data['slice_vert_idxs']  = slice_id_vert_idxs
 
     out_data['arm_bone_locs']  = arm_bone_locs
 
