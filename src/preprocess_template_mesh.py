@@ -4,6 +4,7 @@ from collections import defaultdict
 import os
 from pathlib import Path
 import pickle
+from copy import deepcopy
 from src.util import  normalize
 import src.util as util
 from shapely.geometry import Polygon, Point
@@ -347,6 +348,7 @@ if __name__ == '__main__':
         slice_id_vert_idxs = data['slice_vert_idxs']
 
         ctl_mesh = data['ctl_mesh']
+        ctl_mesh_quad_dom = data['ctl_mesh_quad_dom']
         ctl_f_body_parts = data['ctl_f_body_parts']
 
         tpl_mesh = data['vic_mesh']
@@ -357,7 +359,12 @@ if __name__ == '__main__':
     print('control  mesh: nverts = {0}, nfaces = {1}'.format(ctl_mesh['verts'].shape[0], len(ctl_mesh['faces'])))
     print('victoria mesh: nverts = {0}, nfaces = {1}'.format(tpl_mesh['verts'].shape[0], len(tpl_mesh['faces'])))
 
+    n_quad = len(ctl_mesh['faces'])
+    ctl_mesh_quad = deepcopy(ctl_mesh)
     ctl_mesh, ctl_f_body_parts  = triangulate_quad_dominant_mesh_1(ctl_mesh, ctl_f_body_parts)
+    n_tris = len(ctl_mesh['faces'])
+    print(f'triangulate {n_tris - n_quad} quads of the control mesh')
+
     tpl_mesh = triangulate_quad_dominant_mesh(tpl_mesh)
 
     print('control  mesh: nverts = {0}, ntris = {1}'.format(ctl_mesh['verts'].shape[0], len(ctl_mesh['faces'])))
@@ -365,8 +372,8 @@ if __name__ == '__main__':
 
     ctl_tri_bs = util.calc_triangle_local_basis(ctl_mesh['verts'], ctl_mesh['faces'])
     if update_weight > 0:
-        vert_effect_idxs, vert_weights = calc_vertex_weigth_control_mesh_global(tpl_mesh['verts'], ctl_mesh['verts'], ctl_mesh['faces'])
-        #vert_effect_idxs, vert_weights = calc_vertex_weigth_control_mesh_local(tpl_mesh['verts'], ctl_mesh['verts'], ctl_mesh['faces'], tpl_v_body_parts, ctl_f_body_parts)
+        #vert_effect_idxs, vert_weights = calc_vertex_weigth_control_mesh_global(tpl_mesh['verts'], ctl_mesh['verts'], ctl_mesh['faces'])
+        vert_effect_idxs, vert_weights = calc_vertex_weigth_control_mesh_local(tpl_mesh['verts'], ctl_mesh['verts'], ctl_mesh['faces'], tpl_v_body_parts, ctl_f_body_parts)
         vert_UVW = parameterize(tpl_mesh['verts'], vert_effect_idxs, ctl_tri_bs)
 
         w_data = {}
@@ -379,6 +386,7 @@ if __name__ == '__main__':
 
     out_data = {}
     out_data['control_mesh'] = ctl_mesh
+    out_data['control_mesh_quad_dom'] = ctl_mesh_quad_dom
     out_data['control_mesh_tri_basis'] = ctl_tri_bs
 
     out_data['template_mesh'] = tpl_mesh

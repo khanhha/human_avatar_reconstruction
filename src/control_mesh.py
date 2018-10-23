@@ -9,29 +9,41 @@ import src.util as util
 
 def define_slice_id_mapping():
     mappings = {}
-    mappings['Slice_LAnkle'] = 'Ankle'
-    mappings['Slice_RAnkle'] = 'Ankle'
-    mappings['Slice_RCalf'] = 'Calf'
-    mappings['Slice_LCalf'] = 'Calf'
-    mappings['Slice_RKnee'] = 'Knee'
-    mappings['Slice_LKnee'] = 'Knee'
-    mappings['Slice_LKnee_Crotch_0'] = 'Aux_Knee_Crotch_0'
-    mappings['Slice_LKnee_Crotch_1'] = 'Aux_Knee_Crotch_1'
-    mappings['Slice_RKnee_Crotch_0'] = 'Aux_Knee_Crotch_0'
-    mappings['Slice_RKnee_Crotch_1'] = 'Aux_Knee_Crotch_1'
-    mappings['Slice_Crotch'] = 'Crotch'
-    mappings['Slice_Crotch_Hip_0'] = 'Aux_Crotch_Hip_0'
-    mappings['Slice_Hip'] = 'Hip'
-    mappings['Slice_Hip_Waist_0'] = 'Aux_Hip_Waist_0'
-    mappings['Slice_Waist'] = 'Waist'
-    mappings['Slice_Waist_UnderBust_0'] = 'Aux_Waist_UnderBust_0'
-    mappings['Slice_UnderBust'] = 'UnderBust'
-    mappings['Slice_Bust'] = 'Bust'
-    mappings['Slice_Armscye'] = 'Armscye'
-    mappings['Slice_Armscye_Shoulder_0'] = 'Aux_Armscye_Shoulder_0'
-    mappings['Slice_Shoulder'] = 'Shoulder'
-    mappings['Slice_Collar'] = 'Collar'
-    mappings['Slice_Neck'] = 'Neck'
+    mappings['LAnkle'] = 'Ankle'
+    mappings['RAnkle'] = 'Ankle'
+    mappings['RCalf'] = 'Calf'
+    mappings['LCalf'] = 'Calf'
+    mappings['RKnee'] = 'Knee'
+    mappings['LKnee'] = 'Knee'
+    mappings['LKnee_UnderCrotch_0'] = 'Aux_Knee_UnderCrotch_0'
+    mappings['LKnee_UnderCrotch_1'] = 'Aux_Knee_UnderCrotch_1'
+    mappings['LKnee_UnderCrotch_2'] = 'Aux_Knee_UnderCrotch_2'
+    mappings['LKnee_UnderCrotch_3'] = 'Aux_Knee_UnderCrotch_3'
+    mappings['RKnee_UnderCrotch_0'] = 'Aux_Knee_UnderCrotch_0'
+    mappings['RKnee_UnderCrotch_1'] = 'Aux_Knee_UnderCrotch_1'
+    mappings['RKnee_UnderCrotch_2'] = 'Aux_Knee_UnderCrotch_2'
+    mappings['RKnee_UnderCrotch_3'] = 'Aux_Knee_UnderCrotch_3'
+
+    mappings['RUnderCrotch'] = 'UnderCrotch'
+    mappings['LUnderCrotch'] = 'UnderCrotch'
+    mappings['Crotch'] = 'Crotch'
+    mappings['Crotch_Hip_0'] = 'Aux_Crotch_Hip_0'
+    mappings['Hip'] = 'Hip'
+    mappings['Hip_Waist_0'] = 'Aux_Hip_Waist_0'
+    mappings['Hip_Waist_1'] = 'Aux_Hip_Waist_1'
+    mappings['Waist'] = 'Waist'
+    mappings['Waist_UnderBust_0'] = 'Aux_Waist_UnderBust_0'
+    mappings['Waist_UnderBust_1'] = 'Aux_Waist_UnderBust_1'
+    mappings['Waist_UnderBust_2'] = 'Aux_Waist_UnderBust_2'
+    mappings['UnderBust'] = 'UnderBust'
+    mappings['UnderBust_Bust_0'] = 'Aux_UnderBust_Bust_0'
+    mappings['Bust'] = 'Bust'
+    mappings['Bust_Armscye_0'] = 'Aux_Bust_Armscye_0'
+    mappings['Armscye'] = 'Armscye'
+    mappings['Armscye_Shoulder_0'] = 'Aux_Armscye_Shoulder_0'
+    mappings['Shoulder'] = 'Shoulder'
+    mappings['Collar'] = 'Collar'
+    mappings['Neck'] = 'Neck'
     return mappings
 
 def bone_lengths(arm_2d, ratio):
@@ -166,6 +178,7 @@ if __name__ == '__main__':
     with open(f'{IN_DIR}/vic_data.pkl', 'rb') as f:
         data = pickle.load(f)
         ctl_mesh = data['control_mesh']
+        ctl_mesh_quad_dom = data['control_mesh_quad_dom']
         slc_id_vert_idxs = data['slice_vert_idxs']
         slc_id_locs = data['slice_locs']
         ctl_tri_bs = data['control_mesh_tri_basis']
@@ -173,6 +186,9 @@ if __name__ == '__main__':
         tpl_mesh = data['template_mesh']
         vic_height = data['template_height']
 
+    vert_UVWs = None
+    vert_weights = None
+    vert_effect_idxs = None
     with open(f'{IN_DIR}/vic_weight.pkl', 'rb') as f:
         data = pickle.load(f)
         vert_UVWs = data['template_vert_UVW']
@@ -207,8 +223,8 @@ if __name__ == '__main__':
         ctl_new_mesh = deepcopy(ctl_mesh)
 
         #hack: the background z value extracted from image is not exact. therefore, we consider ankle z as the z starting point
-        tpl_ankle_hor = slc_id_locs['Slice_LAnkle'][1]
-        tpl_ankle_ver = slc_id_locs['Slice_LAnkle'][2]
+        tpl_ankle_hor = slc_id_locs['LAnkle'][1]
+        tpl_ankle_ver = slc_id_locs['LAnkle'][2]
         #slice location in relative to ankle location in side image
         for id_3d, id_2d in id_mappings.items():
             #debug
@@ -244,7 +260,7 @@ if __name__ == '__main__':
                 slc_loc_ver = slc_loc_ver * h_ratio
                 slc_loc_hor = slc_loc_hor * h_ratio
 
-                print('slice = {0:25}, width = {1:20}, depth = {2:20}, hor = {3:20}, ver = {4:20}'.format(id_2d, w, d, slc_loc_hor, slc_loc_ver))
+                #print('slice = {0:25}, width = {1:20}, depth = {2:20}, hor = {3:20}, ver = {4:20}'.format(id_2d, w, d, slc_loc_hor, slc_loc_ver))
 
                 #print('slice = {0:25}, width = {1:20}, depth = {2:20}, height = {3:20}'.format(id_2d, w, d, z))
                 slc_org = slc_id_locs[id_3d]
@@ -262,10 +278,13 @@ if __name__ == '__main__':
         #transform_arm_slices(ctl_new_mesh, slc_id_locs, slc_id_vert_idxs, arm_3d)
 
         ctl_df_basis = util.calc_triangle_local_basis(ctl_new_mesh['verts'], ctl_new_mesh['faces'])
-        #tpl_df_mesh = deform_template_mesh(tpl_mesh, vert_effect_idxs, vert_weights, vert_UVWs, ctl_df_basis)
+        if vert_UVWs is not None and vert_effect_idxs is not None and vert_weights is not None:
+            tpl_df_mesh = deform_template_mesh(tpl_mesh, vert_effect_idxs, vert_weights, vert_UVWs, ctl_df_basis)
 
+        ctl_mesh_quad_dom_new = deepcopy(ctl_mesh_quad_dom)
+        ctl_mesh_quad_dom_new['verts'] = deepcopy(ctl_new_mesh['verts'])
         out_path = f'{OUT_DIR}{mdata_path.stem}_ctl.obj'
-        export_mesh(out_path, ctl_new_mesh['verts'], ctl_new_mesh['faces'])
+        export_mesh(out_path, ctl_mesh_quad_dom_new['verts'], ctl_mesh_quad_dom_new['faces'])
 
         out_path = f'{OUT_DIR}{mdata_path.stem}_deform.obj'
-        #export_mesh(out_path, tpl_df_mesh['verts'], tpl_df_mesh['faces'])
+        export_mesh(out_path, tpl_df_mesh['verts'], tpl_df_mesh['faces'])
