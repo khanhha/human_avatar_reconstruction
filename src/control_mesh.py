@@ -6,15 +6,21 @@ import pickle
 from numpy.linalg import norm
 from src.obj_util import export_mesh
 import src.util as util
+import shapely.geometry as geo
+from shapely.ops import nearest_points
+from copy import copy
 
-def define_slice_id_mapping():
+def slice_id_3d_2d_mappings():
     mappings = {}
     mappings['LAnkle'] = 'Ankle'
     mappings['RAnkle'] = 'Ankle'
+
     mappings['RCalf'] = 'Calf'
     mappings['LCalf'] = 'Calf'
+
     mappings['RKnee'] = 'Knee'
     mappings['LKnee'] = 'Knee'
+
     mappings['LKnee_UnderCrotch_0'] = 'Aux_Knee_UnderCrotch_0'
     mappings['LKnee_UnderCrotch_1'] = 'Aux_Knee_UnderCrotch_1'
     mappings['LKnee_UnderCrotch_2'] = 'Aux_Knee_UnderCrotch_2'
@@ -26,6 +32,7 @@ def define_slice_id_mapping():
 
     mappings['RUnderCrotch'] = 'UnderCrotch'
     mappings['LUnderCrotch'] = 'UnderCrotch'
+
     mappings['Crotch'] = 'Crotch'
     mappings['Crotch_Hip_0'] = 'Aux_Crotch_Hip_0'
     mappings['Hip'] = 'Hip'
@@ -44,6 +51,16 @@ def define_slice_id_mapping():
     mappings['Shoulder'] = 'Shoulder'
     mappings['Collar'] = 'Collar'
     mappings['Neck'] = 'Neck'
+    return mappings
+
+def breast_part_slice_id_3d_2d_mappings():
+    id_2ds = ['Breast_Depth_Aux_UnderBust_Bust_0', 'Breast_Depth_Bust', 'Breast_Depth_Aux_Bust_Armscye_0']
+    mappings = {}
+    for id_2d in id_2ds:
+        mappings['R' + id_2d] = id_2d
+
+    for id_2d in id_2ds:
+        mappings['L' + id_2d] = id_2d
     return mappings
 
 def bone_lengths(arm_2d, ratio):
@@ -88,17 +105,13 @@ def transform_non_vertical_slice(slice, loc, loc_after, radius):
     slice_n *= scale
     return loc_after + slice_n
 
-def transform_vertical_slice(slice, w, d, slice_org = None):
-    if slice_org is None:
-        slice_org = np.mean(slice, axis=0)
-    nslice = slice - slice_org
-    range = np.max(nslice, axis=0) - np.min(nslice, axis=0)
-    w_ratio = w / range[0]
-    d_ratio = d / range[1]
-    #print(w_ratio, d_ratio)
+def scale_vertical_slice(slice, w_ratio, d_ratio, scale_center = None):
+    if scale_center is None:
+        scale_center = np.mean(slice, axis=0)
+    nslice = slice - scale_center
     nslice[:,0] *= w_ratio
     nslice[:,1] *= d_ratio
-    nslice = nslice + slice_org
+    nslice = nslice + scale_center
     return nslice
 
 from copy import deepcopy
@@ -159,6 +172,49 @@ def transform_arm_slices(mesh, slc_id_locs, slc_id_vert_idxs, arm_3d):
     displacement = arm_3d['RWrist'] - slc_id_locs['Slice_RWrist']
     mesh['verts'][rhand_idxs, :] += displacement
 
+def is_breast_segment(id_seg_2d):
+    if id_seg_2d == 'Aux_UnderBust_Bust_0' or \
+        id_seg_2d == 'Bust' or \
+        id_seg_2d == 'Aux_Bust_Armscye_0':
+        return True
+    else:
+        return False
+
+#note: this function just works for breast slice
+def scale_breast_height(brst_slc, slc_height):
+    #hack
+
+    #find two ending points of the breast slice
+    #1. the point with smallest x
+    end_0_idx = np.argmin(brst_slc[:,0])
+    #2. the point with lagrest y
+    end_1_idx = np.argmax(brst_slc[:,1])
+    brst_hor_seg = geo.LineString([brst_slc[end_0_idx,:2], brst_slc[end_1_idx,:2]])
+
+    #3: breast highest height
+    cur_brst_height = 0.0
+    for i in range(brst_slc.shape[0]):
+        if i != end_0_idx and i != end_1_idx:
+            p = brst_slc[i,:2]
+            dst = geo.Point(p).distance(brst_hor_seg)
+            cur_brst_height = max(dst, cur_brst_height)
+
+    ratio =  slc_height/cur_brst_height
+
+    for i in range(brst_slc.shape[0]):
+        if i != end_0_idx and i != end_1_idx:
+            p = brst_slc[i,:2]
+            proj = nearest_points(brst_hor_seg, geo.Point(p))[0]
+            proj = np.array(proj).flatten()
+            p_scaled = proj + ratio*(p-proj)
+            brst_slc[i,:2] = p_scaled
+
+    brst_slc[end_0_idx, 2] = brst_slc[end_0_idx, 2] + 0.01
+    brst_slc[end_1_idx, 2] = brst_slc[end_1_idx, 2] - 0.01
+
+    return brst_slc, end_0_idx, end_1_idx
+
+import sys
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
     ap.add_argument("-i", "--input", required=True, help="input meta data file")
@@ -206,6 +262,10 @@ if __name__ == '__main__':
 
     for mdata_path in Path(M_DIR).glob('*.npy'):
         print(mdata_path)
+
+        #debug
+        if '1928' not in str(mdata_path): continue
+
         mdata = np.load(mdata_path )
         seg_dst_f = mdata.item().get('landmark_segment_dst_f')
         seg_dst_s = mdata.item().get('landmark_segment_dst_s')
@@ -217,7 +277,7 @@ if __name__ == '__main__':
         h_ratio = vic_height/height
         arm_3d = scale_tpl_armature(arm_3d, arm_2d_f, h_ratio)
 
-        id_mappings = define_slice_id_mapping()
+        id_mappings = slice_id_3d_2d_mappings()
         ct_mesh_slices = {}
 
         ctl_new_mesh = deepcopy(ctl_mesh)
@@ -231,60 +291,97 @@ if __name__ == '__main__':
             #if id_3d not in ['L0_RAnkle', 'L0_LAnkle']:
             #    continue
             if id_3d  not in slc_id_vert_idxs:
-                print(f'indices of {id_3d} are not available')
+                print(f'indices of {id_3d} are not available', file=sys.stderr)
                 continue
 
             slc_idxs = slc_id_vert_idxs[id_3d]
             slice = ctl_mesh['verts'][slc_idxs]
 
-            if id_2d in seg_dst_f:
-                w = seg_dst_f[id_2d]
-                d = w
-                if id_2d in seg_dst_s:
-                    d = seg_dst_s[id_2d]
+            if id_2d not in seg_dst_f:
+                print(f'measurement of {id_2d} is not available', file=sys.stderr)
+                continue
 
-                seg_log = None
-                if id_2d in seg_location:
-                    seg_log = seg_location[id_2d]
+            seg_log = None
+            if id_2d not in seg_location:
+                print(f'location of {id_2d} is not available. ignore this slice', file=sys.stderr)
+                continue
 
-                if seg_log is None:
-                    print(f'location of {id_2d} is not available. ignore this slice')
-                    continue
+            seg_log = seg_location[id_2d]
 
-                slc_loc_hor = seg_log[0]
-                slc_loc_ver = np.abs(seg_log[1])
+            w = seg_dst_f[id_2d]
 
-                #transform to victoria's scale
-                w = w*h_ratio
-                d = d*h_ratio
-                slc_loc_ver = slc_loc_ver * h_ratio
-                slc_loc_hor = slc_loc_hor * h_ratio
+            d = w
+            if id_2d in seg_dst_s:
+                d = seg_dst_s[id_2d]
 
-                #print('slice = {0:25}, width = {1:20}, depth = {2:20}, hor = {3:20}, ver = {4:20}'.format(id_2d, w, d, slc_loc_hor, slc_loc_ver))
+            # for breast slices, we just scale using chest depth (slice depth - breast height at that slice)
+            if is_breast_segment(id_2d):
+                breast_height_slc_id = "Breast_Depth_" + id_2d
+                breast_height = seg_dst_s[breast_height_slc_id]
+                d = d - breast_height
 
-                #print('slice = {0:25}, width = {1:20}, depth = {2:20}, height = {3:20}'.format(id_2d, w, d, z))
-                slc_org = slc_id_locs[id_3d]
-                slice_out = transform_vertical_slice(slice, w, d, slice_org = slc_org)
+            slc_loc_hor = seg_log[0]
+            slc_loc_ver = np.abs(seg_log[1])
 
-                slice_out[:, 2] = slc_loc_ver + tpl_ankle_ver
+            #transform to victoria's scale
+            w = w*h_ratio
+            d = d*h_ratio
+            slc_loc_ver = slc_loc_ver * h_ratio
+            slc_loc_hor = slc_loc_hor * h_ratio
 
-                slice_hor_center = 0.5*(np.min(slice_out[:,1]) + np.max(slice_out[:,1]))
-                slice_out[:, 1] += (-slice_hor_center + tpl_ankle_hor + slc_loc_hor)
+            #print('slice = {0:25}, width = {1:20}, depth = {2:20}, hor = {3:20}, ver = {4:20}'.format(id_2d, w, d, slc_loc_hor, slc_loc_ver))
+            #print('slice = {0:25}, width = {1:20}, depth = {2:20}, height = {3:20}'.format(id_2d, w, d, z))
 
-                ctl_new_mesh['verts'][slc_idxs, :] = slice_out
-            else:
-                print(f'missing measurement {id_2d}')
+            slc_org = slc_id_locs[id_3d]
+
+            dim_range = np.max(slice, axis=0) - np.min(slice, axis=0)
+            w_ratio = w / dim_range[0]
+            d_ratio = d / dim_range[1]
+            slice_out = scale_vertical_slice(slice, w_ratio, d_ratio, scale_center= slc_org)
+
+            #align slice in vertical direction
+            slice_out[:, 2] = slc_loc_ver + tpl_ankle_ver
+
+            #align slice in horizontal direction
+            #Warning: need to be careful here. we assume that the maximum point on hor dir is on the back side of Victoria's mesh
+            slice_hor_anchor = np.max(slice_out[:,1])
+            slice_out[:, 1] += (-slice_hor_anchor + tpl_ankle_hor + slc_loc_hor)
+
+            ctl_new_mesh['verts'][slc_idxs, :] = slice_out
+
+            if is_breast_segment(id_2d):
+                breast_slc_id_2d = "Breast_Depth_" + id_2d
+                #right
+                breast_slc_id_3d = 'L'+breast_slc_id_2d
+                brst_slc_idxs = slc_id_vert_idxs[breast_slc_id_3d]
+                brst_slc= ctl_mesh['verts'][brst_slc_idxs]
+
+                #width scale
+                brst_slc = scale_vertical_slice(brst_slc, w_ratio, 1, scale_center=slc_org)
+
+                #set height location
+                brst_slc[:, 2] = slc_loc_ver + tpl_ankle_ver
+
+                #breast height scale
+                brst_h = seg_dst_s[breast_slc_id_2d]
+                brst_h = h_ratio * brst_h
+                brst_slc, end_0_idx, end_1_idx = scale_breast_height(brst_slc, brst_h)
+                #TODO: this way of ignoring the first and end point is kind of awkward => need to find a better way
+                #ignore the firt and start point of the brest slice because they are already scaled
+                for i in range(len(brst_slc_idxs)):
+                    if i != end_0_idx and i != end_1_idx:
+                        ctl_new_mesh['verts'][brst_slc_idxs[i],:] = brst_slc[i,:]
 
         #transform_arm_slices(ctl_new_mesh, slc_id_locs, slc_id_vert_idxs, arm_3d)
 
-        ctl_df_basis = util.calc_triangle_local_basis(ctl_new_mesh['verts'], ctl_new_mesh['faces'])
-        if vert_UVWs is not None and vert_effect_idxs is not None and vert_weights is not None:
-            tpl_df_mesh = deform_template_mesh(tpl_mesh, vert_effect_idxs, vert_weights, vert_UVWs, ctl_df_basis)
+        #ctl_df_basis = util.calc_triangle_local_basis(ctl_new_mesh['verts'], ctl_new_mesh['faces'])
+        #if vert_UVWs is not None and vert_effect_idxs is not None and vert_weights is not None:
+        #    tpl_df_mesh = deform_template_mesh(tpl_mesh, vert_effect_idxs, vert_weights, vert_UVWs, ctl_df_basis)
 
         ctl_mesh_quad_dom_new = deepcopy(ctl_mesh_quad_dom)
         ctl_mesh_quad_dom_new['verts'] = deepcopy(ctl_new_mesh['verts'])
         out_path = f'{OUT_DIR}{mdata_path.stem}_ctl.obj'
         export_mesh(out_path, ctl_mesh_quad_dom_new['verts'], ctl_mesh_quad_dom_new['faces'])
 
-        out_path = f'{OUT_DIR}{mdata_path.stem}_deform.obj'
-        export_mesh(out_path, tpl_df_mesh['verts'], tpl_df_mesh['faces'])
+        # out_path = f'{OUT_DIR}{mdata_path.stem}_deform.obj'
+        # export_mesh(out_path, tpl_df_mesh['verts'], tpl_df_mesh['faces'])
