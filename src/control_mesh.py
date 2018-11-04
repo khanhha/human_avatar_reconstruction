@@ -264,7 +264,7 @@ if __name__ == '__main__':
         print(mdata_path)
 
         #debug
-        if '1928' not in str(mdata_path): continue
+        #if '1928' not in str(mdata_path): continue
 
         mdata = np.load(mdata_path )
         seg_dst_f = mdata.item().get('landmark_segment_dst_f')
@@ -374,14 +374,14 @@ if __name__ == '__main__':
 
         #transform_arm_slices(ctl_new_mesh, slc_id_locs, slc_id_vert_idxs, arm_3d)
 
-        #ctl_df_basis = util.calc_triangle_local_basis(ctl_new_mesh['verts'], ctl_new_mesh['faces'])
-        #if vert_UVWs is not None and vert_effect_idxs is not None and vert_weights is not None:
-        #    tpl_df_mesh = deform_template_mesh(tpl_mesh, vert_effect_idxs, vert_weights, vert_UVWs, ctl_df_basis)
+        ctl_df_basis = util.calc_triangle_local_basis(ctl_new_mesh['verts'], ctl_new_mesh['faces'])
+        if vert_UVWs is not None and vert_effect_idxs is not None and vert_weights is not None:
+            tpl_df_mesh = deform_template_mesh(tpl_mesh, vert_effect_idxs, vert_weights, vert_UVWs, ctl_df_basis)
 
         ctl_mesh_quad_dom_new = deepcopy(ctl_mesh_quad_dom)
         ctl_mesh_quad_dom_new['verts'] = deepcopy(ctl_new_mesh['verts'])
         out_path = f'{OUT_DIR}{mdata_path.stem}_ctl.obj'
         export_mesh(out_path, ctl_mesh_quad_dom_new['verts'], ctl_mesh_quad_dom_new['faces'])
 
-        # out_path = f'{OUT_DIR}{mdata_path.stem}_deform.obj'
-        # export_mesh(out_path, tpl_df_mesh['verts'], tpl_df_mesh['faces'])
+        out_path = f'{OUT_DIR}{mdata_path.stem}_deform.obj'
+        export_mesh(out_path, tpl_df_mesh['verts'], tpl_df_mesh['faces'])

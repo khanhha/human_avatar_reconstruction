@@ -4,18 +4,20 @@ def export_vertices(fpath, obj):
     with open(fpath, 'w') as f:
         for i in range(obj.shape[0]):
             co = tuple(obj[i, :])
-            f.write("v %.4f %.4f %.4f \n" % co)
+            f.write("v %.8f %.8f %.8f \n" % co)
 
-def export_mesh(fpath, verts, faces):
+def export_mesh(fpath, verts, faces, add_one = True):
     with open(fpath, 'w') as f:
         for i in range(verts.shape[0]):
             co = tuple(verts[i, :])
-            f.write("v %.4f %.4f %.4f \n" % co)
+            f.write("v %.8f %.8f %.8f \n" % co)
 
         for i in range(len(faces)):
             f.write("f")
             for v_idx in faces[i]:
-                f.write(" %d" % (v_idx + 1))
+                if add_one == True:
+                    v_idx += 1
+                f.write(" %d" % (v_idx))
             f.write("\n")
 
 def load_vertices(fpath):
