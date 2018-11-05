@@ -1,6 +1,7 @@
 import scipy.io as io
 import argparse
 import os
+import sys
 import numpy as np
 from pathlib import Path
 from src.obj_util import export_mesh, export_vertices
@@ -10,16 +11,26 @@ def extract_landmark_coords(points, ld_idxs):
     for idx in ld_idxs:
         idx = idx[0]
         if np.isnan(idx) or idx < 0:
-            continue
-        p_ld = points[idx,:]
+            p_ld = np.array([0.0, 0.0, 0.0])
+        else:
+            p_ld = points[idx,:]
         points_out.append(p_ld)
 
     return np.array(points_out)
 
 def convert_mat_to_obj(DIR_IN, DIR_OUT, face_mat_path, ld_idxs):
     faces = io.loadmat(face_mat_path)['faces']
-    for fpath in Path(DIR_IN).glob('*.mat'):
+    n_files = len([path for path in Path(DIR_IN).glob('*.mat')])
+    for i, fpath in enumerate(Path(DIR_IN).glob('*.mat')):
+        if 'CSR0001A' not in str(fpath):
+            continue
+        print(f'{fpath.stem}: {i}/{n_files}')
         mpoints = io.loadmat(fpath)['points']
+        n_points = mpoints.shape[0]
+        if n_points != 6449:
+            print(f'error file {face_mat_path.stem}', file=sys.stderr)
+            continue
+
         out_path = f'{DIR_OUT}{fpath.stem}.obj'
         export_mesh(out_path, mpoints, faces, add_one=False)
 
@@ -45,10 +56,7 @@ if __name__  == '__main__':
 
     ld_idxs = io.loadmat(l_path)['landmarksIdxs']
     ld_idxs = ld_idxs.astype(np.int32)
-    exit()
-    print(ld_idxs)
-    for fpath in Path(OUT_DIR).glob('*.*'):
-        os.remove(fpath)
-
+    #for fpath in Path(OUT_DIR).glob('*.*'):
+    #    os.remove(fpath)
     convert_mat_to_obj(IN_DIR, OUT_DIR, face_path, ld_idxs)
 

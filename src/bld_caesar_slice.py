@@ -4,6 +4,7 @@ from mathutils import Vector
 from pathlib import Path
 import pickle as pkl
 import numpy as np
+import math
 import os
 from collections import defaultdict
 
@@ -35,15 +36,34 @@ def delete_obj(obj):
     bpy.ops.object.delete()
 
 def import_obj(path, name):
-    bpy.ops.import_scene.obj(filepath=path, axis_forward='-Y', axis_up='Z', split_mode='OFF')
-    s = 0.01
-    bpy.ops.transform.resize(value=(s,s,s))
-    bpy.ops.transform.rotate(value=180.0, axis=(0.0,0.0,1.0))
+    bpy.ops.import_scene.obj(filepath=path, axis_forward='Y', axis_up='Z', split_mode='OFF')
     obj = bpy.context.selected_objects[0]
     obj.name = name
-    select_single_obj(obj)
-    bpy.ops.object.transform_apply(location=True, scale=True, rotation=True)
     return obj
+
+def transform_obj_caesar(obj, ld_idxs):
+    mesh = obj.data
+        
+    select_single_obj(obj)
+    
+    s = 0.01
+    bpy.ops.transform.resize(value=(s,s,s))
+    bpy.ops.object.transform_apply(location=True, scale=True, rotation=True)
+    
+    org = mesh.vertices[ld_idxs[72]].co
+    bpy.ops.transform.translate(value = -org)
+    bpy.ops.object.transform_apply(location=True, scale=False, rotation=False)
+       
+    p0_x = mesh.vertices[ld_idxs[16]].co
+    p1_x = mesh.vertices[ld_idxs[18]].co
+    x = p1_x - p0_x
+    x.normalize()
+    dot = x.dot(Vector((1.0, 0.0, 0.0)))
+    angle = math.acos(dot) 
+    bpy.ops.transform.rotate(value=angle, axis=(0.0,0.0,1.0), constraint_axis=(False, False, True))
+    
+    bpy.ops.object.transform_apply(location=True, scale=True, rotation=True)
+    
 
 def mesh_to_numpy(mesh):
     nverts = len(mesh.vertices)
@@ -82,8 +102,8 @@ def calc_slice_plane_locs(cae_obj, ld_idxs):
     loc_2 = verts[ld_idxs[14]].co
     locs['Bust'] = (loc_0+loc_1+loc_2)/3.0
     
-    print('Hip', locs['Hip'])
-    print('Bust',locs['Bust'])
+    #print('Hip', locs['Hip'])
+    #print('Bust',locs['Bust'])
     
     return locs
 
@@ -93,9 +113,104 @@ def fit_slice_planes_to_mesh(cae_obj, planes, ld_idxs):
         set_plane_slice_loc(planes, id, loc)
     return locs
 
-def extract_slice_from_isect_obj(locs, isect_obj, eps = 0.1):
-    isect_bm = bmesh.new()
-    isect_bm.from_mesh(isect_obj.data)
+#should be in edit mode
+def contour_from_edges(edges):
+    contours = []
+    bpy.ops.mesh.select_mode(type="EDGE")
+    edge_mark = set(edges)
+    while True:
+        if len(edge_mark) == 0:
+            break
+
+        #select a single loop from a sample edge
+        bpy.ops.mesh.select_all(action='DESELECT')
+        prev_e = edge_mark.pop()
+        prev_e.select = True
+        bpy.ops.mesh.loop_multi_select()
+
+        prev_e.select = False
+
+        #sort all edges on this loop
+        contour = []
+        contour.append(prev_e.verts[0].co[:])
+        contour.append(prev_e.verts[1].co[:])
+        v_start = prev_e.verts[0]
+        v_cur = prev_e.verts[1]
+        while True:
+            e_next = []
+            for e in v_cur.link_edges:
+                if e.is_valid and e != prev_e and e.select == True:
+                    e_next.append(e)
+
+            assert len(e_next)  <= 1
+            if len(e_next) > 1:
+                #bpy.ops.mesh.select_all(action='DESELECT')
+                #print('len e_next ',len(e_next))
+                #for test_e in e_next:
+                #     test_e.select = True
+                #v_start.select = True
+                #v_cur.select = True 
+                return None
+                
+            #no closed contour found
+            if len(e_next) == 0:
+                break
+
+            e_next = e_next[0]
+            e_next.select = True
+            v_cur = e_next.verts[1] if v_cur == e_next.verts[0] else e_next.verts[0]
+
+            #discard this edge from our edge pool
+            edge_mark.discard(e_next)
+
+            #finish a contour
+            if v_cur == v_start:
+                break
+
+            prev_e = e_next
+
+            contour.append(v_cur.co[:])
+
+        contours.append(contour)
+
+    return contours
+
+#mesh must be in edit mode
+def isect_slice_plane_obj(bm, co, no):
+    bpy.ops.mesh.select_all(action='SELECT')
+    #after this function, all isect edges will be selected
+    bpy.ops.mesh.bisect(plane_co=co, plane_no = no)
+    edges = [e for e in bm.edges if e.select == True]
+    assert len(edges) > 0
+    return contour_from_edges(edges)
+
+def isect_extract_slice_from_locs(locs, obj_caesar):
+    no = Vector((0.0,0.0,1.0))
+    
+    select_single_obj(obj_caesar)
+    bpy.ops.object.mode_set(mode='EDIT')
+    bm = bmesh.from_edit_mesh(obj_caesar.data)
+
+    slc_contours = defaultdict(list)
+    for id, loc in locs.items():
+        contours = isect_slice_plane_obj(bm, loc, no)
+        if contours is None:
+            return None
+        
+        slc_contours[id] = contours
+
+    bpy.ops.object.mode_set(mode='OBJECT')
+
+    return slc_contours
+
+def extract_slice_from_isect_obj(locs, isect_obj, eps = 0.1):    
+    select_single_obj(isect_obj)
+    
+    bpy.ops.object.mode_set(mode='EDIT')
+    bpy.ops.mesh.select_all(action='SELECT')
+    bpy.ops.mesh.edge_face_add()
+    
+    isect_bm = bmesh.from_edit_mesh(isect_obj.data)
     
     slc_contours = defaultdict(list)
     f_marks = set()
@@ -115,12 +230,12 @@ def extract_slice_from_isect_obj(locs, isect_obj, eps = 0.1):
         
         #assert that we found at least one contour for that slice
         assert id in slc_contours
-                                               
+    
+    bpy.ops.object.mode_set(mode='OBJECT')                               
     return slc_contours
     
 if __name__ == '__main__':
     DIR_OBJ = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/'
-    
     DIR_SLICE = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj_slices/'
     
     ld_path = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_meta/landmarksIdxs73.npy'
@@ -130,27 +245,44 @@ if __name__ == '__main__':
     
     obj_planes_tpl = bpy.data.objects['Slice_planes_template']
     
+    error_obj_paths = []
+    
     for i, path in enumerate(Path(DIR_OBJ).glob('*.obj')):
+        
+        if 'CSR0001A' not in str(path):
+            continue
+        
         if '_ld' not in str(path):
             print(str(path))
             obj_caesar = import_obj(str(path),'Caesar_mesh')
+            transform_obj_caesar(obj_caesar, ld_idxs)
+            break
+        
+            n_verts = len(obj_caesar.data.vertices)  
+            n_faces = len(obj_caesar.data.polygons)
+            if n_verts != 6449 or n_faces != 12894:
+                print('error object: ', path.stem)                
+                error_obj_paths.append(str(path))
+                delete_obj(obj_caesar)
+                continue
+            
             ld_path = DIR_OBJ + path.stem+'_ld'+'.obj'
-            obj_caesar_ld = import_obj(ld_path,'Caesar_mesh_ld')
+            #obj_caesar_ld = import_obj(ld_path,'Caesar_mesh_ld')
             
             obj_planes = copy_obj(obj_planes_tpl, 'Slice_planes', Vector((0.0,0.0,0.0)))            
             slc_locs = fit_slice_planes_to_mesh(obj_caesar, obj_planes, ld_idxs)
-            
-            isect(obj_planes, obj_caesar)
+
+            slc_contours = isect_extract_slice_from_locs(slc_locs, obj_caesar)
+            assert slc_contours is not None
+
             delete_obj(obj_caesar)
-            delete_obj(obj_caesar_ld)
-            
-            #verts, faces = mesh_to_numpy(obj_planes.data)
-            slc_contours = extract_slice_from_isect_obj(slc_locs, obj_planes)
+            #delete_obj(obj_caesar_ld)
             delete_obj(obj_planes)
             
             with open(str(Path(DIR_SLICE, path.stem+'.pkl')), 'wb') as file:
                 pkl.dump(slc_contours, file)
 
-            if i > 0:
-                break            
+            #if i > 1000:
+            #    break            
     
+    print('error list: ', error_obj_paths)
