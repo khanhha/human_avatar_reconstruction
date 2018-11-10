@@ -43,8 +43,6 @@ def import_obj(path, name):
 
 def transform_obj_caesar(obj, ld_idxs):
     mesh = obj.data
-        
-    select_single_obj(obj)
     
     s = 0.01
     bpy.ops.transform.resize(value=(s,s,s))
@@ -58,13 +56,31 @@ def transform_obj_caesar(obj, ld_idxs):
     p1_x = mesh.vertices[ld_idxs[18]].co
     x = p1_x - p0_x
     x.normalize()
-    dot = x.dot(Vector((1.0, 0.0, 0.0)))
-    angle = math.acos(dot) 
-    bpy.ops.transform.rotate(value=angle, axis=(0.0,0.0,1.0), constraint_axis=(False, False, True))
+    angle = x.dot(Vector((1.0, 0.0, 0.0)))
+    #angle =  math.degrees(math.acos(angle))
+    angle = math.acos(angle)
+    print('angle', angle)
+    bpy.ops.transform.rotate(value=angle, axis=(0.0,0.0,1.0))
     
+    select_single_obj(obj)
+    bpy.ops.object.transform_apply(location=True, scale=True, rotation=True)
+
+def ucsc_transform_obj(obj):
+    mesh = obj.data
+    select_single_obj(obj)
+        
+    s = 5.0
+    bpy.ops.transform.resize(value=(s,s,s))
     bpy.ops.object.transform_apply(location=True, scale=True, rotation=True)
     
-
+    #org = mesh.vertices[ld_idxs[72]].co
+    #bpy.ops.transform.translate(value = -org)
+    #bpy.ops.object.transform_apply(location=True, scale=False, rotation=False)
+       
+    angle = math.radians(50.0)
+    bpy.ops.transform.rotate(value=angle, axis=(0.0,0.0,1.0))
+    bpy.ops.object.transform_apply(location=True, scale=True, rotation=True)
+    
 def mesh_to_numpy(mesh):
     nverts = len(mesh.vertices)
     verts = []
@@ -77,6 +93,15 @@ def mesh_to_numpy(mesh):
     
     return np.array(verts), faces
 
+def ucsc_collect_landmark_vertices(obj):
+    verts = obj.data.vertices
+    lds = defaultdict(list)
+    for v in verts:
+        for vgrp in v.groups:
+            grp_name = obj.vertex_groups[vgrp.group].name
+            lds[grp_name].append(v.index)
+    return lds
+    
 def set_plane_slice_loc(planes, name, loc):
     mesh = planes.data
     found = False
@@ -90,6 +115,26 @@ def set_plane_slice_loc(planes, name, loc):
                 found = True
     assert found
 
+def centroid_vertex_set(vertices, ids):
+    avg = Vector((0.0, 0.0, 0.0))
+    for id in ids:
+        v = vertices[id]
+        avg = avg + v.co
+    avg = avg / float(len(ids))
+    return avg
+    
+def ucsc_calc_slice_plane_locs(cae_obj, ld_idxs):
+    verts = cae_obj.data.vertices
+    locs = {}
+    
+    bust_ids = ld_idxs['Bust']
+    locs['Bust'] = centroid_vertex_set(verts, bust_ids)
+    
+    hip_ids = ld_idxs['Hip']
+    locs['Hip'] = centroid_vertex_set(verts, hip_ids)
+    
+    return locs
+    
 def calc_slice_plane_locs(cae_obj, ld_idxs):
     verts = cae_obj.data.vertices
     locs = {}
@@ -109,6 +154,12 @@ def calc_slice_plane_locs(cae_obj, ld_idxs):
 
 def fit_slice_planes_to_mesh(cae_obj, planes, ld_idxs):
     locs = calc_slice_plane_locs(cae_obj, ld_idxs)
+    for id, loc in locs.items():
+        set_plane_slice_loc(planes, id, loc)
+    return locs
+
+def ucsc_fit_slice_planes_to_mesh(cae_obj, planes, ld_idxs):
+    locs = ucsc_calc_slice_plane_locs(cae_obj, ld_idxs)
     for id, loc in locs.items():
         set_plane_slice_loc(planes, id, loc)
     return locs
@@ -233,37 +284,32 @@ def extract_slice_from_isect_obj(locs, isect_obj, eps = 0.1):
     
     bpy.ops.object.mode_set(mode='OBJECT')                               
     return slc_contours
-    
-if __name__ == '__main__':
-    DIR_OBJ = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/'
-    DIR_SLICE = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj_slices/'
+
+def mpii_process(DIR_OBJ):
+    obj_planes_tpl = bpy.data.objects['Slice_planes_template']
     
     ld_path = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_meta/landmarksIdxs73.npy'
     ld_idxs = np.load(ld_path)
-    
-    os.makedirs(DIR_SLICE, exist_ok=True)
-    
-    obj_planes_tpl = bpy.data.objects['Slice_planes_template']
     
     error_obj_paths = []
     
     for i, path in enumerate(Path(DIR_OBJ).glob('*.obj')):
         
-        if 'CSR0001A' not in str(path):
-            continue
+        #if 'CSR0441A' not in str(path):
+        #    continue
         
         if '_ld' not in str(path):
             print(str(path))
             obj_caesar = import_obj(str(path),'Caesar_mesh')
             transform_obj_caesar(obj_caesar, ld_idxs)
-            break
-        
+            
             n_verts = len(obj_caesar.data.vertices)  
             n_faces = len(obj_caesar.data.polygons)
             if n_verts != 6449 or n_faces != 12894:
                 print('error object: ', path.stem)                
                 error_obj_paths.append(str(path))
                 delete_obj(obj_caesar)
+                delete_obj(obj_planes)
                 continue
             
             ld_path = DIR_OBJ + path.stem+'_ld'+'.obj'
@@ -282,7 +328,67 @@ if __name__ == '__main__':
             with open(str(Path(DIR_SLICE, path.stem+'.pkl')), 'wb') as file:
                 pkl.dump(slc_contours, file)
 
-            #if i > 1000:
+            #if i > 100:
             #    break            
     
     print('error list: ', error_obj_paths)
+    
+def ucsc_process(DIR_OBJ, DIR_SLICE):
+    obj_planes_tpl = bpy.data.objects['Slice_planes_template']
+    
+    error_obj_paths = []
+    obj_template = bpy.data.objects['Female_template']
+    ld_idxs = ucsc_collect_landmark_vertices(obj_template)
+
+    for i, path in enumerate(Path(DIR_OBJ).glob('*.obj')):
+        print(str(path))
+        obj_caesar = import_obj(str(path), path.stem)
+        
+        select_single_obj(obj_caesar)
+        bpy.ops.mesh.customdata_custom_splitnormals_clear()
+
+        ucsc_transform_obj(obj_caesar)
+    
+        n_verts = len(obj_caesar.data.vertices)  
+        n_faces = len(obj_caesar.data.polygons)
+        if n_verts != 12500 or n_faces != 24999:
+            print('error object: ', path.stem)                
+            error_obj_paths.append(str(path))
+            delete_obj(obj_caesar)
+            continue
+                
+        obj_planes = copy_obj(obj_planes_tpl, path.stem+"_pln", Vector((0.0,0.0,0.0)))            
+        obj_planes.hide = False
+        obj_caesar.hide = False
+        if i > 0:
+            break    
+        continue
+    
+        slc_locs = ucsc_fit_slice_planes_to_mesh(obj_caesar, obj_planes, ld_idxs)
+
+    
+        slc_contours = isect_extract_slice_from_locs(slc_locs, obj_caesar)
+        assert slc_contours is not None
+
+        delete_obj(obj_caesar)
+        delete_obj(obj_planes)
+        
+        with open(str(Path(DIR_SLICE, path.stem+'.pkl')), 'wb') as file:
+            pkl.dump(slc_contours, file)
+
+        if i > 1:
+            break            
+    
+    print('error list: ', error_obj_paths)
+    
+if __name__ == '__main__':
+    #DIR_OBJ = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/'
+    #DIR_SLICE = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj_slices/'
+    
+    DIR_OBJ = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_usce/SPRING_FEMALE/'
+    DIR_SLICE = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_usce/female_slice/'
+    
+    os.makedirs(DIR_SLICE, exist_ok=True)
+    
+    ucsc_process(DIR_OBJ, DIR_SLICE)
+    
