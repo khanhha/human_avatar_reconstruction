@@ -9,6 +9,8 @@ import os
 from collections import defaultdict
 
 scene = bpy.context.scene
+g_cur_file_name = ''
+g_mult_edge_loop_file_names = set()
 
 def select_single_obj(obj):
     bpy.ops.object.select_all(action='DESELECT')
@@ -122,7 +124,7 @@ def centroid_vertex_set(vertices, ids):
         avg = avg + v.co
     avg = avg / float(len(ids))
     return avg
-    
+
 def ucsc_calc_slice_plane_locs(cae_obj, ld_idxs):
     verts = cae_obj.data.vertices
     locs = {}
@@ -165,20 +167,43 @@ def ucsc_fit_slice_planes_to_mesh(cae_obj, planes, ld_idxs):
     return locs
 
 #should be in edit mode
+def merge_incorrect_contour(contours):
+    new_contours = []
+    for contour in contours:
+        for contour_1 in contours:
+            if contour[0] == contour_1[0]:
+                new_contour = contour[::-1]
+                new_contour.extend(contour_1[1:])
+            elif contour[0] == contour_1[-1]:
+                new_contour = contour
+                new_contour.extend(contour_1[:])
+
+    
 def contour_from_edges(edges):
+    global g_cur_file_name
+    global g_mult_edge_loop_file_names
+    
     contours = []
     bpy.ops.mesh.select_mode(type="EDGE")
     edge_mark = set(edges)
+    
+    centroid = Vector()
+    for e in edges:
+        centroid += e.verts[0].co
+        centroid += e.verts[1].co
+    centroid /= (2.0 * len(edges))
+    
     while True:
         if len(edge_mark) == 0:
             break
 
         #select a single loop from a sample edge
-        bpy.ops.mesh.select_all(action='DESELECT')
+        #bpy.ops.mesh.select_all(action='DESELECT')
+        #prev_e = edge_mark.pop()
+        #prev_e.select = True
+        #bpy.ops.mesh.loop_multi_select()
+               
         prev_e = edge_mark.pop()
-        prev_e.select = True
-        bpy.ops.mesh.loop_multi_select()
-
         prev_e.select = False
 
         #sort all edges on this loop
@@ -193,27 +218,40 @@ def contour_from_edges(edges):
                 if e.is_valid and e != prev_e and e.select == True:
                     e_next.append(e)
 
-            assert len(e_next)  <= 1
+            #assert len(e_next)  <= 1
+            #no closed contour found
+            if len(e_next) == 0:
+                print('no contour found')
+                break
+            
             if len(e_next) > 1:
+                #debug code
                 #bpy.ops.mesh.select_all(action='DESELECT')
                 #print('len e_next ',len(e_next))
                 #for test_e in e_next:
                 #     test_e.select = True
                 #v_start.select = True
                 #v_cur.select = True 
-                return None
                 
-            #no closed contour found
-            if len(e_next) == 0:
-                break
-
-            e_next = e_next[0]
-            e_next.select = True
-            v_cur = e_next.verts[1] if v_cur == e_next.verts[0] else e_next.verts[0]
-
+                #TODO
+                #pick the closest one to centroid
+                closest_e = None
+                min_dst = 99999.0
+                for e in e_next:
+                    mid_p = 0.5*(e.verts[0].co + e.verts[1].co)
+                    if (mid_p - centroid).length < min_dst:
+                        closest_e = e
+                        min_dst = (mid_p - centroid).length
+                e_next = closest_e
+                g_mult_edge_loop_file_names.add(g_cur_file_name)
+            else:
+                e_next = e_next[0]                
+            
             #discard this edge from our edge pool
             edge_mark.discard(e_next)
-
+            e_next.select = False
+            
+            v_cur = e_next.verts[1] if v_cur == e_next.verts[0] else e_next.verts[0]
             #finish a contour
             if v_cur == v_start:
                 break
@@ -223,7 +261,7 @@ def contour_from_edges(edges):
             contour.append(v_cur.co[:])
 
         contours.append(contour)
-
+    
     return contours
 
 #mesh must be in edit mode
@@ -339,9 +377,22 @@ def ucsc_process(DIR_OBJ, DIR_SLICE):
     error_obj_paths = []
     obj_template = bpy.data.objects['Female_template']
     ld_idxs = ucsc_collect_landmark_vertices(obj_template)
-
-    for i, path in enumerate(Path(DIR_OBJ).glob('*.obj')):
-        print(str(path))
+    error_files = ['SPRING1212']
+    for i, path in enumerate(Path(DIR_OBJ).glob('*.obj')):        
+        #if 'SPRING4100' not in str(path):
+        #    continue
+        
+        ignore = False
+        for name in error_files:
+            if name in str(path):
+                ignore = True    
+                break
+        
+        if ignore == True:
+            continue
+            
+        print(i, str(path))
+                
         obj_caesar = import_obj(str(path), path.stem)
         
         select_single_obj(obj_caesar)
@@ -358,28 +409,26 @@ def ucsc_process(DIR_OBJ, DIR_SLICE):
             continue
                 
         obj_planes = copy_obj(obj_planes_tpl, path.stem+"_pln", Vector((0.0,0.0,0.0)))            
+
+        slc_locs = ucsc_fit_slice_planes_to_mesh(obj_caesar, obj_planes, ld_idxs)
+        
         obj_planes.hide = False
         obj_caesar.hide = False
-        if i > 0:
-            break    
-        continue
-    
-        slc_locs = ucsc_fit_slice_planes_to_mesh(obj_caesar, obj_planes, ld_idxs)
 
-    
         slc_contours = isect_extract_slice_from_locs(slc_locs, obj_caesar)
         assert slc_contours is not None
-
+    
         delete_obj(obj_caesar)
         delete_obj(obj_planes)
         
         with open(str(Path(DIR_SLICE, path.stem+'.pkl')), 'wb') as file:
             pkl.dump(slc_contours, file)
 
-        if i > 1:
-            break            
+        #if i > 10:
+        #    break            
     
     print('error list: ', error_obj_paths)
+    print('multiple edge loop name list: ', g_mult_edge_loop_file_names)
     
 if __name__ == '__main__':
     #DIR_OBJ = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/'
