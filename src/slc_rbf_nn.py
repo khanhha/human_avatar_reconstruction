@@ -78,6 +78,7 @@ def rbf(x, c, s):
 
 def transform_data(n_cluster, X, use_sklean = False):
     if use_sklean:
+        X = np.reshape(X, (-1, 1))
         kmeans_cls = KMeans(n_clusters=n_cluster, max_iter=1000, tol=1e-6).fit(X)
         X_labels = kmeans_cls.predict(X)
 
@@ -94,7 +95,7 @@ def transform_data(n_cluster, X, use_sklean = False):
 
     X_1 = []
     for i in range(X.shape[0]):
-        a = np.array([rbf(X[i], c, s) for c, s, in zip(cluster_mean, cluster_std)])
+        a = np.array([rbf(X[i], c, s)[0] for c, s, in zip(cluster_mean, cluster_std)])
         X_1.append(a)
     X_1 = np.array(X_1)
 
@@ -181,10 +182,9 @@ class RBFNet(object):
         return np.array(y_pred)
 
 
-def prepare_data(K, X, Y):
-    N = X.shape[0]
+def split_data(K, X_1, Y):
+    N = X_1.shape[0]
 
-    X_1 = transform_data(K, X, use_sklean=False)
     X_train, X_test, train_idxs, test_idxs = train_test_split(X_1, np.arange(N), test_size=0.1, shuffle=True)
 
 
@@ -317,7 +317,9 @@ if __name__ == '__main__':
 
     print('starting training model')
     K = 12
-    X_1, X_train, Y_train, X_valid, Y_valid, X_test, Y_test, train_idxs, valid_idxs, test_idxs = prepare_data(K, X, Y)
+    X_1 = transform_data(K, X, use_sklean=True)
+
+    X_1, X_train, Y_train, X_valid, Y_valid, X_test, Y_test, train_idxs, valid_idxs, test_idxs = split_data(K, X_1, Y)
 
     if False:
         input = Input(shape=(K,))
