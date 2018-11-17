@@ -73,135 +73,73 @@ def kmeans(X, k):
 
     return clusters, stds
 
-def rbf(x, c, s):
-    return np.exp(-1 / (2 * s**2) * (x-c)**2)
 
-def transform_data(n_cluster, X, use_sklean = False):
-    if use_sklean:
-        X = np.reshape(X, (-1, 1))
-        kmeans_cls = KMeans(n_clusters=n_cluster, max_iter=1000, tol=1e-6).fit(X)
-        X_labels = kmeans_cls.predict(X)
+class RBFNet():
+    def __init__(self, n_cluster = 12, n_output = 10, no_regress_at_ouputs= [0, -3]):
+        self.n_cluster = n_cluster
+        self.n_output = n_output
+        self.no_regress_at_outputs = no_regress_at_ouputs
+        for k in self.no_regress_at_outputs:
+            assert 0<=k and k < n_output
 
-        #calculate standard variance
-        cluster_std = np.zeros(len(kmeans_cls.labels_), dtype=np.float32)
-        cluster_mean = kmeans_cls.cluster_centers_
-        cluster_mean = cluster_mean.flatten()
-        for l in kmeans_cls.labels_:
-            cluster_mask = (X_labels == l)
-            points = X[cluster_mask].flatten()
-            cluster_std[l] = np.std(points)
-    else:
-        cluster_mean, cluster_std = kmeans(X, n_cluster)
+    def fit(self, X, Y):
+        self.cluster_data(X)
+        X_1 = self.transform_data(X)
 
-    X_1 = []
-    for i in range(X.shape[0]):
-        a = np.array([rbf(X[i], c, s)[0] for c, s, in zip(cluster_mean, cluster_std)])
-        X_1.append(a)
-    X_1 = np.array(X_1)
+        N = X.shape[0]
+        X_train, X_test, train_idxs, test_idxs = train_test_split(X_1, np.arange(N), test_size=0.2, shuffle=True)
+        self.train_idxs = train_idxs
+        self.test_idxs = test_idxs
+        Y_train = Y[train_idxs]
+        Y_test = Y[test_idxs]
 
-    return X_1
+        self.regressor = ExtraTreesRegressor().fit(X_train, Y_train)
+        print('regression score on train set:  ', self.regressor.score(X_train, Y_train))
+        print('regression score on test set: ', self.regressor.score(X_test, Y_test))
 
-class RBFNet(object):
-    """Implementation of a Radial Basis Function Network"""
-    def __init__(self, k=2, out_shape = 1, lr=0.01, epochs=10, rbf=rbf, inferStds=True):
-        self.k = k
-        self.lr = lr
-        self.epochs = epochs
-        self.rbf = rbf
-        self.inferStds = inferStds
-
-        self.w = np.random.randn(k)
-        self.b = np.random.randn(1)
-
-        input = Input(shape=(k,))
-        output = Dense(out_shape)(input)
-        self.model = Model(inputs = input, outputs = output)
-        self.model.compile(optimizer=RMSprop(lr=0.001), loss= 'mean_squared_error', metrics=['mse'])
-
-    def fit(self, X, y):
-        if self.inferStds:
-            # compute stds from data
-            self.centers, self.stds = kmeans(X, self.k)
-        else:
-            # use a fixed std
-            self.centers, _ = kmeans(X, self.k)
-            dMax = max([np.abs(c1 - c2) for c1 in self.centers for c2 in self.centers])
-            self.stds = np.repeat(dMax / np.sqrt(2 * self.k), self.k)
-
-        # training
-        if True:
-            X_1 = []
-            for i in range(X.shape[0]):
-                a = np.array([self.rbf(X[i], c, s) for c, s, in zip(self.centers, self.stds)])
-                X_1.append(a)
-            X_1 = np.array(X_1)
-        else:
-            X_1 = transform_data(self.k, X, use_sklean=False)
-
-        batch_size = 8
-        epochs = 500
-        model_path = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_usce/female_slice_radial_code/hip_best_weight.hdf5'
-        check_point = ModelCheckpoint(model_path, save_best_only=True)
-
-        history = self.model.fit(x=X_1, y=y, batch_size=batch_size, epochs=epochs, callbacks=[check_point], validation_split=0.2)
-        plt.plot(np.arange(epochs), history.history['loss'], '-r')
-        plt.plot(np.arange(epochs), history.history['val_loss'], '-b')
-        plt.show()
-
-        for epoch in range(self.epochs):
-            for i in range(X.shape[0]):
-                # forward pass
-                a = np.array([self.rbf(X[i], c, s) for c, s, in zip(self.centers, self.stds)])
-                F = a.T.dot(self.w) + self.b
-
-                loss = (y[i] - F).flatten() ** 2
-                print('Loss: {0:.2f}'.format(loss[0]))
-
-                # backward pass
-                error = -(y[i] - F).flatten()
-
-                # online update
-                self.w = self.w - self.lr * a * error
-                self.b = self.b - self.lr * error
-
-    def predict_1(self, X):
-        y_pred = []
-        for i in range(X.shape[0]):
-            a = np.array([self.rbf(X[i], c, s) for c, s, in zip(self.centers, self.stds)])
-            a = np.expand_dims(a, axis=0)
-            F = self.model.predict(a)
-            y_pred.append(F.flatten())
-        return np.array(y_pred)
+        # calc median of the first and last curvature for each cluster
+        self.output_cluster_median = np.zeros(shape=(self.n_cluster, self.n_output))
+        for cluster in range(self.n_cluster):
+            for output_idx in range(self.n_output):
+                features = Y[self.training_clusters == cluster]
+                self.output_cluster_median[cluster, output_idx] = np.median(features[:, output_idx])
 
     def predict(self, X):
-        y_pred = []
+        if len(X.shape) == 1:
+            X = np.expand_dims(X, axis=0)
+
+        cluster_ids = self.kmeans_cls.predict(X)
+
+        X_1 = self.transform_data(X)
+        preds = self.regressor.predict(X_1)
+
+        for i in range(preds.shape[0]):
+            preds[i, self.no_regress_at_outputs] = self.output_cluster_median[cluster_ids[i], self.no_regress_at_outputs]
+
+        return preds
+
+    def rbf(self, x, c, s):
+        return np.exp(-1 / (2 * s ** 2) * (x - c) ** 2)
+
+    def transform_data(self, X):
+        X_1 = []
         for i in range(X.shape[0]):
-            a = np.array([self.rbf(X[i], c, s) for c, s, in zip(self.centers, self.stds)])
-            F = a.T.dot(self.w) + self.b
-            y_pred.append(F)
-        return np.array(y_pred)
+            a = np.array([self.rbf(X[i], c, s)[0] for c, s, in zip(self.cluster_mean, self.cluster_std)])
+            X_1.append(a)
+        X_1 = np.array(X_1)
+        return X_1
 
+    def cluster_data(self, X):
+        self.kmeans_cls = KMeans(n_clusters=self.n_cluster, max_iter=1000, tol=1e-6).fit(X)
+        self.training_clusters = self.kmeans_cls.predict(X)
 
-def split_data(K, X_1, Y):
-    N = X_1.shape[0]
-
-    X_train, X_test, train_idxs, test_idxs = train_test_split(X_1, np.arange(N), test_size=0.1, shuffle=True)
-
-
-    #print(f'y train min, max = {Y_train.min()}, {Y_train.max()}')
-    X_train, X_valid, train_idxs, valid_idxs = train_test_split(X_train, train_idxs, test_size=0.05, shuffle=True)
-
-    Y_train = Y[train_idxs, :]
-    Y_valid = Y[valid_idxs, :]
-    Y_test =  Y[test_idxs, :]
-
-    #Y_train_mean = np.mean(Y_train, axis=0)
-    #Y_train_std  = np.std(Y_train, axis=0)
-    #Y_train = (Y_train - Y_train_mean) / Y_train_std
-    #Y_valid  = (Y_valid - Y_train_mean) / Y_train_std
-    #Y_test  = (Y_test  - Y_train_mean) / Y_train_std
-
-    return X_1, X_train, Y_train, X_valid, Y_valid, X_test, Y_test, train_idxs, valid_idxs, test_idxs
+        # calculate standard variance
+        self.cluster_std = np.zeros(len(self.kmeans_cls.labels_), dtype=np.float32)
+        self.cluster_mean = self.kmeans_cls.cluster_centers_.flatten()
+        for l in range(self.n_cluster):
+            cluster_mask = (self.training_clusters== l)
+            points = X[cluster_mask].flatten()
+            self.cluster_std[l] = np.std(points)
 
 def normalize_contour(X,Y):
     #cx = np.mean(X)
@@ -251,35 +189,11 @@ def plot_contour_correrlation(IN_DIR, DEBUG_DIR):
         #plt.show()
         plt.savefig(f'{DEBUG_DIR}/label_{l}.png')
 
-def test_rbf_network():
-    # sample inputs and add noise
-    # sample inputs and add noise
-    NUM_SAMPLES = 100
-    X = np.random.uniform(0., 1., NUM_SAMPLES)
-    X = np.sort(X, axis=0)
-    noise = np.random.uniform(-0.1, 0.1, NUM_SAMPLES)
-    y = np.sin(2 * np.pi * X) + noise
-
-    rbfnet = RBFNet(lr=1e-2, k=2)
-    rbfnet.fit(X, y)
-
-    y_pred = rbfnet.predict(X)
-    y_pred_1 = rbfnet.predict_1(X)
-
-    plt.plot(X, y, '-o', label='true')
-    plt.plot(X, y_pred, '-o', label='RBF-Net')
-    plt.plot(X, y_pred_1, '-r', label='RBF-Net')
-    plt.legend()
-
-    plt.tight_layout()
-    plt.show()
-
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
     ap.add_argument("-i", "--input", required=True, help="input meta data file")
     args = vars(ap.parse_args())
     IN_DIR  = args['input']
-
 
     #print('plotting correlation')
     #CONTOUR_DEBUG_DIR = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_usce/debug/hip_correlation/'
@@ -304,7 +218,6 @@ if __name__ == '__main__':
             X.append(w/d)
             assert not np.isnan(X).flatten().sum()
             Y.append(feature)
-
             contours.append(record['cnt'])
 
     N = len(X)
@@ -317,74 +230,55 @@ if __name__ == '__main__':
 
     print('starting training model')
     K = 12
-    X_1 = transform_data(K, X, use_sklean=True)
+    X = np.reshape(X, (-1, 1))
 
-    X_1, X_train, Y_train, X_valid, Y_valid, X_test, Y_test, train_idxs, valid_idxs, test_idxs = split_data(K, X_1, Y)
+    net = RBFNet(n_cluster=K, n_output=10, no_regress_at_ouputs=[0, 7])
+    net.fit(X, Y)
 
-    if False:
-        input = Input(shape=(K,))
-        output = Dense(10)(input)
-        model = Model(inputs = input, outputs = output)
-        #model.compile(optimizer=RMSprop(lr=0.1), loss= 'mean_squared_error', metrics=['mse'])
-        model.compile(optimizer=Adadelta(), loss= 'mean_squared_error', metrics=['mse'])
+    MODEL_PATH = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_usce/models/hip.pkl'
+    with open(MODEL_PATH, 'wb') as file:
+        pickle.dump(net, file)
 
-        batch_size = 8
-        epochs = 400
-        model_path = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_usce/female_slice_radial_code/hip_best_weight.hdf5'
-        check_point = ModelCheckpoint(model_path, save_best_only=True)
-        history = model.fit(x=X_train, y=Y_train, validation_data=(X_valid, Y_valid), batch_size=batch_size, epochs=epochs, callbacks=[check_point])
-        for i in range(5):
-            print(model.predict(np.expand_dims(X_test[i, :], axis=0)))
-            print(Y_test[i,:])
-        plt.plot(np.arange(epochs), history.history['loss'], '-r')
-        plt.plot(np.arange(epochs), history.history['val_loss'], '-b')
-        plt.show()
-    else:
-        #reg = LinearRegression().fit(X_train, Y_train)
-        reg = ExtraTreesRegressor().fit(X_train, Y_train)
-        print('linear regression score: ', reg.score(X_train, Y_train))
-        print('linear regression score: ', reg.score(X_valid, Y_valid))
+    OUTPUT_DEBUG_DIR_TRAIN = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_usce/debug/hip_prediction/train/'
+    OUTPUT_DEBUG_DIR_TEST = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_usce/debug/hip_prediction/test/'
+    shutil.rmtree(OUTPUT_DEBUG_DIR_TEST)
+    shutil.rmtree(OUTPUT_DEBUG_DIR_TRAIN)
+    os.makedirs(OUTPUT_DEBUG_DIR_TRAIN, exist_ok=True)
+    os.makedirs(OUTPUT_DEBUG_DIR_TEST, exist_ok=True)
 
-        OUTPUT_DEBUG_DIR_TRAIN = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_usce/debug/hip_prediction/train/'
-        OUTPUT_DEBUG_DIR_TEST = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_usce/debug/hip_prediction/test/'
-        shutil.rmtree(OUTPUT_DEBUG_DIR_TEST)
-        shutil.rmtree(OUTPUT_DEBUG_DIR_TRAIN)
-        os.makedirs(OUTPUT_DEBUG_DIR_TRAIN, exist_ok=True)
-        os.makedirs(OUTPUT_DEBUG_DIR_TEST, exist_ok=True)
+    for i in range(len(net.test_idxs)):
+        idx = net.test_idxs[i]
+        print('processing test idx: ', idx)
+        pred = net.predict(np.expand_dims(X[idx, :], axis=0))[0, :]
 
-        for i in range(len(test_idxs)):
-            idx = test_idxs[i]
-            print('progress: ', idx)
-            pred = reg.predict(np.expand_dims(X_1[idx, :], axis=0))[0,:]
-            w = W[idx]
-            d = D[idx]
-            res_contour = util.reconstruct_slice_contour(pred, d, w)
-            contour = contours[idx]
-            center  = util.contour_center(contour[0,:], contour[1,:])
-            res_contour[0,:] += center[0]
-            res_contour[1,:] += center[1]
+        w = W[idx]
+        d = D[idx]
+        res_contour = util.reconstruct_slice_contour(pred, d, w)
+        contour = contours[idx]
+        center = util.contour_center(contour[0, :], contour[1, :])
+        res_contour[0, :] += center[0]
+        res_contour[1, :] += center[1]
 
-            plt.clf()
-            plt.axes().set_aspect(1)
-            plt.plot(contour[0,:], contour[1,:], '-b')
-            plt.plot(res_contour[0,:], res_contour[1,:], '-r')
-            plt.savefig(f'{OUTPUT_DEBUG_DIR_TEST}{idx}.png')
+        plt.clf()
+        plt.axes().set_aspect(1)
+        plt.plot(contour[0, :], contour[1, :], '-b')
+        plt.plot(res_contour[0, :], res_contour[1, :], '-r')
+        plt.savefig(f'{OUTPUT_DEBUG_DIR_TEST}{idx}.png')
 
+    for i in range(len(net.train_idxs)):
+        idx = net.train_idxs[i]
+        print('processing train idx: ', idx)
+        w = W[idx]
+        d = D[idx]
+        res_contour = util.reconstruct_slice_contour(pred, d, w)
+        contour = contours[idx]
+        center = util.contour_center(contour[0, :], contour[1, :])
+        res_contour[0, :] += center[0]
+        res_contour[1, :] += center[1]
 
-        for i in range(len(train_idxs)):
-            idx = train_idxs[i]
-            print('progress: ', idx)
-            pred = reg.predict(np.expand_dims(X_1[idx, :], axis=0))[0,:]
-            w = W[idx]
-            d = D[idx]
-            res_contour = util.reconstruct_slice_contour(pred, d, w)
-            contour = contours[idx]
-            center  = util.contour_center(contour[0,:], contour[1,:])
-            res_contour[0,:] += center[0]
-            res_contour[1,:] += center[1]
+        plt.clf()
+        plt.axes().set_aspect(1)
+        plt.plot(contour[0, :], contour[1, :], '-b')
+        plt.plot(res_contour[0, :], res_contour[1, :], '-r')
+        plt.savefig(f'{OUTPUT_DEBUG_DIR_TRAIN}{idx}.png')
 
-            plt.clf()
-            plt.axes().set_aspect(1)
-            plt.plot(contour[0,:], contour[1,:], '-b')
-            plt.plot(res_contour[0,:], res_contour[1,:], '-r')
-            plt.savefig(f'{OUTPUT_DEBUG_DIR_TRAIN}{idx}.png')

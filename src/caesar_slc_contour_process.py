@@ -280,25 +280,25 @@ if __name__  == '__main__':
     Fs = np.array(Fs)
 
     #fix the first curvature
-    curvs_0 = Fs[:, 0]
-    inf_mask = np.isinf(curvs_0)
-    print('inf value count: ', np.sum(inf_mask))
-    curvs_0 = curvs_0[~inf_mask]
-    curvs_0_mean   = np.mean(curvs_0)
-    curvs_0_median = np.median(curvs_0)
-    print("mean: ", curvs_0_mean, ' median: ', curvs_0_median)
-    Fs[:, 0] = curvs_0_median
+    # curvs_0 = Fs[:, 0]
+    # inf_mask = np.isinf(curvs_0)
+    # print('inf value count: ', np.sum(inf_mask))
+    # curvs_0 = curvs_0[~inf_mask]
+    # curvs_0_mean   = np.mean(curvs_0)
+    # curvs_0_median = np.median(curvs_0)
+    # print("mean: ", curvs_0_mean, ' median: ', curvs_0_median)
+    # Fs[:, 0] = curvs_0_median
     #Fs[inf_mask, 0] = curvs_0_median
 
     #fix the last curvature
-    curvs_0 = Fs[:, -3]
-    inf_mask = np.isinf(curvs_0)
-    print('inf value count: ', np.sum(inf_mask))
-    curvs_0 = curvs_0[~inf_mask]
-    curvs_0_mean   = np.mean(curvs_0)
-    curvs_0_median = np.median(curvs_0)
-    print("mean: ", curvs_0_mean, ' median: ', curvs_0_median)
-    Fs[:, -3] = curvs_0_median
+    # curvs_0 = Fs[:, -3]
+    # inf_mask = np.isinf(curvs_0)
+    # print('inf value count: ', np.sum(inf_mask))
+    # curvs_0 = curvs_0[~inf_mask]
+    # curvs_0_mean   = np.mean(curvs_0)
+    # curvs_0_median = np.median(curvs_0)
+    # print("mean: ", curvs_0_mean, ' median: ', curvs_0_median)
+    # Fs[:, -3] = curvs_0_median
     #Fs[inf_mask, -3] = curvs_0_median
 
     feature_dir_out = f'{OUT_DIR}/Hip/'
