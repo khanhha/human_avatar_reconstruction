@@ -197,7 +197,7 @@ def convert_contour_to_radial_code(X,Y, n_sample, path_out = None):
              p = center + p
              plt.plot(p[0], p[1], 'r+')
         plt.savefig(path_out)
-        #plt.show()
+        plt.show()
 
     return np.array(feature), W, D
 
@@ -221,36 +221,33 @@ if __name__  == '__main__':
     Ns = []
 
     cnt = 0
+    slc_ids = ['Crotch']
+    for slc_id in slc_ids:
+        SLICE_DIR = f'{IN_DIR}/{slc_id}/'
 
-    for i, path in enumerate(Path(IN_DIR).glob('*.pkl')):
+        for i, path in enumerate(Path(SLICE_DIR).glob('*.pkl')):
+            G_cur_file_path = path
 
-        # cnt += 1
-        # if cnt > 10:
-        #     break
+            #if 'SPRING1413' not in str(path):
+            #    continue
+            print(path, i)
 
-        G_cur_file_path = path
-        #if 'SPRING1413' not in str(path):
-        #    continue
-        print(path, i)
+            with open(path, 'rb') as file:
+                slc_contours = pickle.load(file)
 
-        with open(path, 'rb') as file:
-            slc_contours = pickle.load(file)
+            ignore = False
+            # for name in error_list:
+            #     if name in  str(path.stem):
+            #         ignore = True
+            #         break
 
-        ignore = False
-        # for name in error_list:
-        #     if name in  str(path.stem):
-        #         ignore = True
-        #         break
-
-        if ignore:
-            continue
-
-        for id, contours in slc_contours.items():
-            if id != 'Hip':
+            if ignore:
                 continue
 
-            lens = np.array([len(contour) for contour in contours])
-            contour = contours[np.argmax(lens)]
+            #TODO: is the contour with the largest number of vertices the main contour of the that slice?
+            lens = np.array([len(contour) for contour in slc_contours])
+            contour = slc_contours[np.argmax(lens)]
+
             #transpose, swap X and Y to make the coordinate system more natural to the contour shape
             Y = [p[0] for p in contour]
             X = [p[1] for p in contour]
@@ -266,49 +263,25 @@ if __name__  == '__main__':
             #feature_dir_out = f'{OUT_DIR}{id}/'
             #os.makedirs(feature_dir_out, exist_ok=True)
 
-            #data[path.stem] = {'W':W, 'D':D, 'feature':feature, 'cnt':np.vstack([X,Y])}
+            #acculumate one more slice record
             Ws.append(W)
             Ds.append(D)
             Fs.append(feature)
             Cs.append(np.vstack([X,Y]))
             Ns.append(path.stem)
 
-            #with open(f'{feature_dir_out}{path.stem}.pkl', 'wb') as file:
-            #     pickle.dump({'W':W, 'D':D, 'feature':feature, 'cnt':np.vstack([X,Y])}, file)
+        #dump all records of that slice
+        n_contour = len(Ns)
+        Fs = np.array(Fs)
 
-    n_contour = len(Ns)
-    Fs = np.array(Fs)
+        feature_dir_out = f'{OUT_DIR}/{slc_id}/'
+        os.makedirs(feature_dir_out, exist_ok=True)
 
-    #fix the first curvature
-    # curvs_0 = Fs[:, 0]
-    # inf_mask = np.isinf(curvs_0)
-    # print('inf value count: ', np.sum(inf_mask))
-    # curvs_0 = curvs_0[~inf_mask]
-    # curvs_0_mean   = np.mean(curvs_0)
-    # curvs_0_median = np.median(curvs_0)
-    # print("mean: ", curvs_0_mean, ' median: ', curvs_0_median)
-    # Fs[:, 0] = curvs_0_median
-    #Fs[inf_mask, 0] = curvs_0_median
-
-    #fix the last curvature
-    # curvs_0 = Fs[:, -3]
-    # inf_mask = np.isinf(curvs_0)
-    # print('inf value count: ', np.sum(inf_mask))
-    # curvs_0 = curvs_0[~inf_mask]
-    # curvs_0_mean   = np.mean(curvs_0)
-    # curvs_0_median = np.median(curvs_0)
-    # print("mean: ", curvs_0_mean, ' median: ', curvs_0_median)
-    # Fs[:, -3] = curvs_0_median
-    #Fs[inf_mask, -3] = curvs_0_median
-
-    feature_dir_out = f'{OUT_DIR}/Hip/'
-    os.makedirs(feature_dir_out, exist_ok=True)
-
-    for i in range(n_contour):
-        W = Ws[i]
-        D = Ds[i]
-        F = Fs[i,:]
-        C = Cs[i]
-        name = Ns[i]
-        with open(f'{feature_dir_out}{name}.pkl', 'wb') as file:
-             pickle.dump({'W':W, 'D':D, 'feature':F, 'cnt':C}, file)
+        for i in range(n_contour):
+            W = Ws[i]
+            D = Ds[i]
+            F = Fs[i,:]
+            C = Cs[i]
+            name = Ns[i]
+            with open(f'{feature_dir_out}{name}.pkl', 'wb') as file:
+                 pickle.dump({'W':W, 'D':D, 'feature':F, 'cnt':C}, file)

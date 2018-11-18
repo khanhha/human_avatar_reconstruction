@@ -95,13 +95,14 @@ def mesh_to_numpy(mesh):
     
     return np.array(verts), faces
 
-def ucsc_collect_landmark_vertices(obj):
+def ucsc_collect_landmark_vertices(obj, name_ids):
     verts = obj.data.vertices
     lds = defaultdict(list)
     for v in verts:
         for vgrp in v.groups:
             grp_name = obj.vertex_groups[vgrp.group].name
-            lds[grp_name].append(v.index)
+            if grp_name in name_ids:
+                lds[grp_name].append(v.index)
     return lds
     
 def set_plane_slice_loc(planes, name, loc):
@@ -128,13 +129,10 @@ def centroid_vertex_set(vertices, ids):
 def ucsc_calc_slice_plane_locs(cae_obj, ld_idxs):
     verts = cae_obj.data.vertices
     locs = {}
-    
-    bust_ids = ld_idxs['Bust']
-    locs['Bust'] = centroid_vertex_set(verts, bust_ids)
-    
-    hip_ids = ld_idxs['Hip']
-    locs['Hip'] = centroid_vertex_set(verts, hip_ids)
-    
+
+    for slc_id, slc_idxs in ld_idxs.items():
+        locs[slc_id] = centroid_vertex_set(verts, slc_idxs)
+
     return locs
     
 def calc_slice_plane_locs(cae_obj, ld_idxs):
@@ -156,12 +154,6 @@ def calc_slice_plane_locs(cae_obj, ld_idxs):
 
 def fit_slice_planes_to_mesh(cae_obj, planes, ld_idxs):
     locs = calc_slice_plane_locs(cae_obj, ld_idxs)
-    for id, loc in locs.items():
-        set_plane_slice_loc(planes, id, loc)
-    return locs
-
-def ucsc_fit_slice_planes_to_mesh(cae_obj, planes, ld_idxs):
-    locs = ucsc_calc_slice_plane_locs(cae_obj, ld_idxs)
     for id, loc in locs.items():
         set_plane_slice_loc(planes, id, loc)
     return locs
@@ -371,16 +363,21 @@ def mpii_process(DIR_OBJ):
     
     print('error list: ', error_obj_paths)
     
-def ucsc_process(DIR_OBJ, DIR_SLICE):
+def ucsc_process(DIR_OBJ, DIR_SLICE, slice_ids, debug_name = None):
     obj_planes_tpl = bpy.data.objects['Slice_planes_template']
     
     error_obj_paths = []
     obj_template = bpy.data.objects['Female_template']
-    ld_idxs = ucsc_collect_landmark_vertices(obj_template)
+
+    ld_idxs = ucsc_collect_landmark_vertices(obj_template, slice_ids)
+
+    for id in slice_ids:
+        os.makedirs(DIR_SLICE+'/'+id, exist_ok=True)
+
     error_files = ['SPRING1212']
     for i, path in enumerate(Path(DIR_OBJ).glob('*.obj')):        
-        #if 'SPRING4100' not in str(path):
-        #    continue
+        if (debug_name is not None) and (debug_name not in str(path)):
+                continue
         
         ignore = False
         for name in error_files:
@@ -410,23 +407,32 @@ def ucsc_process(DIR_OBJ, DIR_SLICE):
                 
         obj_planes = copy_obj(obj_planes_tpl, path.stem+"_pln", Vector((0.0,0.0,0.0)))            
 
-        slc_locs = ucsc_fit_slice_planes_to_mesh(obj_caesar, obj_planes, ld_idxs)
-        
+        slc_locs = ucsc_calc_slice_plane_locs(obj_caesar, ld_idxs)
+        #for debuggin
+        for id, loc in slc_locs.items():
+            set_plane_slice_loc(obj_planes, id, loc)
+
         obj_planes.hide = False
         obj_caesar.hide = False
 
         slc_contours = isect_extract_slice_from_locs(slc_locs, obj_caesar)
         assert slc_contours is not None
-    
+
+        for id in slice_ids:
+            id_path = DIR_SLICE+'/'+id+'/'+path.stem+'.pkl'
+            contours = slc_contours[id]
+            with open(id_path, 'wb') as file:
+                pkl.dump(contours, file)
+
+        if debug_name != None:
+            return
+
         delete_obj(obj_caesar)
         delete_obj(obj_planes)
-        
-        with open(str(Path(DIR_SLICE, path.stem+'.pkl')), 'wb') as file:
-            pkl.dump(slc_contours, file)
 
         #if i > 10:
-        #    break            
-    
+        #    break
+
     print('error list: ', error_obj_paths)
     print('multiple edge loop name list: ', g_mult_edge_loop_file_names)
     
@@ -438,6 +444,10 @@ if __name__ == '__main__':
     DIR_SLICE = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_usce/female_slice/'
     
     os.makedirs(DIR_SLICE, exist_ok=True)
-    
-    ucsc_process(DIR_OBJ, DIR_SLICE)
+
+    #slice_ids = ['Hip']
+    slice_ids = ['Crotch', 'Bust', 'Hip']
+
+    debug_file = 'SPRING1477'
+    ucsc_process(DIR_OBJ, DIR_SLICE, slice_ids=slice_ids, debug_name=debug_file)
     
