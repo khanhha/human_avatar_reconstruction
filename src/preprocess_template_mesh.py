@@ -6,6 +6,7 @@ from pathlib import Path
 import pickle
 from copy import deepcopy
 from src.util import  normalize
+import matplotlib.pyplot as plt
 import src.util as util
 from shapely.geometry import Polygon, Point
 
@@ -44,65 +45,95 @@ def define_id_mapping():
 
     return mappings
 
-def map_slc_location_id(slc_rects, slc_locs):
-    dst_tol = 0.01
-    slc_locs_map = {}
-    for i in range(slc_locs.shape[0]):
-        loc = slc_locs[i, :]
-        min_dst = 99999
-        for id, rect in slc_rects.items():
-            convex = Polygon(rect[:, :2]).convex_hull
-            if convex.contains(Point(loc[:2])):
-                pnt, norm = rect_plane(rect)
-                dst = np.abs(dst_point_plane(loc, pnt, norm))
-                if dst < min_dst:
-                    min_dst = dst
-                    min_id = id
+def clockwiseangle_and_distance(point, org):
+    refvec = np.array([0, 1])
+    # Vector between point and the origin: v = p - o
+    vector = [point[0]-org[0], point[1]-org[1]]
+    # Length of vector: ||v||
+    lenvector = np.hypot(vector[0], vector[1])
+    # If length is zero there is no angle
+    if lenvector == 0:
+        return -np.pi, 0
 
-        assert min_dst < dst_tol
-        assert min_id not in slc_locs_map
+    # Normalize vector: v/||v||
+    normalized = [vector[0]/lenvector, vector[1]/lenvector]
 
-        slc_locs_map[min_id] = loc
+    dotprod  = normalized[0]*refvec[0] + normalized[1]*refvec[1]     # x1*x2 + y1*y2
+    diffprod = refvec[1]*normalized[0] - refvec[0]*normalized[1]     # x1*y2 - y1*x2
+    angle = np.arctan2(diffprod, dotprod)
 
-    return slc_locs_map
+    # Negative angles represent counter-clockwise angles so we need to subtract them
+    # from 2*pi (360 degrees)
+    if angle < 0:
+        return 2*np.pi+angle, lenvector
 
-def extract_slice_verts_from_ctr_mesh(slc_rect, verts):
-    dst_tolerance = 0.01
+    # I return first the angle because that's the primary sorting criterium
+    # but if two vectors have the same angle then the shorter distance should come first.
+    return angle, lenvector
 
-    pnt, norm = rect_plane(slc_rect)
-    idxs = []
-    for i in range(verts.shape[0]):
-        co = verts[i, :]
-        dst = np.abs(dst_point_plane(co, pnt, norm))
-        if dst < dst_tolerance:
-            idxs.append(i)
+def arg_sort_points_cw(points):
+    center = (np.mean(points[:,0]), np.mean(points[:,1]))
+    compare_func = lambda pair: clockwiseangle_and_distance(pair[1], center)
+    points = sorted(enumerate(points), key = compare_func)
+    return [pair[0] for pair in points[::-1]]
 
-    slc_idxs = []
-    convex = Polygon(slc_rect[:,:2]).convex_hull
-    for idx in idxs:
-        if convex.contains(Point(verts[idx,:2])):
-            slc_idxs.append(idx)
-    #if not (len(slc_idxs) == 7 or len(slc_idxs) == 8 or len(slc_idxs) == 14 or len(slc_idxs) == 20 or len(slc_idxs) == 22):
-    #    return None
-    if len(slc_idxs) < 6 or len(slc_idxs) > 22:
-        return None
-    return np.array(slc_idxs)
+def sort_slice_vertices(slc_vert_idxs, mesh_verts, title = ''):
+    X =  mesh_verts[slc_vert_idxs][:,1]
+    Y =  mesh_verts[slc_vert_idxs][:,0]
 
-def deform_slice(slice, w, d, z = -1, slice_org = None):
-    if slice_org is None:
-        slice_org = np.mean(slice, axis=0)
+    org_points = np.concatenate([X[:, np.newaxis], Y[:, np.newaxis]], axis=1)
 
-    nslice = slice - slice_org
-    range = np.max(nslice, axis=0) - np.min(nslice, axis=0)
-    w_ratio = w / range[0]
-    d_ratio = d / range[1]
-    #print(w_ratio, d_ratio)
-    nslice[:,0] *= w_ratio
-    nslice[:,1] *= d_ratio
-    nslice = nslice + slice_org
-    if z != -1:
-         nslice[:,2]  = z
-    return nslice
+    #we needs to split our point array into two part because the clockwise sort just works on convex polygon. it will fail at strong concave points at crotch slice
+    #sort the upper part
+    mask_0 = Y >= -0.01
+    X_0 = X[mask_0]
+    Y_0 = Y[mask_0]
+    assert (len(X_0) > 0 and len(Y_0) > 0)
+    points_0 = np.concatenate([X_0[:, np.newaxis], Y_0[:, np.newaxis]], axis=1)
+    arg_points_0 = arg_sort_points_cw(points_0)
+    points_0 = np.array(points_0[arg_points_0, :])
+
+    #find the first point of the contour
+    min_y = np.inf
+    min_y_idx = 0
+    for i in range(points_0.shape[0]):
+        if points_0[i,0] > 0:
+            if points_0[i,1] < min_y:
+                min_y = points_0[i,1]
+                min_y_idx = i
+    points_0 = np.roll(points_0, axis=0, shift=-min_y_idx)
+
+    #sort the below part
+    mask_1 = ~mask_0
+    X_1 = X[mask_1]
+    Y_1 = Y[mask_1]
+    assert (len(X_1) > 0 and len(Y_1) > 0)
+    points_1 = np.concatenate([X_1[:, np.newaxis], Y_1[:, np.newaxis]], axis=1)
+    arg_points_1 = arg_sort_points_cw(points_1)
+    points_1 = np.array(points_1[arg_points_1, :])
+
+    #concatenate two sorted part.
+    sorted_points = np.concatenate([points_0, points_1], axis=0)
+
+    #map indices
+    slc_sorted_vert_idxs = []
+    for i in range(sorted_points.shape[0]):
+        p = sorted_points[i,:]
+        dsts = np.sum(np.square(org_points - p), axis=1)
+        closest_idx = np.argmin(dsts)
+        assert closest_idx not in slc_sorted_vert_idxs
+        slc_sorted_vert_idxs.append(slc_vert_idxs[closest_idx])
+
+    sorted_X =  mesh_verts[slc_sorted_vert_idxs][:,0]
+    sorted_Y =  mesh_verts[slc_sorted_vert_idxs][:,1]
+    plt.clf()
+    plt.axes().set_aspect(1)
+    plt.plot(points_0[:,0], points_0[:,1], '+r')
+    plt.plot(sorted_points[:,0], sorted_points[:,1],'-b')
+    plt.plot(sorted_X, sorted_Y,'-r')
+    plt.title(title)
+    #plt.show()
+    return slc_sorted_vert_idxs
 
 def dst_point_plane(point, plane_point, plane_norm):
     return np.dot(plane_norm, point - plane_point)
@@ -359,6 +390,13 @@ if __name__ == '__main__':
     print('control  mesh: nverts = {0}, nfaces = {1}'.format(ctl_mesh['verts'].shape[0], len(ctl_mesh['faces'])))
     print('victoria mesh: nverts = {0}, nfaces = {1}'.format(tpl_mesh['verts'].shape[0], len(tpl_mesh['faces'])))
 
+    print('sortinng slice vertices counter clockwise, starting from the extreme point on the +X axis')
+    for id, slc_idxs in slice_id_vert_idxs.items():
+        if 'Hip' in id:
+            print(f'\t\t{id}')
+            slc_idxs = sort_slice_vertices(slc_idxs, ctl_mesh['verts'], title=id)
+            slice_id_vert_idxs[id] = slc_idxs
+
     n_quad = len(ctl_mesh['faces'])
     ctl_mesh_quad = deepcopy(ctl_mesh)
     ctl_mesh, ctl_f_body_parts  = triangulate_quad_dominant_mesh_1(ctl_mesh, ctl_f_body_parts)
@@ -372,6 +410,7 @@ if __name__ == '__main__':
 
     ctl_tri_bs = util.calc_triangle_local_basis(ctl_mesh['verts'], ctl_mesh['faces'])
     if update_weight > 0:
+        print('calculating weight')
         #vert_effect_idxs, vert_weights = calc_vertex_weigth_control_mesh_global(tpl_mesh['verts'], ctl_mesh['verts'], ctl_mesh['faces'])
         vert_effect_idxs, vert_weights = calc_vertex_weigth_control_mesh_local(tpl_mesh['verts'], ctl_mesh['verts'], ctl_mesh['faces'], tpl_v_body_parts, ctl_f_body_parts)
         vert_UVW = parameterize(tpl_mesh['verts'], vert_effect_idxs, ctl_tri_bs)
@@ -383,6 +422,8 @@ if __name__ == '__main__':
 
         with open(f'{OUT_DIR}/vic_weight.pkl', 'wb') as f:
             pickle.dump(w_data, f)
+    else:
+        print('weight calculation is ignored')
 
     out_data = {}
     out_data['control_mesh'] = ctl_mesh

@@ -8,6 +8,8 @@ from src.obj_util import export_mesh
 import src.util as util
 import shapely.geometry as geo
 from shapely.ops import nearest_points
+from src.rbf_net import RBFNet
+import matplotlib.pyplot as plt
 from copy import copy
 
 def slice_id_3d_2d_mappings():
@@ -220,11 +222,13 @@ if __name__ == '__main__':
     ap.add_argument("-i", "--input", required=True, help="input meta data file")
     ap.add_argument("-m", "--measure_dir", required=True, help="measurement 2d data directory")
     ap.add_argument("-o", "--out_dir", required=True, help="directory for expxorting control mesh slices")
+    ap.add_argument("-w", "--weight", required=True, help="deform based on weight")
     args = vars(ap.parse_args())
 
     IN_DIR = args['input']
     M_DIR = args['measure_dir']
     OUT_DIR = args['out_dir'] + '/'
+    is_deform = bool(int(args['weight']))
 
     for fpath in Path(OUT_DIR).glob('*.*'):
         os.remove(fpath)
@@ -238,7 +242,7 @@ if __name__ == '__main__':
         slc_id_vert_idxs = data['slice_vert_idxs']
         slc_id_locs = data['slice_locs']
         ctl_tri_bs = data['control_mesh_tri_basis']
-        arm_3d = data['arm_bone_locs']
+        arm_3d_tpl = data['arm_bone_locs']
         tpl_mesh = data['template_mesh']
         vic_height = data['template_height']
 
@@ -260,12 +264,16 @@ if __name__ == '__main__':
     out_path = f'{OUT_DIR}victoria_tpl.obj'
     export_mesh(out_path, tpl_mesh['verts'], tpl_mesh['faces'])
 
+    hip_model_path = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_usce/models/hip.pkl'
+    hip_model = RBFNet.load_from_path(hip_model_path)
+
     for mdata_path in Path(M_DIR).glob('*.npy'):
         print(mdata_path)
 
         #debug
         #if '1928' not in str(mdata_path): continue
 
+        # load 2d measurements
         mdata = np.load(mdata_path )
         seg_dst_f = mdata.item().get('landmark_segment_dst_f')
         seg_dst_s = mdata.item().get('landmark_segment_dst_s')
@@ -275,7 +283,7 @@ if __name__ == '__main__':
 
         arm_2d_f = mdata.item().get('armature_f')
         h_ratio = vic_height/height
-        arm_3d = scale_tpl_armature(arm_3d, arm_2d_f, h_ratio)
+        arm_3d = scale_tpl_armature(arm_3d_tpl, arm_2d_f, h_ratio)
 
         id_mappings = slice_id_3d_2d_mappings()
         ct_mesh_slices = {}
@@ -334,10 +342,28 @@ if __name__ == '__main__':
 
             slc_org = slc_id_locs[id_3d]
 
-            dim_range = np.max(slice, axis=0) - np.min(slice, axis=0)
+            slice_out = copy(slice)
+            #TEST
+            if id_3d == 'Hip':
+                ratio = w/d
+                pred = hip_model.predict(np.reshape(ratio, (1,1)))[0, :]
+                res_contour = util.reconstruct_slice_contour(pred, d, w, mirror=True)
+
+                plt.clf()
+                plt.axes().set_aspect(1)
+                plt.plot(res_contour[0, :], res_contour[1, :], '-r')
+                plt.plot(slice_out[:, 0], slice_out[:, 1], '-b')
+                #plt.savefig(f'{OUTPUT_DEBUG_DIR_TEST}{idx}.png')
+                #plt.show()
+
+                slice_out[:,0] =  res_contour[1,:]
+                slice_out[:,1] =  res_contour[0,:]
+
+            dim_range = np.max(slice_out, axis=0) - np.min(slice_out, axis=0)
             w_ratio = w / dim_range[0]
             d_ratio = d / dim_range[1]
-            slice_out = scale_vertical_slice(slice, w_ratio, d_ratio, scale_center= slc_org)
+            slice_out = scale_vertical_slice(slice_out, w_ratio, d_ratio, scale_center= slc_org)
+
 
             #align slice in vertical direction
             slice_out[:, 2] = slc_loc_ver + tpl_ankle_ver
@@ -374,14 +400,16 @@ if __name__ == '__main__':
 
         #transform_arm_slices(ctl_new_mesh, slc_id_locs, slc_id_vert_idxs, arm_3d)
 
-        ctl_df_basis = util.calc_triangle_local_basis(ctl_new_mesh['verts'], ctl_new_mesh['faces'])
-        if vert_UVWs is not None and vert_effect_idxs is not None and vert_weights is not None:
-            tpl_df_mesh = deform_template_mesh(tpl_mesh, vert_effect_idxs, vert_weights, vert_UVWs, ctl_df_basis)
+        if is_deform == True:
+            ctl_df_basis = util.calc_triangle_local_basis(ctl_new_mesh['verts'], ctl_new_mesh['faces'])
+            if vert_UVWs is not None and vert_effect_idxs is not None and vert_weights is not None:
+                tpl_df_mesh = deform_template_mesh(tpl_mesh, vert_effect_idxs, vert_weights, vert_UVWs, ctl_df_basis)
+
+            out_path = f'{OUT_DIR}{mdata_path.stem}_deform.obj'
+            export_mesh(out_path, tpl_df_mesh['verts'], tpl_df_mesh['faces'])
 
         ctl_mesh_quad_dom_new = deepcopy(ctl_mesh_quad_dom)
         ctl_mesh_quad_dom_new['verts'] = deepcopy(ctl_new_mesh['verts'])
         out_path = f'{OUT_DIR}{mdata_path.stem}_ctl.obj'
+        print(f'\toutput control mesh: {out_path}')
         export_mesh(out_path, ctl_mesh_quad_dom_new['verts'], ctl_mesh_quad_dom_new['faces'])
-
-        out_path = f'{OUT_DIR}{mdata_path.stem}_deform.obj'
-        export_mesh(out_path, tpl_df_mesh['verts'], tpl_df_mesh['faces'])

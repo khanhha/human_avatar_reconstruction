@@ -75,12 +75,31 @@ def kmeans(X, k):
 
 
 class RBFNet():
-    def __init__(self, n_cluster = 12, n_output = 10, no_regress_at_ouputs= [0, -3]):
+    def __init__(self, n_cluster = 0, n_output = 0, no_regress_at_ouputs= []):
         self.n_cluster = n_cluster
         self.n_output = n_output
         self.no_regress_at_outputs = no_regress_at_ouputs
         for k in self.no_regress_at_outputs:
             assert 0<=k and k < n_output
+
+    @staticmethod
+    def load_from_path(path):
+        with open(path, 'rb') as file:
+            obj = pickle.load(file)
+            return obj
+            # self.n_cluster = data.n_cluster
+            # self.n_output = data.n_output
+            # self.no_regress_at_outputs = data.no_regress_at_outputs
+            #
+            # self.kmeans_cls = data.kmeans_cls
+            # self.training_clusters = data.training_clusters
+            #
+            # self.cluster_std = data.cluster_std
+            # self.cluster_mean = data.cluster_mean
+
+    def save_to_path(self, path):
+        with open(path, 'wb') as file:
+            pickle.dump(self, file)
 
     def fit(self, X, Y):
         self.cluster_data(X)
@@ -232,12 +251,13 @@ if __name__ == '__main__':
     K = 12
     X = np.reshape(X, (-1, 1))
 
+    MODEL_PATH = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_usce/models/hip.pkl'
+
     net = RBFNet(n_cluster=K, n_output=10, no_regress_at_ouputs=[0, 7])
     net.fit(X, Y)
+    net.save_to_path(MODEL_PATH)
 
-    MODEL_PATH = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_usce/models/hip.pkl'
-    with open(MODEL_PATH, 'wb') as file:
-        pickle.dump(net, file)
+    net_1 = RBFNet.load_from_path(MODEL_PATH)
 
     OUTPUT_DEBUG_DIR_TRAIN = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_usce/debug/hip_prediction/train/'
     OUTPUT_DEBUG_DIR_TEST = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_usce/debug/hip_prediction/test/'
@@ -247,23 +267,26 @@ if __name__ == '__main__':
     os.makedirs(OUTPUT_DEBUG_DIR_TEST, exist_ok=True)
 
     for i in range(len(net.test_idxs)):
-        idx = net.test_idxs[i]
+        idx = net_1.test_idxs[i]
         print('processing test idx: ', idx)
-        pred = net.predict(np.expand_dims(X[idx, :], axis=0))[0, :]
+        pred = net_1.predict(np.expand_dims(X[idx, :], axis=0))[0, :]
 
         w = W[idx]
         d = D[idx]
-        res_contour = util.reconstruct_slice_contour(pred, d, w)
+        res_contour = util.reconstruct_slice_contour(pred, d, w, mirror=True)
         contour = contours[idx]
         center = util.contour_center(contour[0, :], contour[1, :])
         res_contour[0, :] += center[0]
         res_contour[1, :] += center[1]
-
+        last_p = res_contour[:,0].reshape(2,1)
+        res_contour = np.concatenate([res_contour, last_p], axis=1)
         plt.clf()
         plt.axes().set_aspect(1)
         plt.plot(contour[0, :], contour[1, :], '-b')
         plt.plot(res_contour[0, :], res_contour[1, :], '-r')
-        plt.savefig(f'{OUTPUT_DEBUG_DIR_TEST}{idx}.png')
+        plt.plot(res_contour[0, :], res_contour[1, :], '+r')
+        #plt.savefig(f'{OUTPUT_DEBUG_DIR_TEST}{idx}.png')
+        plt.show()
 
     for i in range(len(net.train_idxs)):
         idx = net.train_idxs[i]

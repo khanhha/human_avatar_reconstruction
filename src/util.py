@@ -44,10 +44,10 @@ def contour_center(X, Y):
     center_x = X[idx_ymin]
     return np.array([center_x, center_y])
 
-def reconstruct_slice_contour(feature, D, W):
+def reconstruct_slice_contour(feature, D, W, mirror = False):
     p0 = np.array([D*feature[-2]*feature[-1], 0])
     n_points = len(feature) - 2
-    half_idx = int(n_points / 2.0)
+    half_idx = int(np.ceil(n_points / 2.0))
     assert half_idx == 4
 
     prev_p = p0
@@ -72,9 +72,9 @@ def reconstruct_slice_contour(feature, D, W):
         l0_p1 = prev_p + np.array([1.0, feature[i-1]])
 
         l1_p0 = np.array([0.0, 0.0])
-        if i == 4:
+        if i == half_idx:
             l1_p1 = np.array([0, W/2])
-        elif i < 4:
+        elif i < half_idx:
             l1_p1 = np.array([1.0, np.tan(angle)])
         else:
             l1_p1 = np.array([-1.0, -np.tan(angle)])
@@ -92,5 +92,12 @@ def reconstruct_slice_contour(feature, D, W):
 
     X = np.array([p[0] for p in points])
     Y = np.array([p[1] for p in points])
+
+    if mirror == True:
+        X_mirror = X[1:-1][::-1]
+        Y_mirror = -Y[1:-1]
+
+        X = np.concatenate([X,X_mirror], axis=0)
+        Y = np.concatenate([Y,Y_mirror], axis=0)
 
     return np.vstack([X, Y])
