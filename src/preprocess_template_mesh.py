@@ -19,32 +19,6 @@ class BDPart(Enum):
     Part_RLeg = 5
     Part_Torso = 6
 
-def define_id_mapping():
-    mappings = {}
-    mappings['L2_RKnee'] = 'Knee'
-    mappings['L2_LKnee'] = 'Knee'
-    mappings['L9_Aux_Waist_UnderBust'] = 'Aux_Waist_UnderBust_0'
-    mappings['L6_Hip'] = 'Hip'
-    mappings['L3_RMidThigh'] = 'Aux_Thigh_0'
-    mappings['L3_LMidThigh'] = 'Aux_Thigh_0'
-    mappings['L7_Aux_Hip_Waist'] = 'Aux_Hip_Waist_0'
-    mappings['L8_Waist'] = 'Waist'
-    mappings['L12_Armcye'] = 'Armscye'
-    mappings['L14_Shoulder'] = 'Shoulder'
-    mappings['L0_LAnkle'] = 'Ankle'
-    mappings['L0_RAnkle'] = 'Ankle'
-    mappings['L1_RCalf'] = 'Calf'
-    mappings['L1_LCalf'] = 'Calf'
-    mappings['L11_Bust'] = 'Bust'
-    mappings['L15_Collar'] = 'Collar'
-    mappings['L13_Aux_Armcye_Shoulder'] = 'Aux_Armscye_Shoulder_0'
-    mappings['L10_UnderBust'] = 'UnderBust'
-    mappings['L4_Crotch'] = 'Crotch'
-    mappings['L16_Neck'] = 'Neck'
-    mappings['L5_Aux_Crotch_Hip'] = 'Aux_Crotch_Hip_0'
-
-    return mappings
-
 def clockwiseangle_and_distance(point, org):
     refvec = np.array([0, 1])
     # Vector between point and the origin: v = p - o
@@ -391,8 +365,9 @@ if __name__ == '__main__':
     print('victoria mesh: nverts = {0}, nfaces = {1}'.format(tpl_mesh['verts'].shape[0], len(tpl_mesh['faces'])))
 
     print('sortinng slice vertices counter clockwise, starting from the extreme point on the +X axis')
+    sort_ids = ['Crotch', 'Aux_Crotch_Hip_0', 'Hip', 'Waist', 'UnderBust', 'Aux_Hip_Waist_0', 'Aux_Hip_Waist_1', 'Aux_Waist_UnderBust_0', 'Aux_Waist_UnderBust_1', 'Aux_Waist_UnderBust_2']
     for id, slc_idxs in slice_id_vert_idxs.items():
-        if 'Hip' in id:
+        if id in sort_ids:
             print(f'\t\t{id}')
             slc_idxs = sort_slice_vertices(slc_idxs, ctl_mesh['verts'], title=id)
             slice_id_vert_idxs[id] = slc_idxs

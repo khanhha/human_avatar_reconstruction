@@ -6,6 +6,7 @@ from pathlib import Path
 import pickle
 import argparse
 import shutil
+from collections import defaultdict
 from tensorflow.keras.layers import Dense, Input
 from tensorflow.keras.models import Model
 from tensorflow.keras.callbacks import ModelCheckpoint
@@ -208,100 +209,149 @@ def plot_contour_correrlation(IN_DIR, DEBUG_DIR):
         #plt.show()
         plt.savefig(f'{DEBUG_DIR}/label_{l}.png')
 
+import sys
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
     ap.add_argument("-i", "--input", required=True, help="input meta data file")
     args = vars(ap.parse_args())
     IN_DIR  = args['input']
 
-    #print('plotting correlation')
-    #CONTOUR_DEBUG_DIR = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_usce/debug/hip_correlation/'
-    #plot_contour_correrlation(IN_DIR, CONTOUR_DEBUG_DIR)
+    DEBUG_DIR = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_usce/debug/'
+    slc_ids = ['Crotch', 'Aux_Crotch_Hip_0', 'Hip', 'Waist', 'UnderBust', 'Aux_Hip_Waist_0', 'Aux_Hip_Waist_1', 'Aux_Waist_UnderBust_0', 'Aux_Waist_UnderBust_1', 'Aux_Waist_UnderBust_2']
+
+    #plot correlation
+    # for path in Path(IN_DIR).glob('*'):
+    #     if path.stem in slc_ids:
+    #         CORR_DIR = f'{DEBUG_DIR}{path.stem}_correlation/'
+    #         os.makedirs(CORR_DIR, exist_ok=True)
+    #         plot_contour_correrlation(str(path), CORR_DIR)
+    # exit()
+
+    slc_error_names = defaultdict(list)
+    slc_error_names['Under_Bust'] = ['SPRING1894', 'SPRING2391', 'SPRING2622']
 
     #load data from disk
-    X = []
-    Y = []
-    W = []
-    D = []
-    contours = []
-    for path in Path(IN_DIR).glob('*.*'):
-        with open(path,'rb') as file:
-            record = pickle.load(file)
-            w = record['W']
-            d = record['D']
-            W.append(w)
-            D.append(d)
-            assert w != 0.0 and d != 0.0
-            feature = record['feature']
-            assert not np.isnan(feature).flatten().sum()
-            X.append(w/d)
-            assert not np.isnan(X).flatten().sum()
-            Y.append(feature)
-            contours.append(record['cnt'])
+    for SLC_DIR in Path(IN_DIR).glob('*'):
+        if SLC_DIR.stem in slc_ids:
+            #if SLC_DIR.stem != 'Waist':
+            #     continue
 
-    N = len(X)
-    X = np.array(X)
-    Y = np.array(Y)
-    print('nan count: ', np.isnan(X).flatten().sum())
-    print('nan count: ', np.isnan(Y).flatten().sum())
-    print('inf count: ', np.isinf(X).flatten().sum())
-    print('inf count: ', np.isinf(Y).flatten().sum())
+            MODEL_PATH = f'/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_usce/models/{SLC_DIR.stem}.pkl'
 
-    print('starting training model')
-    K = 12
-    X = np.reshape(X, (-1, 1))
+            OUTPUT_DEBUG_DIR_TRAIN = f'/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_usce/debug/{SLC_DIR.stem}_prediction/train/'
+            OUTPUT_DEBUG_DIR_TEST = f'/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_usce/debug/{SLC_DIR.stem}_prediction/test/'
+            shutil.rmtree(OUTPUT_DEBUG_DIR_TEST, ignore_errors=True)
+            shutil.rmtree(OUTPUT_DEBUG_DIR_TRAIN, ignore_errors=True)
+            os.makedirs(OUTPUT_DEBUG_DIR_TRAIN, exist_ok=True)
+            os.makedirs(OUTPUT_DEBUG_DIR_TEST, exist_ok=True)
 
-    MODEL_PATH = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_usce/models/hip.pkl'
+            K = 12
 
-    net = RBFNet(n_cluster=K, n_output=10, no_regress_at_ouputs=[0, 7])
-    net.fit(X, Y)
-    net.save_to_path(MODEL_PATH)
+            #collect all slices
+            X = []
+            Y = []
+            W = []
+            D = []
+            contours = []
+            print('start training slice mode: ', SLC_DIR.stem)
+            error_names = slc_error_names[SLC_DIR.stem]
 
-    net_1 = RBFNet.load_from_path(MODEL_PATH)
+            all_paths = [path for path in SLC_DIR.glob('*.*')]
+            for path in all_paths:
+                if path.stem in error_names:
+                    print('\t ignore file: ',  path.stem)
+                    continue
 
-    OUTPUT_DEBUG_DIR_TRAIN = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_usce/debug/hip_prediction/train/'
-    OUTPUT_DEBUG_DIR_TEST = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_usce/debug/hip_prediction/test/'
-    shutil.rmtree(OUTPUT_DEBUG_DIR_TEST)
-    shutil.rmtree(OUTPUT_DEBUG_DIR_TRAIN)
-    os.makedirs(OUTPUT_DEBUG_DIR_TRAIN, exist_ok=True)
-    os.makedirs(OUTPUT_DEBUG_DIR_TEST, exist_ok=True)
+                with open(path,'rb') as file:
+                    record = pickle.load(file)
+                    w = record['W']
+                    d = record['D']
 
-    for i in range(len(net.test_idxs)):
-        idx = net_1.test_idxs[i]
-        print('processing test idx: ', idx)
-        pred = net_1.predict(np.expand_dims(X[idx, :], axis=0))[0, :]
+                    if w == 0.0 or d == 0.0:
+                        print('zero w or d: ', w, d, file=sys.stderr)
+                        continue
 
-        w = W[idx]
-        d = D[idx]
-        res_contour = util.reconstruct_slice_contour(pred, d, w, mirror=True)
-        contour = contours[idx]
-        center = util.contour_center(contour[0, :], contour[1, :])
-        res_contour[0, :] += center[0]
-        res_contour[1, :] += center[1]
-        last_p = res_contour[:,0].reshape(2,1)
-        res_contour = np.concatenate([res_contour, last_p], axis=1)
-        plt.clf()
-        plt.axes().set_aspect(1)
-        plt.plot(contour[0, :], contour[1, :], '-b')
-        plt.plot(res_contour[0, :], res_contour[1, :], '-r')
-        plt.plot(res_contour[0, :], res_contour[1, :], '+r')
-        #plt.savefig(f'{OUTPUT_DEBUG_DIR_TEST}{idx}.png')
-        plt.show()
+                    feature = record['feature']
+                    if np.isnan(feature).flatten().sum() > 0:
+                        print(f'nan feature: {path}', file=sys.stderr)
+                        continue
 
-    for i in range(len(net.train_idxs)):
-        idx = net.train_idxs[i]
-        print('processing train idx: ', idx)
-        w = W[idx]
-        d = D[idx]
-        res_contour = util.reconstruct_slice_contour(pred, d, w)
-        contour = contours[idx]
-        center = util.contour_center(contour[0, :], contour[1, :])
-        res_contour[0, :] += center[0]
-        res_contour[1, :] += center[1]
+                    if np.isnan(X).flatten().sum() > 0:
+                        print(f'nan X: {path}', file=sys.stderr)
+                        continue
 
-        plt.clf()
-        plt.axes().set_aspect(1)
-        plt.plot(contour[0, :], contour[1, :], '-b')
-        plt.plot(res_contour[0, :], res_contour[1, :], '-r')
-        plt.savefig(f'{OUTPUT_DEBUG_DIR_TRAIN}{idx}.png')
+                    if np.isinf(feature).flatten().sum() > 0:
+                        print(f'inf feature: {path}', file=sys.stderr)
+                        continue
+
+                    if np.isinf(X).flatten().sum() > 0:
+                        print(f'inf X: {path}', file=sys.stderr)
+                        continue
+
+                    X.append(w/d)
+                    Y.append(feature)
+                    W.append(w)
+                    D.append(d)
+                    contours.append(record['cnt'])
+
+
+            N = len(X)
+            X = np.array(X)
+            Y = np.array(Y)
+            print('nan count: ', np.isnan(X).flatten().sum())
+            print('nan count: ', np.isnan(Y).flatten().sum())
+            print('inf count: ', np.isinf(X).flatten().sum())
+            print('inf count: ', np.isinf(Y).flatten().sum())
+
+            X = np.reshape(X, (-1, 1))
+
+            net = RBFNet(n_cluster=K, n_output=10, no_regress_at_ouputs=[0, 7])
+            net.fit(X, Y)
+            net.save_to_path(MODEL_PATH )
+
+            continue
+
+            net_1 = RBFNet.load_from_path(MODEL_PATH)
+
+            for i in range(len(net.test_idxs)):
+                idx = net_1.test_idxs[i]
+                print('processing test idx: ', idx)
+                pred = net_1.predict(np.expand_dims(X[idx, :], axis=0))[0, :]
+
+                w = W[idx]
+                d = D[idx]
+                res_contour = util.reconstruct_slice_contour(pred, d, w, mirror=True)
+                contour = contours[idx]
+                center = util.contour_center(contour[0, :], contour[1, :])
+                res_contour[0, :] += center[0]
+                res_contour[1, :] += center[1]
+                last_p = res_contour[:,0].reshape(2,1)
+                res_contour = np.concatenate([res_contour, last_p], axis=1)
+                plt.clf()
+                plt.axes().set_aspect(1)
+                plt.plot(contour[0, :], contour[1, :], '-b')
+                plt.plot(res_contour[0, :], res_contour[1, :], '-r')
+                plt.plot(res_contour[0, :], res_contour[1, :], '+r')
+                plt.savefig(f'{OUTPUT_DEBUG_DIR_TEST}{idx}.png')
+                #plt.show()
+
+            for i in range(len(net.train_idxs)):
+                idx = net.train_idxs[i]
+                print('processing train idx: ', idx)
+                w = W[idx]
+                d = D[idx]
+                pred = net_1.predict(np.expand_dims(X[idx, :], axis=0))[0, :]
+                res_contour = util.reconstruct_slice_contour(pred, d, w, mirror=True)
+                contour = contours[idx]
+                center = util.contour_center(contour[0, :], contour[1, :])
+                res_contour[0, :] += center[0]
+                res_contour[1, :] += center[1]
+                last_p = res_contour[:,0].reshape(2,1)
+                res_contour = np.concatenate([res_contour, last_p], axis=1)
+                plt.clf()
+                plt.axes().set_aspect(1)
+                plt.plot(contour[0, :], contour[1, :], '-b')
+                plt.plot(res_contour[0, :], res_contour[1, :], '-r')
+                plt.plot(res_contour[0, :], res_contour[1, :], '+r')
+                plt.savefig(f'{OUTPUT_DEBUG_DIR_TRAIN}{idx}.png')
 

@@ -95,7 +95,7 @@ def reconstruct_slice_contour(feature, D, W, mirror = False):
 
     if mirror == True:
         X_mirror = X[1:-1][::-1]
-        Y_mirror = -Y[1:-1]
+        Y_mirror = -Y[1:-1][::-1]
 
         X = np.concatenate([X,X_mirror], axis=0)
         Y = np.concatenate([Y,Y_mirror], axis=0)

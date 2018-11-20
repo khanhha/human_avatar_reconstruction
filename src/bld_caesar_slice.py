@@ -409,8 +409,8 @@ def ucsc_process(DIR_OBJ, DIR_SLICE, slice_ids, debug_name = None):
 
         slc_locs = ucsc_calc_slice_plane_locs(obj_caesar, ld_idxs)
         #for debuggin
-        for id, loc in slc_locs.items():
-            set_plane_slice_loc(obj_planes, id, loc)
+        #for id, loc in slc_locs.items():
+        #    set_plane_slice_loc(obj_planes, id, loc)
 
         obj_planes.hide = False
         obj_caesar.hide = False
@@ -445,9 +445,9 @@ if __name__ == '__main__':
     
     os.makedirs(DIR_SLICE, exist_ok=True)
 
-    #slice_ids = ['Hip']
-    slice_ids = ['Crotch', 'Bust', 'Hip']
+    #'Hip', 'Crotch', 'Aux_Crotch_Hip_0'
+    slice_ids = ['Under_Bust']
 
     debug_file = 'SPRING1477'
-    ucsc_process(DIR_OBJ, DIR_SLICE, slice_ids=slice_ids, debug_name=debug_file)
+    ucsc_process(DIR_OBJ, DIR_SLICE, slice_ids=slice_ids, debug_name=None)
     

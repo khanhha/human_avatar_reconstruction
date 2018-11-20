@@ -8,7 +8,7 @@ from src.obj_util import export_mesh
 import src.util as util
 import shapely.geometry as geo
 from shapely.ops import nearest_points
-from src.rbf_net import RBFNet
+from src.caesar_rbf_net import RBFNet
 import matplotlib.pyplot as plt
 from copy import copy
 
@@ -36,14 +36,14 @@ def slice_id_3d_2d_mappings():
     mappings['LUnderCrotch'] = 'UnderCrotch'
 
     mappings['Crotch'] = 'Crotch'
-    mappings['Crotch_Hip_0'] = 'Aux_Crotch_Hip_0'
+    mappings['Aux_Crotch_Hip_0'] = 'Aux_Crotch_Hip_0'
     mappings['Hip'] = 'Hip'
-    mappings['Hip_Waist_0'] = 'Aux_Hip_Waist_0'
-    mappings['Hip_Waist_1'] = 'Aux_Hip_Waist_1'
+    mappings['Aux_Hip_Waist_0'] = 'Aux_Hip_Waist_0'
+    mappings['Aux_Hip_Waist_1'] = 'Aux_Hip_Waist_1'
     mappings['Waist'] = 'Waist'
-    mappings['Waist_UnderBust_0'] = 'Aux_Waist_UnderBust_0'
-    mappings['Waist_UnderBust_1'] = 'Aux_Waist_UnderBust_1'
-    mappings['Waist_UnderBust_2'] = 'Aux_Waist_UnderBust_2'
+    mappings['Aux_Waist_UnderBust_0'] = 'Aux_Waist_UnderBust_0'
+    mappings['Aux_Waist_UnderBust_1'] = 'Aux_Waist_UnderBust_1'
+    mappings['Aux_Waist_UnderBust_2'] = 'Aux_Waist_UnderBust_2'
     mappings['UnderBust'] = 'UnderBust'
     mappings['UnderBust_Bust_0'] = 'Aux_UnderBust_Bust_0'
     mappings['Bust'] = 'Bust'
@@ -230,6 +230,12 @@ if __name__ == '__main__':
     OUT_DIR = args['out_dir'] + '/'
     is_deform = bool(int(args['weight']))
 
+    MODEL_DIR = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_usce/models/'
+    models = {}
+    for path in Path(MODEL_DIR).glob('*.pkl'):
+        models[path.stem] = RBFNet.load_from_path(path)
+    print('load models: ', models.keys())
+
     for fpath in Path(OUT_DIR).glob('*.*'):
         os.remove(fpath)
 
@@ -264,8 +270,6 @@ if __name__ == '__main__':
     out_path = f'{OUT_DIR}victoria_tpl.obj'
     export_mesh(out_path, tpl_mesh['verts'], tpl_mesh['faces'])
 
-    hip_model_path = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_usce/models/hip.pkl'
-    hip_model = RBFNet.load_from_path(hip_model_path)
 
     for mdata_path in Path(M_DIR).glob('*.npy'):
         print(mdata_path)
@@ -344,9 +348,11 @@ if __name__ == '__main__':
 
             slice_out = copy(slice)
             #TEST
-            if id_3d == 'Hip':
+            if id_2d in models and 'Crotch' != id_2d:
+                print('\tapplied ', id_2d)
+                model = models[id_2d]
                 ratio = w/d
-                pred = hip_model.predict(np.reshape(ratio, (1,1)))[0, :]
+                pred = model.predict(np.reshape(ratio, (1,1)))[0, :]
                 res_contour = util.reconstruct_slice_contour(pred, d, w, mirror=True)
 
                 plt.clf()

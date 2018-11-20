@@ -21,11 +21,14 @@ G_cur_file_path = Path()
 def plot_segment(p0, p1, type):
     plt.plot([p0[0], p1[0]], [p0[1], p1[1]], type)
 
-def resample_contour(X, Y):
+def resample_contour(X, Y, debug_path = None):
     idx_ymax, idx_ymin = np.argmax(Y), np.argmin(Y)
     center_y = 0.5 * (Y[idx_ymax] + Y[idx_ymin])
     center_x = 0.5 * (X[idx_ymin] + X[idx_ymax])
 
+    # okay = np.where(np.abs(np.diff(X)) + np.abs(np.diff(Y)) > 0)
+    # X = np.r_[X[okay], X[-1], X[0]]
+    # Y = np.r_[Y[okay], Y[-1], Y[0]]
     tck, u = splprep([X, Y], s=0)
     u_1 = np.linspace(0.0, 1.0, 150)
     X, Y = splev(u_1, tck)
@@ -46,42 +49,39 @@ def resample_contour(X, Y):
     Y = np.roll(Y, -min_idx)
     #print('starting index: ', min_idx)
 
-    # okay = np.where(np.abs(np.diff(X)) + np.abs(np.diff(Y)) > 0)
-    # X = np.r_[X[okay], X[-1], X[0]]
-    # Y = np.r_[Y[okay], Y[-1], Y[0]]
-    #
-    # #fix bad points
+
+    #fix bad points
     # jump = np.sqrt(np.diff(X) ** 2 + np.diff(X) ** 2)
     # smooth_jump = ndimage.gaussian_filter1d(jump, 5, mode='wrap')  # window of size 5 is arbitrary
     # limit = 2 * np.median(smooth_jump)  # factor 2 is arbitrary
     # xn, yn = X[:-1], Y[:-1]
     # X = xn[(jump > 0) & (smooth_jump < limit)]
     # Y = yn[(jump > 0) & (smooth_jump < limit)]
-    #
-    # #resample
+
+    #resample
     # tck, u = splprep([X, Y], s=0)
     # u_1 = np.linspace(0.0, 1.0, 150)
     # X, Y = splev(u_1, tck)
 
-    # plt.clf()
-    # plt.axes().set_aspect(1)
-    # plt.plot(X, Y, 'b+')
-    # plt.plot(center_x, center_y, 'r+')
-    # plt.plot(X[0], Y[0], 'r+', ms = 20)
-    # plt.show()
+    if debug_path is not None:
+        plt.clf()
+        plt.axes().set_aspect(1)
+        plt.plot(X, Y, 'b+')
+        plt.plot(center_x, center_y, 'r+')
+        plt.plot(X[0], Y[0], 'r+', ms = 20)
+        plt.show()
     return X, Y
 
-def align_contour(X, Y):
+def align_contour(X, Y, debug_path = None):
     idx_ymax, idx_ymin = np.argmax(Y), np.argmin(Y)
     center_y = 0.5 * (Y[idx_ymax] + Y[idx_ymin])
     center_x = X[idx_ymin]
 
-    DEBUG_DIR = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_usce/debug/hip_hull/'
-
-    plt.clf()
-    plt.axes().set_aspect(1)
-    plt.plot(X, Y, 'b+')
-    plt.plot(center_x, center_y, 'r+')
+    if debug_path is not None:
+        plt.clf()
+        plt.axes().set_aspect(1)
+        plt.plot(X, Y, 'b+')
+        plt.plot(center_x, center_y, 'r+')
 
     contour = Polygon([(x,y) for x, y in zip(X,Y)])
     contour_1 = contour.simplify(0.01, preserve_topology=False)
@@ -115,17 +115,18 @@ def align_contour(X, Y):
         angle = -angle
 
     contour_aligned = affinity.rotate(contour, angle = angle, origin=Point(anchor_p1), use_radians=True)
-
-    #plt.plot(anchor_p0[0], anchor_p0[1], 'r+', ms=14)
-    plt.plot(anchor_p1[0], anchor_p1[1], 'r+', ms=14)
-    plt.plot(anchor_p2[0], anchor_p2[1], 'r+', ms=14)
-    #plt.plot(anchor_p3[0], anchor_p3[1], 'r+', ms=14)
-
     X_algn = [p[0] for p in contour_aligned.exterior.coords]
     Y_algn = [p[1] for p in contour_aligned.exterior.coords]
-    plt.plot(X_algn, Y_algn, 'r-')
-    plt.savefig(f'{DEBUG_DIR}{G_cur_file_path.stem}.png')
-    #plt.show()
+
+    if debug_path is not None:
+        #plt.plot(anchor_p0[0], anchor_p0[1], 'r+', ms=14)
+        plt.plot(anchor_p1[0], anchor_p1[1], 'r+', ms=14)
+        plt.plot(anchor_p2[0], anchor_p2[1], 'r+', ms=14)
+        #plt.plot(anchor_p3[0], anchor_p3[1], 'r+', ms=14)
+
+        plt.plot(X_algn, Y_algn, 'r-')
+        plt.savefig(debug_path)
+        #plt.show()
 
     return X_algn, Y_algn
 
@@ -191,13 +192,13 @@ def convert_contour_to_radial_code(X,Y, n_sample, path_out = None):
             plt.plot([center_x, p[0]], [center_y, p[1]], 'r-')
             plt.plot(p[0], p[1], 'b+')
 
-        points_1 = util.reconstruct_slice_contour(feature, D, D)
+        points_1 = util.reconstruct_slice_contour(feature, D, W)
         for i in range(points_1.shape[1]):
              p = points_1[:,i]
              p = center + p
              plt.plot(p[0], p[1], 'r+')
         plt.savefig(path_out)
-        plt.show()
+        #plt.show()
 
     return np.array(feature), W, D
 
@@ -214,16 +215,23 @@ if __name__  == '__main__':
     #error_list = ['CSR2071A', 'CSR1334A', 'nl_5750a']
     error_list= ['SPRING4188', 'SPRING4100']
 
-    Ws = []
-    Ds = []
-    Fs = []
-    Cs = []
-    Ns = []
 
     cnt = 0
-    slc_ids = ['Crotch']
+    slc_ids = ['Aux_Hip_Waist_0', 'Aux_Hip_Waist_1', 'Aux_Waist_UnderBust_0', 'Aux_Waist_UnderBust_1', 'Aux_Waist_UnderBust_2']
     for slc_id in slc_ids:
         SLICE_DIR = f'{IN_DIR}/{slc_id}/'
+
+        DEBUG_ALIGN_DIR = f'/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_usce/debug/{slc_id}_align/'
+        os.makedirs(DEBUG_ALIGN_DIR, exist_ok=True)
+
+        DEBUG_RADIAL_DIR = f'/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_usce/debug/{slc_id}_radial/'
+        os.makedirs(DEBUG_RADIAL_DIR, exist_ok=True)
+
+        Ws = []
+        Ds = []
+        Fs = []
+        Cs = []
+        Ns = []
 
         for i, path in enumerate(Path(SLICE_DIR).glob('*.pkl')):
             G_cur_file_path = path
@@ -244,6 +252,8 @@ if __name__  == '__main__':
             if ignore:
                 continue
 
+            assert len(slc_contours) != 0
+
             #TODO: is the contour with the largest number of vertices the main contour of the that slice?
             lens = np.array([len(contour) for contour in slc_contours])
             contour = slc_contours[np.argmax(lens)]
@@ -252,11 +262,14 @@ if __name__  == '__main__':
             Y = [p[0] for p in contour]
             X = [p[1] for p in contour]
             os.makedirs(f'{DEBUG_DIR}{id}/', exist_ok=True)
-            debug_path_out = f'{DEBUG_DIR}{id}/{path.stem}.png'
 
             X, Y = smooth_contour(X,Y, sigma=1.0)
-            X, Y = align_contour(X, Y)
+
+            debug_align_path = f'{DEBUG_ALIGN_DIR}/{path.stem}.png'
+            X, Y = align_contour(X, Y, debug_path=debug_align_path)
             X, Y = resample_contour(X, Y)
+
+            debug_path_out = f'{DEBUG_RADIAL_DIR}/{path.stem}.png'
             feature, W, D = convert_contour_to_radial_code(X, Y, 16, path_out=debug_path_out)
 
             #
