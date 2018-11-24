@@ -68,7 +68,6 @@ def transform_obj_caesar(obj, ld_idxs):
     bpy.ops.object.transform_apply(location=True, scale=True, rotation=True)
 
 def ucsc_transform_obj(obj):
-    mesh = obj.data
     select_single_obj(obj)
         
     s = 5.0
@@ -362,7 +361,42 @@ def mpii_process(DIR_OBJ):
             #    break            
     
     print('error list: ', error_obj_paths)
-    
+
+def ucsc_extract_landmarks(DIR_OBJ, DIR_OUT, tpl_obj):
+    ld_ids = []
+    for grp in tpl_obj.vertex_groups:
+        ld_ids.append(grp.name)
+
+    ld_idxs = ucsc_collect_landmark_vertices(tpl_obj, ld_ids)
+
+    for i, path in enumerate(Path(DIR_OBJ).glob('*.obj')):
+        print(i, str(path))
+        obj_caesar = import_obj(str(path), path.stem)
+
+        select_single_obj(obj_caesar)
+        ucsc_transform_obj(obj_caesar)
+
+        n_verts = len(obj_caesar.data.vertices)
+        n_faces = len(obj_caesar.data.polygons)
+        if n_verts != 12500 or n_faces != 24999:
+            print('error object: ', path.stem)
+            delete_obj(obj_caesar)
+            continue
+
+        verts = obj_caesar.data.vertices
+        locs = {}
+        for id, idxs in ld_idxs.items():
+            locs[id] = centroid_vertex_set(verts, idxs)[:]
+
+        id_path = DIR_OUT+ '/' + path.stem + '.pkl'
+        with open(id_path, 'wb') as file:
+            pkl.dump(locs, file)
+        
+        delete_obj(obj_caesar)
+
+        if i > 10:
+            break
+
 def ucsc_process(DIR_OBJ, DIR_SLICE, slice_ids, debug_name = None):
     obj_planes_tpl = bpy.data.objects['Slice_planes_template']
     
@@ -436,18 +470,24 @@ def ucsc_process(DIR_OBJ, DIR_SLICE, slice_ids, debug_name = None):
     print('error list: ', error_obj_paths)
     print('multiple edge loop name list: ', g_mult_edge_loop_file_names)
     
+import shutil
 if __name__ == '__main__':
     #DIR_OBJ = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/'
     #DIR_SLICE = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj_slices/'
     
     DIR_OBJ = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_usce/SPRING_FEMALE/'
     DIR_SLICE = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_usce/female_slice/'
-    
-    os.makedirs(DIR_SLICE, exist_ok=True)
+    DIR_LD = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_usce/female_landmarks/'
 
     #'Hip', 'Crotch', 'Aux_Crotch_Hip_0'
-    slice_ids = ['Under_Bust']
-
-    debug_file = 'SPRING1477'
-    ucsc_process(DIR_OBJ, DIR_SLICE, slice_ids=slice_ids, debug_name=None)
+    if True:
+        os.makedirs(DIR_SLICE, exist_ok=True)
+        slice_ids = ['Bust']
+        debug_file = 'SPRING1477'
+        ucsc_process(DIR_OBJ, DIR_SLICE, slice_ids=slice_ids, debug_name=None)
+    else:
+        ld_obj = bpy.data.objects['Female_landmarks']
+        shutil.rmtree(DIR_LD)
+        os.makedirs(DIR_LD, exist_ok=True)
+        ucsc_extract_landmarks(DIR_OBJ, DIR_LD, ld_obj)
     

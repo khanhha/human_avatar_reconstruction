@@ -217,7 +217,8 @@ if __name__ == '__main__':
     IN_DIR  = args['input']
 
     DEBUG_DIR = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_usce/debug/'
-    slc_ids = ['Crotch', 'Aux_Crotch_Hip_0', 'Hip', 'Waist', 'UnderBust', 'Aux_Hip_Waist_0', 'Aux_Hip_Waist_1', 'Aux_Waist_UnderBust_0', 'Aux_Waist_UnderBust_1', 'Aux_Waist_UnderBust_2']
+    #slc_ids = ['Crotch', 'Aux_Crotch_Hip_0', 'Hip', 'Waist', 'UnderBust', 'Aux_Hip_Waist_0', 'Aux_Hip_Waist_1', 'Aux_Waist_UnderBust_0', 'Aux_Waist_UnderBust_1', 'Aux_Waist_UnderBust_2']
+    slc_ids = ['Crotch']
 
     #plot correlation
     # for path in Path(IN_DIR).glob('*'):
@@ -308,8 +309,6 @@ if __name__ == '__main__':
             net = RBFNet(n_cluster=K, n_output=10, no_regress_at_ouputs=[0, 7])
             net.fit(X, Y)
             net.save_to_path(MODEL_PATH )
-
-            continue
 
             net_1 = RBFNet.load_from_path(MODEL_PATH)
 

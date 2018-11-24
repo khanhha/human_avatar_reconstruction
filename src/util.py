@@ -1,4 +1,9 @@
 import numpy as np
+import matplotlib.pyplot as plt
+from shapely.geometry import LinearRing, LineString, Point, Polygon
+import shapely.affinity as affinity
+import math
+from numpy.linalg import norm
 
 def normalize(vec):
     len = np.linalg.norm(vec)
@@ -43,6 +48,13 @@ def contour_center(X, Y):
     center_y = 0.5 * (Y[idx_ymax] + Y[idx_ymin])
     center_x = X[idx_ymin]
     return np.array([center_x, center_y])
+
+from scipy.interpolate import splprep, splev
+def resample_contour(X, Y, n_point):
+    tck, u = splprep([X, Y], s=0)
+    u_1 = np.linspace(0.0, 1.0, n_point)
+    X, Y = splev(u_1, tck)
+    return X, Y
 
 def reconstruct_slice_contour(feature, D, W, mirror = False):
     p0 = np.array([D*feature[-2]*feature[-1], 0])
@@ -101,3 +113,61 @@ def reconstruct_slice_contour(feature, D, W, mirror = False):
         Y = np.concatenate([Y,Y_mirror], axis=0)
 
     return np.vstack([X, Y])
+
+def align_contour(X, Y, anchor_pos_x = True, debug_path = None):
+    idx_ymax, idx_ymin = np.argmax(Y), np.argmin(Y)
+    center_y = 0.5 * (Y[idx_ymax] + Y[idx_ymin])
+    center_x = X[idx_ymin]
+
+    if debug_path is not None:
+        plt.clf()
+        plt.axes().set_aspect(1)
+        plt.plot(X, Y, 'b+')
+        plt.plot(center_x, center_y, 'r+')
+
+    contour = Polygon([(x,y) for x, y in zip(X,Y)])
+    contour_1 = contour.simplify(0.01, preserve_topology=False)
+    contour_2 = contour_1.convex_hull
+    for p in contour_2.exterior.coords:
+        plt.plot(p[0], p[1], 'r+', ms=7)
+
+    #find the anchor segment
+    n_point = len(contour_2.exterior.coords)
+    anchor_p1 = None
+    anchor_p2 = None
+    for i in range(n_point):
+        p0 = np.array(contour_2.exterior.coords[i])
+        p1 = np.array(contour_2.exterior.coords[(i+1)%n_point])
+        c = 0.5*(p0+p1)
+        ymin = min(p0[1], p1[1])
+        ymax = max(p0[1], p1[1])
+        if (anchor_pos_x == True and c[0] > center_x) or (anchor_pos_x == False and c[0] < center_x):
+            if  ymin <= center_y and center_y <= ymax:
+                anchor_p1 = p0
+                anchor_p2 = p1
+                if anchor_p1[1] > anchor_p2[1]:
+                    anchor_p1, anchor_p2 = anchor_p2, anchor_p1
+
+    dir_1 = anchor_p2 - anchor_p1
+    anchor_dir = dir_1 / norm(dir_1)
+    anchor_dir[1] = abs(anchor_dir[1])
+
+    #rotate the contour to align the anchor line
+    angle = math.acos(np.dot(anchor_dir, np.array([0, 1])))
+    if anchor_dir[0] < 0:
+        angle = -angle
+
+    contour_aligned = affinity.rotate(contour, angle = angle, origin=Point(anchor_p1), use_radians=True)
+    X_algn = [p[0] for p in contour_aligned.exterior.coords]
+    Y_algn = [p[1] for p in contour_aligned.exterior.coords]
+
+    if debug_path is not None:
+        plt.plot(anchor_p1[0], anchor_p1[1], 'r+', ms=14)
+        plt.plot(anchor_p2[0], anchor_p2[1], 'r+', ms=14)
+        plt.plot([anchor_p1[0], anchor_p2[0]], [anchor_p1[1], anchor_p2[1]], 'r-', ms=14)
+
+        plt.plot(X_algn, Y_algn, 'r-')
+        plt.savefig(debug_path)
+        #plt.show()
+
+    return np.array(X_algn), np.array(Y_algn)

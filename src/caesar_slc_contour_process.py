@@ -8,15 +8,14 @@ import shapely.affinity as affinity
 from numpy.linalg import norm
 from pathlib import Path
 import math
-from src.util import smooth_contour
 import src.util as util
+from src.caesar_slc_fix_bust import remove_arm_from_bust_slice
 from scipy.spatial import ConvexHull
 import scipy.ndimage as ndimage
 import shutil
 from scipy.interpolate import splev, splrep, splprep, splev
 
 G_cur_file_path = Path()
-
 
 def plot_segment(p0, p1, type):
     plt.plot([p0[0], p1[0]], [p0[1], p1[1]], type)
@@ -26,12 +25,7 @@ def resample_contour(X, Y, debug_path = None):
     center_y = 0.5 * (Y[idx_ymax] + Y[idx_ymin])
     center_x = 0.5 * (X[idx_ymin] + X[idx_ymax])
 
-    # okay = np.where(np.abs(np.diff(X)) + np.abs(np.diff(Y)) > 0)
-    # X = np.r_[X[okay], X[-1], X[0]]
-    # Y = np.r_[Y[okay], Y[-1], Y[0]]
-    tck, u = splprep([X, Y], s=0)
-    u_1 = np.linspace(0.0, 1.0, 150)
-    X, Y = splev(u_1, tck)
+    X, Y = util.resample_contour(X, Y, 150)
 
     #find the starting contour point
     min_dst = np.inf
@@ -72,63 +66,6 @@ def resample_contour(X, Y, debug_path = None):
         plt.show()
     return X, Y
 
-def align_contour(X, Y, debug_path = None):
-    idx_ymax, idx_ymin = np.argmax(Y), np.argmin(Y)
-    center_y = 0.5 * (Y[idx_ymax] + Y[idx_ymin])
-    center_x = X[idx_ymin]
-
-    if debug_path is not None:
-        plt.clf()
-        plt.axes().set_aspect(1)
-        plt.plot(X, Y, 'b+')
-        plt.plot(center_x, center_y, 'r+')
-
-    contour = Polygon([(x,y) for x, y in zip(X,Y)])
-    contour_1 = contour.simplify(0.01, preserve_topology=False)
-    contour_2 = contour_1.convex_hull
-    for p in contour_2.exterior.coords:
-        plt.plot(p[0], p[1], 'r+', ms=7)
-
-    #find the anchor segment
-    n_point = len(contour_2.exterior.coords)
-    anchor_p1 = None
-    anchor_p2 = None
-    for i in range(n_point):
-        p0 = np.array(contour_2.exterior.coords[i])
-        p1 = np.array(contour_2.exterior.coords[(i+1)%n_point])
-        c = 0.5*(p0+p1)
-        ymin = min(p0[1], p1[1])
-        ymax = max(p0[1], p1[1])
-        if c[0] > center_x and ymin <= center_y and center_y <= ymax:
-            anchor_p1 = p0
-            anchor_p2 = p1
-            if anchor_p1[1] > anchor_p2[1]:
-                anchor_p1, anchor_p2 = anchor_p2, anchor_p1
-
-    dir_1 = anchor_p2 - anchor_p1
-    anchor_dir = dir_1 / norm(dir_1)
-    anchor_dir[1] = abs(anchor_dir[1])
-
-    #rotate the contour to align the anchor line
-    angle = math.acos(np.dot(anchor_dir, np.array([0, 1])))
-    if anchor_dir[0] < 0:
-        angle = -angle
-
-    contour_aligned = affinity.rotate(contour, angle = angle, origin=Point(anchor_p1), use_radians=True)
-    X_algn = [p[0] for p in contour_aligned.exterior.coords]
-    Y_algn = [p[1] for p in contour_aligned.exterior.coords]
-
-    if debug_path is not None:
-        #plt.plot(anchor_p0[0], anchor_p0[1], 'r+', ms=14)
-        plt.plot(anchor_p1[0], anchor_p1[1], 'r+', ms=14)
-        plt.plot(anchor_p2[0], anchor_p2[1], 'r+', ms=14)
-        #plt.plot(anchor_p3[0], anchor_p3[1], 'r+', ms=14)
-
-        plt.plot(X_algn, Y_algn, 'r-')
-        plt.savefig(debug_path)
-        #plt.show()
-
-    return X_algn, Y_algn
 
 def convert_contour_to_radial_code(X,Y, n_sample, path_out = None):
     idx_ymax, idx_ymin = np.argmax(Y), np.argmin(Y)
@@ -206,25 +143,29 @@ if __name__  == '__main__':
     ap = argparse.ArgumentParser()
     ap.add_argument("-i", "--input", required=True, help="")
     ap.add_argument("-o", "--output", required=True, help="")
+    ap.add_argument("-l", "--landmark", required=True, help="")
 
     args = vars(ap.parse_args())
     IN_DIR  = args['input']
     OUT_DIR = args['output']
+    LD_DIR   = args['landmark']
 
     DEBUG_DIR = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_usce/debug/radial_code/'
     #error_list = ['CSR2071A', 'CSR1334A', 'nl_5750a']
     error_list= ['SPRING4188', 'SPRING4100']
 
-
     cnt = 0
-    slc_ids = ['Aux_Hip_Waist_0', 'Aux_Hip_Waist_1', 'Aux_Waist_UnderBust_0', 'Aux_Waist_UnderBust_1', 'Aux_Waist_UnderBust_2']
+    #slc_ids = ['Aux_Hip_Waist_0', 'Aux_Hip_Waist_1', 'Aux_Waist_UnderBust_0', 'Aux_Waist_UnderBust_1', 'Aux_Waist_UnderBust_2']
+    slc_ids = ['Bust']
     for slc_id in slc_ids:
         SLICE_DIR = f'{IN_DIR}/{slc_id}/'
 
         DEBUG_ALIGN_DIR = f'/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_usce/debug/{slc_id}_align/'
+        shutil.rmtree(DEBUG_ALIGN_DIR)
         os.makedirs(DEBUG_ALIGN_DIR, exist_ok=True)
 
         DEBUG_RADIAL_DIR = f'/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_usce/debug/{slc_id}_radial/'
+        shutil.rmtree(DEBUG_RADIAL_DIR)
         os.makedirs(DEBUG_RADIAL_DIR, exist_ok=True)
 
         Ws = []
@@ -236,12 +177,15 @@ if __name__  == '__main__':
         for i, path in enumerate(Path(SLICE_DIR).glob('*.pkl')):
             G_cur_file_path = path
 
-            #if 'SPRING1413' not in str(path):
-            #    continue
             print(path, i)
 
             with open(path, 'rb') as file:
                 slc_contours = pickle.load(file)
+
+            ld_path = f'{LD_DIR}/{path.stem}.pkl'
+            assert os.path.exists(ld_path)
+            with open(ld_path, 'rb') as file:
+                landmarks = pickle.load(file)
 
             ignore = False
             # for name in error_list:
@@ -257,24 +201,27 @@ if __name__  == '__main__':
             #TODO: is the contour with the largest number of vertices the main contour of the that slice?
             lens = np.array([len(contour) for contour in slc_contours])
             contour = slc_contours[np.argmax(lens)]
+            contour = np.array(contour)
+            contour = contour[:, :2]
+
+            align_anchor_pos_x = True
+            if slc_id == 'Bust':
+                align_anchor_pos_x = False
+                contour, has_left, has_right, fixed_left, fixed_right = remove_arm_from_bust_slice(contour, landmarks, debug_path=None)
 
             #transpose, swap X and Y to make the coordinate system more natural to the contour shape
-            Y = [p[0] for p in contour]
-            X = [p[1] for p in contour]
+            Y = contour[:, 0]
+            X = contour[:, 1]
             os.makedirs(f'{DEBUG_DIR}{id}/', exist_ok=True)
 
-            X, Y = smooth_contour(X,Y, sigma=1.0)
+            X, Y = util.smooth_contour(X,Y, sigma=1.0)
 
             debug_align_path = f'{DEBUG_ALIGN_DIR}/{path.stem}.png'
-            X, Y = align_contour(X, Y, debug_path=debug_align_path)
+            X, Y = util.align_contour(X, Y, anchor_pos_x= align_anchor_pos_x, debug_path=debug_align_path)
             X, Y = resample_contour(X, Y)
 
             debug_path_out = f'{DEBUG_RADIAL_DIR}/{path.stem}.png'
             feature, W, D = convert_contour_to_radial_code(X, Y, 16, path_out=debug_path_out)
-
-            #
-            #feature_dir_out = f'{OUT_DIR}{id}/'
-            #os.makedirs(feature_dir_out, exist_ok=True)
 
             #acculumate one more slice record
             Ws.append(W)
