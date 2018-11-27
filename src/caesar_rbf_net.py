@@ -7,13 +7,15 @@ import pickle
 import argparse
 import shutil
 from collections import defaultdict
-from tensorflow.keras.layers import Dense, Input
-from tensorflow.keras.models import Model
-from tensorflow.keras.callbacks import ModelCheckpoint
-from tensorflow.keras.optimizers import RMSprop, Adadelta
+from keras.layers import Dense, Input
+from keras.models import Model
+from keras.callbacks import ModelCheckpoint
+from keras.optimizers import RMSprop, Adadelta
 from sklearn.linear_model import LinearRegression
 from sklearn.ensemble import ExtraTreesRegressor
+from sklearn.ensemble import GradientBoostingRegressor
 import src.util as util
+from  src.error_files import mpii_error_slices, ucsc_error_slices
 
 def kmeans(X, k):
     """Performs k-means clustering for 1D input
@@ -74,12 +76,116 @@ def kmeans(X, k):
 
     return clusters, stds
 
-
-class RBFNet():
-    def __init__(self, n_cluster = 0, n_output = 0, no_regress_at_ouputs= []):
+class RBFNeuralNetwork():
+    def __init__(self, n_cluster = 0, n_output = 0, no_regress_at_outputs= []):
         self.n_cluster = n_cluster
         self.n_output = n_output
-        self.no_regress_at_outputs = no_regress_at_ouputs
+        self.no_regress_at_outputs = no_regress_at_outputs
+        for k in self.no_regress_at_outputs:
+            assert 0<=k and k < n_output
+
+    @staticmethod
+    def load_from_path(path):
+        with open(path, 'rb') as file:
+            obj = pickle.load(file)
+            return obj
+
+    def save_to_path(self, path):
+        with open(path, 'wb') as file:
+            pickle.dump(self, file)
+
+    def fit(self, X, Y):
+        self.cluster_data(X)
+        X_1 = self.transform_data(X)
+
+        nan_mask = np.isnan(X_1)
+        print(f'transformed_data: nan count: {np.sum(nan_mask[:])}')
+
+        N = X.shape[0]
+        X_train, X_test,  train_idxs, test_idxs = train_test_split(X_1, np.arange(N), test_size=0.2, shuffle=True)
+        X_train, X_valid, train_idxs, valid_idxs = train_test_split(X_train, train_idxs, test_size=0.2, shuffle=True)
+
+        self.train_idxs = train_idxs
+        self.valid_idxs = valid_idxs
+        self.test_idxs = test_idxs
+        Y_train = Y[train_idxs]
+        Y_valid = Y[valid_idxs]
+        Y_test = Y[test_idxs]
+
+        input = Input(shape=(self.n_cluster,))
+        x = Dense(units=32, activation='relu')(input)
+        x = Dense(units=64, activation='relu')(x)
+        x = Dense(units=64, activation='relu')(x)
+        x = Dense(units=self.n_output)(x)
+        model = Model(input=input, output = x)
+        model.summary()
+        model.compile(optimizer=RMSprop(), loss='mean_squared_error', metrics=['mean_squared_error'])
+        epochs = 300
+        history = model.fit(X_train, Y_train, validation_data=(X_valid, Y_valid), epochs=epochs, batch_size=32)
+        self.regressor = model
+        plt.plot(np.arange(epochs), history.history['loss'], '-b')
+        plt.plot(np.arange(epochs), history.history['val_loss'], '-r')
+        plt.show()
+
+        # calc median of the first and last curvature for each cluster
+        self.output_cluster_median = np.zeros(shape=(self.n_cluster, self.n_output))
+        for cluster in range(self.n_cluster):
+            for output_idx in range(self.n_output):
+                features = Y[self.training_clusters == cluster]
+                self.output_cluster_median[cluster, output_idx] = np.median(features[:, output_idx])
+
+    def loss(self, X, Y):
+        Y_hat = self.regressor.predict(X)
+        for i in range(10):
+            print('')
+            print('y_hat', Y_hat[i,:])
+            print('y    ', Y[i,:])
+        l = np.sqrt(np.mean((Y-Y_hat)**2))
+        return l
+
+    def predict(self, X):
+        if len(X.shape) == 1:
+            X = np.expand_dims(X, axis=0)
+
+        cluster_ids = self.kmeans_cls.predict(X)
+
+        X_1 = self.transform_data(X)
+        preds = self.regressor.predict(X_1)
+
+        for i in range(preds.shape[0]):
+            preds[i, self.no_regress_at_outputs] = self.output_cluster_median[cluster_ids[i], self.no_regress_at_outputs]
+
+        return preds
+
+    def rbf(self, x, c, s):
+        #print(2 * s ** 2)
+        return np.exp(-1 / (2 * s ** 2) * (x - c) ** 2)
+
+    def transform_data(self, X):
+        X_1 = []
+        for i in range(X.shape[0]):
+            a = np.array([self.rbf(X[i], c, s)[0] for c, s, in zip(self.cluster_mean, self.cluster_std)])
+            X_1.append(a)
+        X_1 = np.array(X_1)
+        return X_1
+
+    def cluster_data(self, X):
+        self.kmeans_cls = KMeans(n_clusters=self.n_cluster, max_iter=1000, tol=1e-6, random_state=100).fit(X)
+        self.training_clusters = self.kmeans_cls.predict(X)
+
+        # calculate standard variance
+        self.cluster_std = np.zeros(len(self.kmeans_cls.labels_), dtype=np.float32)
+        self.cluster_mean = self.kmeans_cls.cluster_centers_.flatten()
+        for l in range(self.n_cluster):
+            cluster_mask = (self.training_clusters== l)
+            points = X[cluster_mask].flatten()
+            self.cluster_std[l] = np.std(points)
+
+class RBFNet():
+    def __init__(self, n_cluster = 0, n_output = 0, no_regress_at_outputs= []):
+        self.n_cluster = n_cluster
+        self.n_output = n_output
+        self.no_regress_at_outputs = no_regress_at_outputs
         for k in self.no_regress_at_outputs:
             assert 0<=k and k < n_output
 
@@ -106,6 +212,9 @@ class RBFNet():
         self.cluster_data(X)
         X_1 = self.transform_data(X)
 
+        nan_mask = np.isnan(X_1)
+        print(f'transformed_data: nan count: {np.sum(nan_mask[:])}')
+
         N = X.shape[0]
         X_train, X_test, train_idxs, test_idxs = train_test_split(X_1, np.arange(N), test_size=0.2, shuffle=True)
         self.train_idxs = train_idxs
@@ -113,9 +222,13 @@ class RBFNet():
         Y_train = Y[train_idxs]
         Y_test = Y[test_idxs]
 
-        self.regressor = ExtraTreesRegressor().fit(X_train, Y_train)
+        self.regressor = ExtraTreesRegressor(random_state=200).fit(X_train, Y_train)
+        #params = {'n_estimators': 500, 'max_depth': 4, 'min_samples_split': 2,
+        #          'learning_rate': 0.01, 'loss': 'ls'}
+        #self.regressor =  GradientBoostingRegressor(**params).fit(X_train, Y_train)
         print('regression score on train set:  ', self.regressor.score(X_train, Y_train))
         print('regression score on test set: ', self.regressor.score(X_test, Y_test))
+        print('regression score on test mse loss: ', self.loss(X_test, Y_test))
 
         # calc median of the first and last curvature for each cluster
         self.output_cluster_median = np.zeros(shape=(self.n_cluster, self.n_output))
@@ -123,6 +236,15 @@ class RBFNet():
             for output_idx in range(self.n_output):
                 features = Y[self.training_clusters == cluster]
                 self.output_cluster_median[cluster, output_idx] = np.median(features[:, output_idx])
+
+    def loss(self, X, Y):
+        Y_hat = self.regressor.predict(X)
+        for i in range(10):
+            print('')
+            print('y_hat', Y_hat[i,:])
+            print('y    ', Y[i,:])
+        l = np.sqrt(np.mean((Y-Y_hat)**2))
+        return l
 
     def predict(self, X):
         if len(X.shape) == 1:
@@ -139,6 +261,7 @@ class RBFNet():
         return preds
 
     def rbf(self, x, c, s):
+        #print(2 * s ** 2)
         return np.exp(-1 / (2 * s ** 2) * (x - c) ** 2)
 
     def transform_data(self, X):
@@ -150,7 +273,7 @@ class RBFNet():
         return X_1
 
     def cluster_data(self, X):
-        self.kmeans_cls = KMeans(n_clusters=self.n_cluster, max_iter=1000, tol=1e-6).fit(X)
+        self.kmeans_cls = KMeans(n_clusters=self.n_cluster, max_iter=1000, tol=1e-6, random_state=100).fit(X)
         self.training_clusters = self.kmeans_cls.predict(X)
 
         # calculate standard variance
@@ -209,16 +332,25 @@ def plot_contour_correrlation(IN_DIR, DEBUG_DIR):
         #plt.show()
         plt.savefig(f'{DEBUG_DIR}/label_{l}.png')
 
+def slice_model_config():
+    config = defaultdict(set)
+    config['Bust'] = {'n_cluster':12, 'n_output':10, 'no_regress_at_outputs':[0, 7]}
+    return config
+
 import sys
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
     ap.add_argument("-i", "--input", required=True, help="input meta data file")
+    ap.add_argument("-d", "--debug", required=True, help="input meta data file")
+    ap.add_argument("-m", "--model", required=True, help="input meta data file")
+
     args = vars(ap.parse_args())
     IN_DIR  = args['input']
+    DEBUG_DIR  = args['debug']
+    MODEL_DIR  = args['model']
 
-    DEBUG_DIR = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_usce/debug/'
     #slc_ids = ['Crotch', 'Aux_Crotch_Hip_0', 'Hip', 'Waist', 'UnderBust', 'Aux_Hip_Waist_0', 'Aux_Hip_Waist_1', 'Aux_Waist_UnderBust_0', 'Aux_Waist_UnderBust_1', 'Aux_Waist_UnderBust_2']
-    slc_ids = ['Crotch']
+    slc_ids = ['Bust']
 
     #plot correlation
     # for path in Path(IN_DIR).glob('*'):
@@ -228,25 +360,29 @@ if __name__ == '__main__':
     #         plot_contour_correrlation(str(path), CORR_DIR)
     # exit()
 
-    slc_error_names = defaultdict(list)
-    slc_error_names['Under_Bust'] = ['SPRING1894', 'SPRING2391', 'SPRING2622']
+    model_configs = slice_model_config()
 
     #load data from disk
     for SLC_DIR in Path(IN_DIR).glob('*'):
-        if SLC_DIR.stem in slc_ids:
+
+        slc_id = SLC_DIR.stem
+
+        if slc_id in slc_ids:
             #if SLC_DIR.stem != 'Waist':
             #     continue
 
-            MODEL_PATH = f'/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_usce/models/{SLC_DIR.stem}.pkl'
+            MODEL_PATH = f'{MODEL_DIR}/{SLC_DIR.stem}.pkl'
 
-            OUTPUT_DEBUG_DIR_TRAIN = f'/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_usce/debug/{SLC_DIR.stem}_prediction/train/'
-            OUTPUT_DEBUG_DIR_TEST = f'/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_usce/debug/{SLC_DIR.stem}_prediction/test/'
+            OUTPUT_DEBUG_DIR_TRAIN = f'{DEBUG_DIR}/{SLC_DIR.stem}_prediction/train/'
+            OUTPUT_DEBUG_DIR_TEST = f'{DEBUG_DIR}/{SLC_DIR.stem}_prediction/test/'
             shutil.rmtree(OUTPUT_DEBUG_DIR_TEST, ignore_errors=True)
             shutil.rmtree(OUTPUT_DEBUG_DIR_TRAIN, ignore_errors=True)
             os.makedirs(OUTPUT_DEBUG_DIR_TRAIN, exist_ok=True)
             os.makedirs(OUTPUT_DEBUG_DIR_TEST, exist_ok=True)
 
-            K = 12
+
+            model_config = model_configs[slc_id]
+            K = model_config['K'] if 'K' in model_config else 12
 
             #collect all slices
             X = []
@@ -255,11 +391,12 @@ if __name__ == '__main__':
             D = []
             contours = []
             print('start training slice mode: ', SLC_DIR.stem)
-            error_names = slc_error_names[SLC_DIR.stem]
+            error_names = mpii_error_slices[SLC_DIR.stem]
+            error_names_ucsc = ucsc_error_slices[SLC_DIR.stem]
 
             all_paths = [path for path in SLC_DIR.glob('*.*')]
             for path in all_paths:
-                if path.stem in error_names:
+                if path.stem in error_names or path.stem in error_names_ucsc:
                     print('\t ignore file: ',  path.stem)
                     continue
 
@@ -303,12 +440,19 @@ if __name__ == '__main__':
             print('nan count: ', np.isnan(Y).flatten().sum())
             print('inf count: ', np.isinf(X).flatten().sum())
             print('inf count: ', np.isinf(Y).flatten().sum())
-
             X = np.reshape(X, (-1, 1))
 
-            net = RBFNet(n_cluster=K, n_output=10, no_regress_at_ouputs=[0, 7])
-            net.fit(X, Y)
-            net.save_to_path(MODEL_PATH )
+            n_output = model_config['n_output'] if 'n_output' in model_config else 10
+            no_regress_at_outputs = model_config['no_regress_at_outputs'] if 'no_regress_at_outputs' in model_config else [0, 7]
+
+            if True:
+                net = RBFNet(n_cluster=K, n_output=n_output, no_regress_at_outputs=no_regress_at_outputs)
+                net.fit(X, Y)
+                net.save_to_path(MODEL_PATH )
+            else:
+                net = RBFNeuralNetwork(n_cluster=K, n_output=n_output, no_regress_at_outputs=no_regress_at_outputs)
+                net.fit(X, Y)
+                net.save_to_path(MODEL_PATH )
 
             net_1 = RBFNet.load_from_path(MODEL_PATH)
 

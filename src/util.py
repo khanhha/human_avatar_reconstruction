@@ -148,6 +148,9 @@ def align_contour(X, Y, anchor_pos_x = True, debug_path = None):
                 if anchor_p1[1] > anchor_p2[1]:
                     anchor_p1, anchor_p2 = anchor_p2, anchor_p1
 
+    if anchor_p1 is None or anchor_p2 is None:
+        return None, None
+
     dir_1 = anchor_p2 - anchor_p1
     anchor_dir = dir_1 / norm(dir_1)
     anchor_dir[1] = abs(anchor_dir[1])

@@ -45,9 +45,8 @@ def slice_id_3d_2d_mappings():
     mappings['Aux_Waist_UnderBust_1'] = 'Aux_Waist_UnderBust_1'
     mappings['Aux_Waist_UnderBust_2'] = 'Aux_Waist_UnderBust_2'
     mappings['UnderBust'] = 'UnderBust'
-    mappings['UnderBust_Bust_0'] = 'Aux_UnderBust_Bust_0'
+    mappings['Aux_UnderBust_Bust_0'] = 'Aux_UnderBust_Bust_0'
     mappings['Bust'] = 'Bust'
-    mappings['Bust_Armscye_0'] = 'Aux_Bust_Armscye_0'
     mappings['Armscye'] = 'Armscye'
     mappings['Armscye_Shoulder_0'] = 'Aux_Armscye_Shoulder_0'
     mappings['Shoulder'] = 'Shoulder'
@@ -223,14 +222,15 @@ if __name__ == '__main__':
     ap.add_argument("-m", "--measure_dir", required=True, help="measurement 2d data directory")
     ap.add_argument("-o", "--out_dir", required=True, help="directory for expxorting control mesh slices")
     ap.add_argument("-w", "--weight", required=True, help="deform based on weight")
+    ap.add_argument("-mo", "--model_dir", required=True, help="deform based on weight")
+
     args = vars(ap.parse_args())
 
     IN_DIR = args['input']
     M_DIR = args['measure_dir']
     OUT_DIR = args['out_dir'] + '/'
     is_deform = bool(int(args['weight']))
-
-    MODEL_DIR = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_usce/models/'
+    MODEL_DIR = args['model_dir'] + '/'
     models = {}
     for path in Path(MODEL_DIR).glob('*.pkl'):
         models[path.stem] = RBFNet.load_from_path(path)
@@ -326,12 +326,6 @@ if __name__ == '__main__':
             if id_2d in seg_dst_s:
                 d = seg_dst_s[id_2d]
 
-            # for breast slices, we just scale using chest depth (slice depth - breast height at that slice)
-            if is_breast_segment(id_2d):
-                breast_height_slc_id = "Breast_Depth_" + id_2d
-                breast_height = seg_dst_s[breast_height_slc_id]
-                d = d - breast_height
-
             slc_loc_hor = seg_log[0]
             slc_loc_ver = np.abs(seg_log[1])
 
@@ -380,29 +374,6 @@ if __name__ == '__main__':
             slice_out[:, 1] += (-slice_hor_anchor + tpl_ankle_hor + slc_loc_hor)
 
             ctl_new_mesh['verts'][slc_idxs, :] = slice_out
-
-            if is_breast_segment(id_2d):
-                breast_slc_id_2d = "Breast_Depth_" + id_2d
-                #right
-                breast_slc_id_3d = 'L'+breast_slc_id_2d
-                brst_slc_idxs = slc_id_vert_idxs[breast_slc_id_3d]
-                brst_slc= ctl_mesh['verts'][brst_slc_idxs]
-
-                #width scale
-                brst_slc = scale_vertical_slice(brst_slc, w_ratio, 1, scale_center=slc_org)
-
-                #set height location
-                brst_slc[:, 2] = slc_loc_ver + tpl_ankle_ver
-
-                #breast height scale
-                brst_h = seg_dst_s[breast_slc_id_2d]
-                brst_h = h_ratio * brst_h
-                brst_slc, end_0_idx, end_1_idx = scale_breast_height(brst_slc, brst_h)
-                #TODO: this way of ignoring the first and end point is kind of awkward => need to find a better way
-                #ignore the firt and start point of the brest slice because they are already scaled
-                for i in range(len(brst_slc_idxs)):
-                    if i != end_0_idx and i != end_1_idx:
-                        ctl_new_mesh['verts'][brst_slc_idxs[i],:] = brst_slc[i,:]
 
         #transform_arm_slices(ctl_new_mesh, slc_id_locs, slc_id_vert_idxs, arm_3d)
 

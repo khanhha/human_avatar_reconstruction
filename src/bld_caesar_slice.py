@@ -7,6 +7,7 @@ import numpy as np
 import math
 import os
 from collections import defaultdict
+import shutil
 
 scene = bpy.context.scene
 g_cur_file_name = ''
@@ -94,7 +95,7 @@ def mesh_to_numpy(mesh):
     
     return np.array(verts), faces
 
-def ucsc_collect_landmark_vertices(obj, name_ids):
+def collect_group_vertex_indices(obj, name_ids):
     verts = obj.data.vertices
     lds = defaultdict(list)
     for v in verts:
@@ -134,27 +135,26 @@ def ucsc_calc_slice_plane_locs(cae_obj, ld_idxs):
 
     return locs
     
-def calc_slice_plane_locs(cae_obj, ld_idxs):
+def mpii_calc_slice_plane_locs(cae_obj, ld_idxs):
     verts = cae_obj.data.vertices
     locs = {}
     loc_0 = verts[ld_idxs[16]].co
     loc_1 = verts[ld_idxs[18]].co
     locs['Hip'] =  0.5*(loc_0 + loc_1)
     
-    loc_0 = verts[ld_idxs[12]].co
-    loc_1 = verts[ld_idxs[13]].co
+    upper_bust = 0.5*(verts[ld_idxs[12]].co + verts[ld_idxs[13]].co)
+    under_bust = verts[ld_idxs[14]].co
+    alpha = 0.6
+    locs['Bust'] = alpha*upper_bust+(1-alpha)*under_bust
+
+    loc_0 = 0.5*(verts[ld_idxs[12]].co + verts[ld_idxs[13]].co)
     loc_2 = verts[ld_idxs[14]].co
-    locs['Bust'] = (loc_0+loc_1+loc_2)/3.0
+    loc = loc_2 + (loc_2 - loc_0)
+    locs['Aux_UnderBust_Bust_0'] = verts[ld_idxs[14]].co
     
     #print('Hip', locs['Hip'])
     #print('Bust',locs['Bust'])
     
-    return locs
-
-def fit_slice_planes_to_mesh(cae_obj, planes, ld_idxs):
-    locs = calc_slice_plane_locs(cae_obj, ld_idxs)
-    for id, loc in locs.items():
-        set_plane_slice_loc(planes, id, loc)
     return locs
 
 #should be in edit mode
@@ -314,60 +314,103 @@ def extract_slice_from_isect_obj(locs, isect_obj, eps = 0.1):
     bpy.ops.object.mode_set(mode='OBJECT')                               
     return slc_contours
 
-def mpii_process(DIR_OBJ):
+def mpii_is_correct_mesh(obj):
+    n_verts = len(obj.data.vertices)
+    n_faces = len(obj.data.polygons)
+    if n_verts != 6449 or n_faces != 12894:
+        return False
+    else:
+        return True
+
+def mpii_process(DIR_IN_OBJ, DIR_OUT_SLICE, DIR_OUT_SUPPOINT, slice_ids, debug_name = None):
+    DIR_LD = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/obj/'
+    
     obj_planes_tpl = bpy.data.objects['Slice_planes_template']
     
     ld_path = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_meta/landmarksIdxs73.npy'
     ld_idxs = np.load(ld_path)
     
+    suppoint_obj = bpy.data.objects['MPII_female_supplement_keypoints']
+    support_points_ids = []
+    for grp in suppoint_obj.vertex_groups:
+        support_points_ids.append(grp.name)
+    support_points_idxs = collect_group_vertex_indices(suppoint_obj, support_points_ids)
+        
     error_obj_paths = []
-    
-    for i, path in enumerate(Path(DIR_OBJ).glob('*.obj')):
-        
-        #if 'CSR0441A' not in str(path):
-        #    continue
-        
-        if '_ld' not in str(path):
-            print(str(path))
-            obj_caesar = import_obj(str(path),'Caesar_mesh')
-            transform_obj_caesar(obj_caesar, ld_idxs)
-            
-            n_verts = len(obj_caesar.data.vertices)  
-            n_faces = len(obj_caesar.data.polygons)
-            if n_verts != 6449 or n_faces != 12894:
-                print('error object: ', path.stem)                
-                error_obj_paths.append(str(path))
-                delete_obj(obj_caesar)
-                delete_obj(obj_planes)
-                continue
-            
-            ld_path = DIR_OBJ + path.stem+'_ld'+'.obj'
-            #obj_caesar_ld = import_obj(ld_path,'Caesar_mesh_ld')
-            
-            obj_planes = copy_obj(obj_planes_tpl, 'Slice_planes', Vector((0.0,0.0,0.0)))            
-            slc_locs = fit_slice_planes_to_mesh(obj_caesar, obj_planes, ld_idxs)
 
-            slc_contours = isect_extract_slice_from_locs(slc_locs, obj_caesar)
-            assert slc_contours is not None
+    for id in slice_ids:
+        os.makedirs(DIR_OUT_SLICE + '/' + id, exist_ok=True)
 
+    ignore_files = {'nl_6289a'}
+    for i, path in enumerate(Path(DIR_IN_OBJ).glob('*.obj')):
+
+        if (debug_name is not None) and (debug_name not in str(path)):
+            continue
+
+        if path.stem in ignore_files:
+            continue
+
+        print(i, str(path))
+        obj_caesar = import_obj(str(path), path.stem)
+        transform_obj_caesar(obj_caesar, ld_idxs)
+
+        if not mpii_is_correct_mesh(obj_caesar):
+            print('error object: ', path.stem)
+            error_obj_paths.append(str(path))
             delete_obj(obj_caesar)
-            #delete_obj(obj_caesar_ld)
-            delete_obj(obj_planes)
+            continue
+
+        slc_locs = mpii_calc_slice_plane_locs(obj_caesar, ld_idxs)
+
+        #just process on slices on demand
+        slc_locs = {id:loc for id, loc in slc_locs.items() if id in slice_ids}
+        #print(slc_locs)
+
+        if debug_name is not None:
+            obj_planes = copy_obj(obj_planes_tpl, path.stem+'_slice_planes', Vector((0.0, 0.0, 0.0)))
+            for id, loc in slc_locs.items():
+                set_plane_slice_loc(obj_planes, id, loc)
             
-            with open(str(Path(DIR_SLICE, path.stem+'.pkl')), 'wb') as file:
-                pkl.dump(slc_contours, file)
+            ld_path = DIR_LD + path.stem + '_ld.obj' 
+            obj_ld = import_obj(str(ld_path),path.stem+'_ld')
 
-            #if i > 100:
-            #    break            
+        slc_contours = isect_extract_slice_from_locs(slc_locs, obj_caesar)
+        assert slc_contours is not None
+
+        for id in slice_ids:
+            id_path = DIR_OUT_SLICE + '/' + id + '/' + path.stem + '.pkl'
+            contours = slc_contours[id]
+            with open(id_path, 'wb') as file:
+                pkl.dump(contours, file)
+
+        #extract support points
+        verts = obj_caesar.data.vertices
+        locs = {}
+        for id, idxs in support_points_idxs.items():
+            locs[id] = centroid_vertex_set(verts, idxs)[:]
+        suppoint_path = DIR_OUT_SUPPOINT + '/' + path.stem + '.pkl'
+        with open(suppoint_path, 'wb') as file:
+            pkl.dump(locs, file)
+
+        if debug_name != None:
+            return
+
+        delete_obj(obj_caesar)
+        if debug_name is not None:
+            delete_obj(obj_planes)
+
+        #if i > 5:
+        #     break
     
-    print('error list: ', error_obj_paths)
+    print('error files: ', error_obj_paths)
+    print('n error files: ', len(error_obj_paths))
 
-def ucsc_extract_landmarks(DIR_OBJ, DIR_OUT, tpl_obj):
+def ucsc_extract_supplement_keypoints(DIR_OBJ, DIR_OUT, tpl_obj):
     ld_ids = []
     for grp in tpl_obj.vertex_groups:
         ld_ids.append(grp.name)
 
-    ld_idxs = ucsc_collect_landmark_vertices(tpl_obj, ld_ids)
+    ld_idxs = collect_group_vertex_indices(tpl_obj, ld_ids)
 
     for i, path in enumerate(Path(DIR_OBJ).glob('*.obj')):
         print(i, str(path))
@@ -394,16 +437,13 @@ def ucsc_extract_landmarks(DIR_OBJ, DIR_OUT, tpl_obj):
         
         delete_obj(obj_caesar)
 
-        if i > 10:
-            break
-
 def ucsc_process(DIR_OBJ, DIR_SLICE, slice_ids, debug_name = None):
     obj_planes_tpl = bpy.data.objects['Slice_planes_template']
     
     error_obj_paths = []
     obj_template = bpy.data.objects['Female_template']
 
-    ld_idxs = ucsc_collect_landmark_vertices(obj_template, slice_ids)
+    ld_idxs = collect_group_vertex_indices(obj_template, slice_ids)
 
     for id in slice_ids:
         os.makedirs(DIR_SLICE+'/'+id, exist_ok=True)
@@ -470,24 +510,35 @@ def ucsc_process(DIR_OBJ, DIR_SLICE, slice_ids, debug_name = None):
     print('error list: ', error_obj_paths)
     print('multiple edge loop name list: ', g_mult_edge_loop_file_names)
     
-import shutil
-if __name__ == '__main__':
-    #DIR_OBJ = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/'
-    #DIR_SLICE = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj_slices/'
-    
+def ucsc_extract_slice():
     DIR_OBJ = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_usce/SPRING_FEMALE/'
     DIR_SLICE = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_usce/female_slice/'
-    DIR_LD = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_usce/female_landmarks/'
 
     #'Hip', 'Crotch', 'Aux_Crotch_Hip_0'
-    if True:
-        os.makedirs(DIR_SLICE, exist_ok=True)
-        slice_ids = ['Bust']
-        debug_file = 'SPRING1477'
-        ucsc_process(DIR_OBJ, DIR_SLICE, slice_ids=slice_ids, debug_name=None)
-    else:
-        ld_obj = bpy.data.objects['Female_landmarks']
-        shutil.rmtree(DIR_LD)
-        os.makedirs(DIR_LD, exist_ok=True)
-        ucsc_extract_landmarks(DIR_OBJ, DIR_LD, ld_obj)
-    
+    os.makedirs(DIR_SLICE, exist_ok=True)
+    slice_ids = ['Bust']
+    debug_file = 'SPRING0136'
+    ucsc_process(DIR_OBJ, DIR_SLICE, slice_ids=slice_ids, debug_name=debug_file)
+
+def ucsc_extract_supplement_points():
+    DIR_OBJ = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_usce/SPRING_FEMALE/'
+    DIR_LD = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_usce/female_landmarks/'
+    ld_obj = bpy.data.objects['Female_landmarks']
+    shutil.rmtree(DIR_LD)
+    os.makedirs(DIR_LD, exist_ok=True)
+    ucsc_extract_supplement_keypoints(DIR_OBJ, DIR_LD, ld_obj)
+
+def mpii_extract_slices():
+    DIR_IN_OBJ = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/caesar_obj_female/'
+    DIR_OUT_SLICE = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/caesar_obj_slices/'
+    DIR_OUT_SUPPOINT = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/caesar_obj_supplement_points/'
+
+    os.makedirs(DIR_OUT_SLICE, exist_ok=True)
+    slice_ids = ['Bust']
+    debug_file = 'csr4414a'
+    mpii_process(DIR_IN_OBJ, DIR_OUT_SLICE=DIR_OUT_SLICE, DIR_OUT_SUPPOINT=DIR_OUT_SUPPOINT, slice_ids=slice_ids, debug_name=None)
+
+if __name__ == '__main__':
+    mpii_extract_slices()
+    #mpii_extract_supplement_points()
+

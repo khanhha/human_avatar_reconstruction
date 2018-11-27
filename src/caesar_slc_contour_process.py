@@ -9,7 +9,7 @@ from numpy.linalg import norm
 from pathlib import Path
 import math
 import src.util as util
-from src.caesar_slc_fix_bust import remove_arm_from_bust_slice
+from src.caesar_slc_fix_bust import remove_arm_from_bust_slice, remove_arm_from_under_bust_slice
 from scipy.spatial import ConvexHull
 import scipy.ndimage as ndimage
 import shutil
@@ -143,30 +143,43 @@ if __name__  == '__main__':
     ap = argparse.ArgumentParser()
     ap.add_argument("-i", "--input", required=True, help="")
     ap.add_argument("-o", "--output", required=True, help="")
-    ap.add_argument("-l", "--landmark", required=True, help="")
+    ap.add_argument("-p", "--suppoint", required=True, help="")
 
     args = vars(ap.parse_args())
     IN_DIR  = args['input']
     OUT_DIR = args['output']
-    LD_DIR   = args['landmark']
+    SUPPOINT_DIR   = args['suppoint']
 
-    DEBUG_DIR = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_usce/debug/radial_code/'
     #error_list = ['CSR2071A', 'CSR1334A', 'nl_5750a']
     error_list= ['SPRING4188', 'SPRING4100']
 
+    DEBUG_DIR = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/debug/'
+    os.makedirs(DEBUG_DIR, exist_ok=True)
+
     cnt = 0
-    #slc_ids = ['Aux_Hip_Waist_0', 'Aux_Hip_Waist_1', 'Aux_Waist_UnderBust_0', 'Aux_Waist_UnderBust_1', 'Aux_Waist_UnderBust_2']
+    #slc_ids = ['Aux_Hip_Waist_0', 'Aux_Hip_Waist_1', 'Aux_Waist_UnderBust_0', 'Aux_Waist_UnderBust_1', 'Aux_Waist_UnderBust_2', 'Bust']
     slc_ids = ['Bust']
+    failed_slice_paths = []
     for slc_id in slc_ids:
         SLICE_DIR = f'{IN_DIR}/{slc_id}/'
 
-        DEBUG_ALIGN_DIR = f'/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_usce/debug/{slc_id}_align/'
-        shutil.rmtree(DEBUG_ALIGN_DIR)
+        DEBUG_ALIGN_DIR = f'{DEBUG_DIR}/{slc_id}_align/'
+        shutil.rmtree(DEBUG_ALIGN_DIR, ignore_errors=True)
         os.makedirs(DEBUG_ALIGN_DIR, exist_ok=True)
 
-        DEBUG_RADIAL_DIR = f'/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_usce/debug/{slc_id}_radial/'
-        shutil.rmtree(DEBUG_RADIAL_DIR)
+        DEBUG_RADIAL_DIR = f'{DEBUG_DIR}/{slc_id}_radial/'
+        shutil.rmtree(DEBUG_RADIAL_DIR, ignore_errors=True)
         os.makedirs(DEBUG_RADIAL_DIR, exist_ok=True)
+
+        if slc_id == 'Bust':
+            DEBUG_BUST_DIR = f'{DEBUG_DIR}/{slc_id}_bust_cutoff/'
+            shutil.rmtree(DEBUG_BUST_DIR, ignore_errors=True)
+            os.makedirs(DEBUG_BUST_DIR, exist_ok=True)
+
+        if slc_id == 'Aux_UnderBust_Bust_0':
+            DEBUG_UNDERBUST_BUST_DIR = f'{DEBUG_DIR}/{slc_id}_aux_underbust_bust_0_cutoff/'
+            shutil.rmtree(DEBUG_UNDERBUST_BUST_DIR, ignore_errors=True)
+            os.makedirs(DEBUG_UNDERBUST_BUST_DIR, exist_ok=True)
 
         Ws = []
         Ds = []
@@ -179,13 +192,17 @@ if __name__  == '__main__':
 
             print(path, i)
 
+            #debug
+            #if 'CSR1289A' not in path.name:
+            #    continue
+
             with open(path, 'rb') as file:
                 slc_contours = pickle.load(file)
 
-            ld_path = f'{LD_DIR}/{path.stem}.pkl'
-            assert os.path.exists(ld_path)
-            with open(ld_path, 'rb') as file:
-                landmarks = pickle.load(file)
+            suppoints_path = f'{SUPPOINT_DIR}/{path.stem}.pkl'
+            assert os.path.exists(suppoints_path)
+            with open(suppoints_path, 'rb') as file:
+                supppoints = pickle.load(file)
 
             ignore = False
             # for name in error_list:
@@ -206,18 +223,35 @@ if __name__  == '__main__':
 
             align_anchor_pos_x = True
             if slc_id == 'Bust':
+                debug_bust_path = f'{DEBUG_BUST_DIR}/{path.stem}_bust.png'
                 align_anchor_pos_x = False
-                contour, has_left, has_right, fixed_left, fixed_right = remove_arm_from_bust_slice(contour, landmarks, debug_path=None)
+                arm_pnt_negx = np.array(supppoints['Bust_Arm_NegX'][:2])
+                arm_pnt_posx = np.array(supppoints['Bust_Arm_PosX'][:2])
+                contour, has_left, has_right, fixed_left, fixed_right = remove_arm_from_bust_slice(contour, arm_pnt_negx=arm_pnt_negx, arm_pnt_posx=arm_pnt_posx, debug_path=debug_bust_path)
+                if has_left != fixed_left or has_right != fixed_right:
+                    failed_slice_paths.append(path)
+
+            if slc_id == 'Aux_UnderBust_Bust_0':
+                debug_bust_path = f'{DEBUG_UNDERBUST_BUST_DIR}/{path.stem}_bust.png'
+                align_anchor_pos_x = False
+                arm_pnt_negx = np.array(supppoints['Aux_UnderBust_Bust_0_NegX'][:2])
+                arm_pnt_posx = np.array(supppoints['Aux_UnderBust_Bust_0_PosX'][:2])
+                contour, has_left, has_right, fixed_left, fixed_right = remove_arm_from_under_bust_slice(contour, arm_pnt_negx=arm_pnt_negx, arm_pnt_posx=arm_pnt_posx, debug_path=debug_bust_path)
+                if has_left != fixed_left or has_right != fixed_right:
+                    failed_slice_paths.append(path)
 
             #transpose, swap X and Y to make the coordinate system more natural to the contour shape
             Y = contour[:, 0]
             X = contour[:, 1]
-            os.makedirs(f'{DEBUG_DIR}{id}/', exist_ok=True)
 
             X, Y = util.smooth_contour(X,Y, sigma=1.0)
 
             debug_align_path = f'{DEBUG_ALIGN_DIR}/{path.stem}.png'
             X, Y = util.align_contour(X, Y, anchor_pos_x= align_anchor_pos_x, debug_path=debug_align_path)
+            if X is None or Y is None:
+                failed_slice_paths.append(path)
+                continue
+
             X, Y = resample_contour(X, Y)
 
             debug_path_out = f'{DEBUG_RADIAL_DIR}/{path.stem}.png'
@@ -245,3 +279,7 @@ if __name__  == '__main__':
             name = Ns[i]
             with open(f'{feature_dir_out}{name}.pkl', 'wb') as file:
                  pickle.dump({'W':W, 'D':D, 'feature':F, 'cnt':C}, file)
+
+    print('failed slice paths')
+    print(failed_slice_paths)
+    print(f'n failed slices = {len(failed_slice_paths)}')
