@@ -187,18 +187,23 @@ def remove_arm_from_under_bust_slice(contour, arm_pnt_negx, arm_pnt_posx, debug_
 
 #contour: clockwise order
 #landmarks: contain points inside armt parts
-def remove_arm_from_bust_slice(contour, arm_pnt_negx, arm_pnt_posx, debug_path = None):
+def remove_arm_from_bust_slice(contour, arm_pnt_negx, arm_pnt_posx, ld_points, debug_path = None):
 
     contour = preprocess_contour(contour)
 
     hor_dir = arm_pnt_posx - arm_pnt_negx
 
+    ld_under_bust = ld_points[14]
     if debug_path is not None:
         plt.clf()
         plt.axes().set_aspect(1)
         plt.plot(contour[:,0], contour[:,1], '-b')
         plt.plot(arm_pnt_negx[0], arm_pnt_negx[1], '+r')
         plt.plot(arm_pnt_posx[0], arm_pnt_posx[1], '+r')
+        plt.plot(ld_under_bust[0], ld_under_bust[1], '+r', ms=10)
+        plt.plot(ld_points[12][0], ld_points[12][1], '+r', ms=10)
+        plt.plot(ld_points[13][0], ld_points[13][1], '+r', ms=10)
+        plt.show()
 
     fixed_left = False
     fixed_right = False

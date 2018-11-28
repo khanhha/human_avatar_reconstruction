@@ -144,11 +144,13 @@ if __name__  == '__main__':
     ap.add_argument("-i", "--input", required=True, help="")
     ap.add_argument("-o", "--output", required=True, help="")
     ap.add_argument("-p", "--suppoint", required=True, help="")
+    ap.add_argument("-l", "--ldpoint", required=True, help="")
 
     args = vars(ap.parse_args())
     IN_DIR  = args['input']
     OUT_DIR = args['output']
     SUPPOINT_DIR   = args['suppoint']
+    LDPOINT_DIR   = args['ldpoint']
 
     #error_list = ['CSR2071A', 'CSR1334A', 'nl_5750a']
     error_list= ['SPRING4188', 'SPRING4100']
@@ -204,6 +206,11 @@ if __name__  == '__main__':
             with open(suppoints_path, 'rb') as file:
                 supppoints = pickle.load(file)
 
+            ld_path = f'{LDPOINT_DIR}/{path.stem}.pkl'
+            assert os.path.exists(ld_path)
+            with open(ld_path, 'rb') as file:
+                ld_points = pickle.load(file)
+
             ignore = False
             # for name in error_list:
             #     if name in  str(path.stem):
@@ -227,7 +234,7 @@ if __name__  == '__main__':
                 align_anchor_pos_x = False
                 arm_pnt_negx = np.array(supppoints['Bust_Arm_NegX'][:2])
                 arm_pnt_posx = np.array(supppoints['Bust_Arm_PosX'][:2])
-                contour, has_left, has_right, fixed_left, fixed_right = remove_arm_from_bust_slice(contour, arm_pnt_negx=arm_pnt_negx, arm_pnt_posx=arm_pnt_posx, debug_path=debug_bust_path)
+                contour, has_left, has_right, fixed_left, fixed_right = remove_arm_from_bust_slice(contour, arm_pnt_negx=arm_pnt_negx, arm_pnt_posx=arm_pnt_posx, ld_points=ld_points, debug_path=debug_bust_path)
                 if has_left != fixed_left or has_right != fixed_right:
                     failed_slice_paths.append(path)
 

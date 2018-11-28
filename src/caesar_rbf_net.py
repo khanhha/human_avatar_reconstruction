@@ -14,6 +14,8 @@ from keras.optimizers import RMSprop, Adadelta
 from sklearn.linear_model import LinearRegression
 from sklearn.ensemble import ExtraTreesRegressor
 from sklearn.ensemble import GradientBoostingRegressor
+from sklearn.multioutput import MultiOutputRegressor
+from xgboost import XGBRegressor
 import src.util as util
 from  src.error_files import mpii_error_slices, ucsc_error_slices
 
@@ -222,9 +224,21 @@ class RBFNet():
         Y_train = Y[train_idxs]
         Y_test = Y[test_idxs]
 
-        self.regressor = ExtraTreesRegressor(random_state=200).fit(X_train, Y_train)
-        #params = {'n_estimators': 500, 'max_depth': 4, 'min_samples_split': 2,
-        #          'learning_rate': 0.01, 'loss': 'ls'}
+        self.regressor = ExtraTreesRegressor(random_state=200, max_depth=6, min_samples_leaf=5).fit(X_train, Y_train)
+        # Model
+        # xgb_params = {
+        #     'seed': 0,
+        #     'colsample_bytree': 0.7,
+        #     'silent': 1,
+        #     'subsample': 0.5,
+        #     'learning_rate': 0.1,
+        #     'objective': 'binary:logistic',
+        #     'max_depth': 10,
+        #     'min_child_weight': 100,
+        #     'booster': 'gbtree',
+        #     'eval_metric': 'logloss'
+        # }
+        #self.regressor = XGBRegressor().fit(X_train, Y_train)
         #self.regressor =  GradientBoostingRegressor(**params).fit(X_train, Y_train)
         print('regression score on train set:  ', self.regressor.score(X_train, Y_train))
         print('regression score on test set: ', self.regressor.score(X_test, Y_test))
@@ -239,10 +253,10 @@ class RBFNet():
 
     def loss(self, X, Y):
         Y_hat = self.regressor.predict(X)
-        for i in range(10):
-            print('')
-            print('y_hat', Y_hat[i,:])
-            print('y    ', Y[i,:])
+        #for i in range(10):
+        #    print('')
+            #print('y_hat', Y_hat[i,:])
+            #print('y    ', Y[i,:])
         l = np.sqrt(np.mean((Y-Y_hat)**2))
         return l
 

@@ -321,15 +321,28 @@ def mpii_is_correct_mesh(obj):
         return False
     else:
         return True
+def mpii_extract_all_ld_points(obj, ld_idxs):
+    mesh = obj.data
+    nverts = len(mesh.vertices)
+    ld_points = []
+    for idx in ld_idxs:
+        print(idx)
+        if idx >= 0 and idx < nverts:
+            ld = mesh.vertices[idx].co[:]
+            ld_points.append(ld)
+        else:
+            ld_points.append([-1, -1, -1])
 
-def mpii_process(DIR_IN_OBJ, DIR_OUT_SLICE, DIR_OUT_SUPPOINT, slice_ids, debug_name = None):
+    return np.array(ld_points)
+
+def mpii_process(DIR_IN_OBJ, DIR_OUT_SLICE, DIR_OUT_SUPPOINT, DIR_OUT_LD_POINT, slice_ids, debug_name = None):
     DIR_LD = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/obj/'
     
     obj_planes_tpl = bpy.data.objects['Slice_planes_template']
     
     ld_path = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_meta/landmarksIdxs73.npy'
     ld_idxs = np.load(ld_path)
-    
+
     suppoint_obj = bpy.data.objects['MPII_female_supplement_keypoints']
     support_points_ids = []
     for grp in suppoint_obj.vertex_groups:
@@ -370,12 +383,18 @@ def mpii_process(DIR_IN_OBJ, DIR_OUT_SLICE, DIR_OUT_SUPPOINT, slice_ids, debug_n
             obj_planes = copy_obj(obj_planes_tpl, path.stem+'_slice_planes', Vector((0.0, 0.0, 0.0)))
             for id, loc in slc_locs.items():
                 set_plane_slice_loc(obj_planes, id, loc)
-            
-            ld_path = DIR_LD + path.stem + '_ld.obj' 
-            obj_ld = import_obj(str(ld_path),path.stem+'_ld')
 
         slc_contours = isect_extract_slice_from_locs(slc_locs, obj_caesar)
         assert slc_contours is not None
+
+        #output landmark points
+        ld_out_path = DIR_OUT_LD_POINT + '/' + path.stem + '.pkl'
+        ld_points = mpii_extract_all_ld_points(obj_caesar, ld_idxs)
+        with open(ld_out_path, 'wb') as file:
+            pkl.dump(ld_points, file)
+
+        if debug_name != None:
+            return
 
         for id in slice_ids:
             id_path = DIR_OUT_SLICE + '/' + id + '/' + path.stem + '.pkl'
@@ -392,11 +411,8 @@ def mpii_process(DIR_IN_OBJ, DIR_OUT_SLICE, DIR_OUT_SUPPOINT, slice_ids, debug_n
         with open(suppoint_path, 'wb') as file:
             pkl.dump(locs, file)
 
-        if debug_name != None:
-            return
-
         delete_obj(obj_caesar)
-        if debug_name is not None:
+        if (debug_name is not None) and (obj_planes is not None):
             delete_obj(obj_planes)
 
         #if i > 5:
@@ -532,11 +548,13 @@ def mpii_extract_slices():
     DIR_IN_OBJ = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/caesar_obj_female/'
     DIR_OUT_SLICE = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/caesar_obj_slices/'
     DIR_OUT_SUPPOINT = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/caesar_obj_supplement_points/'
+    DIR_OUT_LD = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/caesar_obj_landmark_points/'
 
+    os.makedirs(DIR_OUT_LD, exist_ok=True)
     os.makedirs(DIR_OUT_SLICE, exist_ok=True)
     slice_ids = ['Bust']
     debug_file = 'csr4414a'
-    mpii_process(DIR_IN_OBJ, DIR_OUT_SLICE=DIR_OUT_SLICE, DIR_OUT_SUPPOINT=DIR_OUT_SUPPOINT, slice_ids=slice_ids, debug_name=None)
+    mpii_process(DIR_IN_OBJ, DIR_OUT_SLICE=DIR_OUT_SLICE, DIR_OUT_SUPPOINT=DIR_OUT_SUPPOINT, DIR_OUT_LD_POINT = DIR_OUT_LD, slice_ids=slice_ids, debug_name=None)
 
 if __name__ == '__main__':
     mpii_extract_slices()
