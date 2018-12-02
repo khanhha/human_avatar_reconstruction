@@ -364,7 +364,7 @@ if __name__ == '__main__':
     MODEL_DIR  = args['model']
 
     #slc_ids = ['Crotch', 'Aux_Crotch_Hip_0', 'Hip', 'Waist', 'UnderBust', 'Aux_Hip_Waist_0', 'Aux_Hip_Waist_1', 'Aux_Waist_UnderBust_0', 'Aux_Waist_UnderBust_1', 'Aux_Waist_UnderBust_2']
-    slc_ids = ['Bust']
+    slc_ids = ['Aux_UnderBust_Bust_0']
 
     #plot correlation
     # for path in Path(IN_DIR).glob('*'):
@@ -439,7 +439,6 @@ if __name__ == '__main__':
                     if np.isinf(X).flatten().sum() > 0:
                         print(f'inf X: {path}', file=sys.stderr)
                         continue
-
                     X.append(w/d)
                     Y.append(feature)
                     W.append(w)
