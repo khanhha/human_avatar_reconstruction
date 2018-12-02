@@ -147,10 +147,10 @@ def mpii_calc_slice_plane_locs(cae_obj, ld_idxs):
     alpha = 0.6
     locs['Bust'] = alpha*upper_bust+(1-alpha)*under_bust
 
-    locs['UnderBust'] = under_bust + 0.7*(under_bust - upper_bust)
+    locs['UnderBust'] = under_bust + 0.6*(under_bust - upper_bust)
 
-    loc_0 = 0.5*(verts[ld_idxs[12]].co + verts[ld_idxs[13]].co)
-    loc_2 = verts[ld_idxs[14]].co
+    locs['Armscye']   = upper_bust + 0.6*(upper_bust - under_bust)
+
     locs['Aux_UnderBust_Bust_0'] = verts[ld_idxs[14]].co
     
     #print('Hip', locs['Hip'])
@@ -553,7 +553,7 @@ def mpii_extract_slices():
 
     os.makedirs(DIR_OUT_LD, exist_ok=True)
     os.makedirs(DIR_OUT_SLICE, exist_ok=True)
-    slice_ids = ['UnderBust']
+    slice_ids = ['Armscye']
     debug_file = 'csr4414a'
     mpii_process(DIR_IN_OBJ, DIR_OUT_SLICE=DIR_OUT_SLICE, DIR_OUT_SUPPOINT=DIR_OUT_SUPPOINT, DIR_OUT_LD_POINT = DIR_OUT_LD, slice_ids=slice_ids, debug_name=None)
 

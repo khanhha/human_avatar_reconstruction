@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from shapely.geometry import LinearRing, LineString, Point, Polygon
+from shapely.geometry import LinearRing, LineString, Point, Polygon, MultiPoint
+from shapely.ops import nearest_points
 import shapely.affinity as affinity
 import math
 from numpy.linalg import norm
@@ -12,6 +13,28 @@ def normalize(vec):
     else:
         return vec
 
+#line dir must be normalized
+def mirror_point_through_axis(line_p, line_dir, p):
+    v = p-line_p
+    a = np.dot(v, line_dir)
+    proj = line_p + a*line_dir
+    return proj + (proj-p)
+
+def furthest_points_line(points ,line_p, line_dir):
+    dsts = np.zeros(shape=(points.shape[0],), dtype=np.float)
+    for i in range(points.shape[0]):
+        dsts[i] = abs(dst_point_line(points[i,:], line_p, line_dir))
+    return np.argmax(dsts)
+
+def closest_point_points(point, points):
+    g0 = Point(point)
+    if len(points) > 1:
+        g1 = MultiPoint(points)
+        closest = nearest_points(g0, g1)[1]
+        return np.array([closest.x, closest.y])
+    else:
+        return np.array([g0.x, g0.y])
+
 def rect_plane(rect):
     n = np.cross(rect[2]-rect[0], rect[1]-rect[0])
     n = n / np.linalg.norm(n)
@@ -20,6 +43,11 @@ def rect_plane(rect):
 
 def dst_point_plane(point, plane_point, plane_norm):
     return np.dot(plane_norm, point - plane_point)
+
+def dst_point_line(point, line_p, line_dir):
+    v = point-line_p
+    n = np.array([-line_dir[1], line_dir[0]])
+    return np.dot(v, n)
 
 def calc_triangle_local_basis(verts, tris):
     basis = np.zeros((len(tris),4, 3), dtype=np.float32)

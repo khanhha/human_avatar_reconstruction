@@ -9,13 +9,18 @@ from numpy.linalg import norm
 from pathlib import Path
 import math
 import src.util as util
-from src.caesar_slc_fix_bust import remove_arm_from_bust_slice, remove_arm_from_under_bust_slice
+from src.caesar_slc_fix_bust import remove_arm_from_bust_slice, remove_arm_from_under_bust_slice, fix_bust_height
 from scipy.spatial import ConvexHull
 import scipy.ndimage as ndimage
 import shutil
 from scipy.interpolate import splev, splrep, splprep, splev
 
 G_cur_file_path = Path()
+IN_DIR = ''
+OUT_DIR = ''
+SUPPOINT_DIR = ''
+LDPOINT_DIR = ''
+DEBUG_DIR = ''
 
 def plot_segment(p0, p1, type):
     plt.plot([p0[0], p1[0]], [p0[1], p1[1]], type)
@@ -66,7 +71,6 @@ def resample_contour(X, Y, debug_path = None):
         plt.show()
     return X, Y
 
-
 def convert_contour_to_radial_code(X,Y, n_sample, path_out = None):
     idx_ymax, idx_ymin = np.argmax(Y), np.argmin(Y)
     idx_xmax, idx_xmin = np.argmax(X), np.argmin(X)
@@ -113,8 +117,7 @@ def convert_contour_to_radial_code(X,Y, n_sample, path_out = None):
         dx = points[i][0] - points[i-1][0]
         c = dy/dx
         if np.isinf(c):
-         print(dx, dy)
-         #assert False
+            print(f'zero division dy/dx: {dy}/{dx}')
         #c = np.clip(c, a_min=-100.0, a_max=100.0)
         feature.append(c)
 
@@ -138,6 +141,104 @@ def convert_contour_to_radial_code(X,Y, n_sample, path_out = None):
         #plt.show()
 
     return np.array(feature), W, D
+
+def load_largest_contour(path):
+    with open(path, 'rb') as file:
+        slc_contours = pickle.load(file)
+    assert len(slc_contours) != 0
+    lens = np.array([len(contour) for contour in slc_contours])
+    contour = slc_contours[np.argmax(lens)]
+    contour = np.array(contour)
+    contour = contour[:, :2]
+    return contour
+
+
+import multiprocessing
+class SliceProcess(multiprocessing.Process):
+    def my_init(self, cnt_paths, id):
+        print(f'thread{id} is initialized, n_paths = {len(cnt_paths)}')
+        self.paths = cnt_paths
+        self.id = id
+        self.Ws = []
+        self.Ds = []
+        self.Fs = []
+        self.Cs = []
+        self.Ns = []
+
+    def run(self):
+        n_paths = len(self.paths)
+        print(f'process {self.id} started. n_paths = {n_paths}')
+        for i, path in enumerate(self.paths):
+            if i % 50 == 0:
+                print(f'process {self.id}: {100.0*float(i)/float(n_paths)}%')
+
+            #print(path, i)
+            #debug
+            #if 'nl_5247a' not in path.name:
+            #    continue
+
+            suppoints_path = f'{SUPPOINT_DIR}/{path.stem}.pkl'
+            assert os.path.exists(suppoints_path)
+            with open(suppoints_path, 'rb') as file:
+                supppoints = pickle.load(file)
+
+            ld_path = f'{LDPOINT_DIR}/{path.stem}.pkl'
+            assert os.path.exists(ld_path)
+            with open(ld_path, 'rb') as file:
+                ld_points = pickle.load(file)
+
+            #TODO: is the contour with the largest number of vertices the main contour of the that slice?
+            contour = load_largest_contour(path)
+
+            align_anchor_pos_x = True
+            if slc_id == 'Bust':
+                align_anchor_pos_x = False
+
+                armscye_path = f'{IN_DIR}/Armscye/{path.name}'
+                armscye_contour = load_largest_contour(armscye_path)
+
+                debug_bust_path = f'{DEBUG_BUST_DIR}/{path.stem}.png'
+                contour, has_left, has_right, fixed_left, fixed_right = remove_arm_from_bust_slice(contour, sup_points=supppoints, debug_path=debug_bust_path)
+                if has_left != fixed_left or has_right != fixed_right:
+                    failed_slice_paths.append(path)
+
+                debug_bust_height_path = f'{DEBUG_BUSTHEIGHT_DIR}/{path.stem}.png'
+                contour, ok = fix_bust_height(contour, sup_points=supppoints, ld_points=ld_points, armscye_contour=armscye_contour, debug_path=debug_bust_height_path)
+
+            if slc_id == 'Aux_UnderBust_Bust_0':
+                align_anchor_pos_x = False
+                arm_pnt_negx = np.array(supppoints['Aux_UnderBust_Bust_0_NegX'][:2])
+                arm_pnt_posx = np.array(supppoints['Aux_UnderBust_Bust_0_PosX'][:2])
+                debug_bust_path = f'{DEBUG_UNDERBUST_BUST_DIR}/{path.stem}_bust.png'
+                contour, has_left, has_right, fixed_left, fixed_right = remove_arm_from_under_bust_slice(contour, arm_pnt_negx=arm_pnt_negx, arm_pnt_posx=arm_pnt_posx, debug_path=debug_bust_path)
+                if has_left != fixed_left or has_right != fixed_right:
+                    failed_slice_paths.append(path)
+
+            #transpose, swap X and Y to make the coordinate system more natural to the contour shape
+            Y = contour[:, 0]
+            X = contour[:, 1]
+
+            X, Y = util.smooth_contour(X,Y, sigma=1.0)
+
+            debug_align_path = f'{DEBUG_ALIGN_DIR}/{path.stem}.png'
+            X, Y = util.align_contour(X, Y, anchor_pos_x= align_anchor_pos_x, debug_path=debug_align_path)
+            if X is None or Y is None:
+                failed_slice_paths.append(path)
+                continue
+
+            X, Y = resample_contour(X, Y)
+
+            debug_path_out = f'{DEBUG_RADIAL_DIR}/{path.stem}.png'
+            feature, W, D = convert_contour_to_radial_code(X, Y, 16, path_out=debug_path_out)
+
+            #acculumate one more slice record
+            self.Ws.append(W)
+            self.Ds.append(D)
+            self.Fs.append(feature)
+            self.Cs.append(np.vstack([X,Y]))
+            self.Ns.append(path.stem)
+
+        print(f'process {self.id} finished')
 
 if __name__  == '__main__':
     ap = argparse.ArgumentParser()
@@ -178,6 +279,10 @@ if __name__  == '__main__':
             shutil.rmtree(DEBUG_BUST_DIR, ignore_errors=True)
             os.makedirs(DEBUG_BUST_DIR, exist_ok=True)
 
+            DEBUG_BUSTHEIGHT_DIR = f'{DEBUG_DIR}/{slc_id}_bust_height/'
+            shutil.rmtree(DEBUG_BUSTHEIGHT_DIR, ignore_errors=True)
+            os.makedirs(DEBUG_BUSTHEIGHT_DIR, exist_ok=True)
+
         if slc_id == 'Aux_UnderBust_Bust_0':
             DEBUG_UNDERBUST_BUST_DIR = f'{DEBUG_DIR}/{slc_id}_aux_underbust_bust_0_cutoff/'
             shutil.rmtree(DEBUG_UNDERBUST_BUST_DIR, ignore_errors=True)
@@ -189,87 +294,29 @@ if __name__  == '__main__':
         Cs = []
         Ns = []
 
-        for i, path in enumerate(Path(SLICE_DIR).glob('*.pkl')):
-            G_cur_file_path = path
+        slc_paths = [path for path in Path(SLICE_DIR).glob('*.pkl')]
+        #slc_paths = slc_paths[:100]
+        n_paths = len(slc_paths)
+        n_processes = 12
+        processes = []
+        npath_per_process = int(n_paths / n_processes)
+        for i in range(n_processes):
+            process = SliceProcess()
+            process.my_init(slc_paths[i*npath_per_process:(i + 1) * npath_per_process], i)
+            processes.append(process)
 
-            print(path, i)
+        for process in processes:
+            process.start()
 
-            #debug
-            #if 'CSR1289A' not in path.name:
-            #    continue
+        for process in processes:
+            process.join()
 
-            with open(path, 'rb') as file:
-                slc_contours = pickle.load(file)
-
-            suppoints_path = f'{SUPPOINT_DIR}/{path.stem}.pkl'
-            assert os.path.exists(suppoints_path)
-            with open(suppoints_path, 'rb') as file:
-                supppoints = pickle.load(file)
-
-            ld_path = f'{LDPOINT_DIR}/{path.stem}.pkl'
-            assert os.path.exists(ld_path)
-            with open(ld_path, 'rb') as file:
-                ld_points = pickle.load(file)
-
-            ignore = False
-            # for name in error_list:
-            #     if name in  str(path.stem):
-            #         ignore = True
-            #         break
-
-            if ignore:
-                continue
-
-            assert len(slc_contours) != 0
-
-            #TODO: is the contour with the largest number of vertices the main contour of the that slice?
-            lens = np.array([len(contour) for contour in slc_contours])
-            contour = slc_contours[np.argmax(lens)]
-            contour = np.array(contour)
-            contour = contour[:, :2]
-
-            align_anchor_pos_x = True
-            if slc_id == 'Bust':
-                debug_bust_path = f'{DEBUG_BUST_DIR}/{path.stem}_bust.png'
-                align_anchor_pos_x = False
-                arm_pnt_negx = np.array(supppoints['Bust_Arm_NegX'][:2])
-                arm_pnt_posx = np.array(supppoints['Bust_Arm_PosX'][:2])
-                contour, has_left, has_right, fixed_left, fixed_right = remove_arm_from_bust_slice(contour, arm_pnt_negx=arm_pnt_negx, arm_pnt_posx=arm_pnt_posx, ld_points=ld_points, debug_path=debug_bust_path)
-                if has_left != fixed_left or has_right != fixed_right:
-                    failed_slice_paths.append(path)
-
-            if slc_id == 'Aux_UnderBust_Bust_0':
-                debug_bust_path = f'{DEBUG_UNDERBUST_BUST_DIR}/{path.stem}_bust.png'
-                align_anchor_pos_x = False
-                arm_pnt_negx = np.array(supppoints['Aux_UnderBust_Bust_0_NegX'][:2])
-                arm_pnt_posx = np.array(supppoints['Aux_UnderBust_Bust_0_PosX'][:2])
-                contour, has_left, has_right, fixed_left, fixed_right = remove_arm_from_under_bust_slice(contour, arm_pnt_negx=arm_pnt_negx, arm_pnt_posx=arm_pnt_posx, debug_path=debug_bust_path)
-                if has_left != fixed_left or has_right != fixed_right:
-                    failed_slice_paths.append(path)
-
-            #transpose, swap X and Y to make the coordinate system more natural to the contour shape
-            Y = contour[:, 0]
-            X = contour[:, 1]
-
-            X, Y = util.smooth_contour(X,Y, sigma=1.0)
-
-            debug_align_path = f'{DEBUG_ALIGN_DIR}/{path.stem}.png'
-            X, Y = util.align_contour(X, Y, anchor_pos_x= align_anchor_pos_x, debug_path=debug_align_path)
-            if X is None or Y is None:
-                failed_slice_paths.append(path)
-                continue
-
-            X, Y = resample_contour(X, Y)
-
-            debug_path_out = f'{DEBUG_RADIAL_DIR}/{path.stem}.png'
-            feature, W, D = convert_contour_to_radial_code(X, Y, 16, path_out=debug_path_out)
-
-            #acculumate one more slice record
-            Ws.append(W)
-            Ds.append(D)
-            Fs.append(feature)
-            Cs.append(np.vstack([X,Y]))
-            Ns.append(path.stem)
+        for process in processes:
+            Ws.append(process.Ws)
+            Ds.append(process.Ds)
+            Fs.append(process.Fs)
+            Cs.append(process.Cs)
+            Ns.append(process.Ns)
 
         #dump all records of that slice
         n_contour = len(Ns)
