@@ -306,7 +306,7 @@ def fix_bust_height(bust_contour, sup_points, ld_points, armscye_contour, debug_
         mirror_centroid = bust_base_target
         if take_left:
             half_contour = bust_contour[left_tip_idx-start_idx:n_bust_contour, :]
-            half_contour = np.concatenatgite([side_mirror_points[::-1, :], half_contour])
+            half_contour = np.concatenate([side_mirror_points[::-1, :], half_contour])
             half_contour = half_contour - mirror_centroid
 
             #mirror
