@@ -51,7 +51,45 @@ def arg_sort_points_cw(points):
     points = sorted(enumerate(points), key = compare_func)
     return [pair[0] for pair in points[::-1]]
 
-def sort_slice_vertices(slc_vert_idxs, mesh_verts, title = ''):
+def sort_leg_slice_vertices(slc_vert_idxs, mesh_verts):
+    X =  mesh_verts[slc_vert_idxs][:,1]
+    Y =  mesh_verts[slc_vert_idxs][:,0]
+
+    org_points = np.concatenate([X[:, np.newaxis], Y[:, np.newaxis]], axis=1)
+
+    points_0 = np.concatenate([X[:, np.newaxis], Y[:, np.newaxis]], axis=1)
+    arg_points_0 = arg_sort_points_cw(points_0)
+    points_0 = np.array(points_0[arg_points_0, :])
+
+    #find the starting point of the leg contour
+    #the contour must start at that point to match the order of the prediction contour
+    #check the leg contour in the blender file for why it is this way
+    start_idx  = np.argmin(points_0[:,1])+1
+    points_0 = np.roll(points_0, axis=0, shift=-start_idx)
+
+    #concatenate two sorted part.
+    sorted_points = points_0
+
+    #map indices
+    slc_sorted_vert_idxs = []
+    for i in range(sorted_points.shape[0]):
+        p = sorted_points[i,:]
+        dsts = np.sum(np.square(org_points - p), axis=1)
+        closest_idx = np.argmin(dsts)
+        assert closest_idx not in slc_sorted_vert_idxs
+        slc_sorted_vert_idxs.append(slc_vert_idxs[closest_idx])
+
+    sorted_X =  mesh_verts[slc_sorted_vert_idxs][:,0]
+    sorted_Y =  mesh_verts[slc_sorted_vert_idxs][:,1]
+    #plt.clf()
+    #plt.axes().set_aspect(1)
+    #plt.plot(points_0[:,0], points_0[:,1], '+r')
+    #plt.plot(sorted_points[:5,0], sorted_points[:5,1],'-b')
+    #plt.plot(sorted_X, sorted_Y,'-r')
+    #plt.show()
+    return slc_sorted_vert_idxs
+
+def sort_torso_slice_vertices(slc_vert_idxs, mesh_verts, title =''):
     X =  mesh_verts[slc_vert_idxs][:,1]
     Y =  mesh_verts[slc_vert_idxs][:,0]
 
@@ -68,6 +106,8 @@ def sort_slice_vertices(slc_vert_idxs, mesh_verts, title = ''):
     points_0 = np.array(points_0[arg_points_0, :])
 
     #find the first point of the contour
+    #the contour must start at that point to match the order of the prediction contour
+    #check the leg contour in the blender file for why it is this way
     min_y = np.inf
     min_y_idx = 0
     for i in range(points_0.shape[0]):
@@ -100,12 +140,12 @@ def sort_slice_vertices(slc_vert_idxs, mesh_verts, title = ''):
 
     sorted_X =  mesh_verts[slc_sorted_vert_idxs][:,0]
     sorted_Y =  mesh_verts[slc_sorted_vert_idxs][:,1]
-    plt.clf()
-    plt.axes().set_aspect(1)
-    plt.plot(points_0[:,0], points_0[:,1], '+r')
-    plt.plot(sorted_points[:,0], sorted_points[:,1],'-b')
-    plt.plot(sorted_X, sorted_Y,'-r')
-    plt.title(title)
+    # plt.clf()
+    # plt.axes().set_aspect(1)
+    # plt.plot(points_0[:,0], points_0[:,1], '+r')
+    # plt.plot(sorted_points[:,0], sorted_points[:,1],'-b')
+    # plt.plot(sorted_X, sorted_Y,'-r')
+    # plt.title(title)
     #plt.show()
     return slc_sorted_vert_idxs
 
@@ -370,7 +410,14 @@ if __name__ == '__main__':
     for id, slc_idxs in slice_id_vert_idxs.items():
         if id in sort_ids:
             print(f'\t\t{id}')
-            slc_idxs = sort_slice_vertices(slc_idxs, ctl_mesh['verts'], title=id)
+            slc_idxs = sort_torso_slice_vertices(slc_idxs, ctl_mesh['verts'], title=id)
+            slice_id_vert_idxs[id] = slc_idxs
+
+    sort_ids_1 = ['LUnderCrotch', 'RUnderCrotch']
+    for id, slc_idxs in slice_id_vert_idxs.items():
+        if id in sort_ids_1:
+            print(f'\t\t{id}')
+            slc_idxs = sort_leg_slice_vertices(slc_idxs, ctl_mesh['verts'])
             slice_id_vert_idxs[id] = slc_idxs
 
     n_quad = len(ctl_mesh['faces'])

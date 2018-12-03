@@ -71,6 +71,12 @@ def isect_line_line(p1, p2, p3, p4):
     p = np.array([p1[0]+t*(p2[0]-p1[0]), p1[1]+t*(p2[1]-p1[1])])
     return p
 
+def is_leg_contour(name):
+    if name == 'UnderCrotch':
+        return True
+    else:
+        return False
+
 def contour_center(X, Y):
     idx_ymax, idx_ymin = np.argmax(Y), np.argmin(Y)
     center_y = 0.5 * (Y[idx_ymax] + Y[idx_ymin])
@@ -84,7 +90,35 @@ def resample_contour(X, Y, n_point):
     X, Y = splev(u_1, tck)
     return X, Y
 
-def reconstruct_slice_contour(feature, D, W, mirror = False):
+def reconstruct_leg_slice_contour(feature, D, W):
+    p0 = np.array([D*feature[-2]*feature[-1], 0])
+    n_points = len(feature) -1
+    prev_p = p0
+    points = []
+    points.append(prev_p)
+
+    angle_step = 2.0*np.pi / float(n_points)
+    for i in range(1, n_points):
+        angle = float(i)*angle_step
+
+        l0_p0 = prev_p
+        l0_p1 = prev_p + np.array([1.0, feature[i-1]])
+
+        l1_p0 = np.array([0.0, 0.0])
+        l1_p1 = np.array([np.cos(angle), np.sin(angle)])
+
+        isct = isect_line_line(l0_p0, l0_p1, l1_p0, l1_p1)
+
+        points.append(isct)
+
+        prev_p = isct
+
+    X = np.array([p[0] for p in points])
+    Y = np.array([p[1] for p in points])
+
+    return np.vstack([X, Y])
+
+def reconstruct_torso_slice_contour(feature, D, W, mirror = False):
     p0 = np.array([D*feature[-2]*feature[-1], 0])
     n_points = len(feature) - 2
     half_idx = int(np.ceil(n_points / 2.0))
@@ -142,7 +176,7 @@ def reconstruct_slice_contour(feature, D, W, mirror = False):
 
     return np.vstack([X, Y])
 
-def align_contour(X, Y, anchor_pos_x = True, debug_path = None):
+def align_torso_contour(X, Y, anchor_pos_x = True, debug_path = None):
     idx_ymax, idx_ymin = np.argmax(Y), np.argmin(Y)
     center_y = 0.5 * (Y[idx_ymax] + Y[idx_ymin])
     center_x = X[idx_ymin]

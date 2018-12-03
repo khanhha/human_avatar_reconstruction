@@ -342,28 +342,38 @@ if __name__ == '__main__':
 
             slice_out = copy(slice)
             #TEST
-            if id_2d in models and 'Crotch' != id_2d:
-                print('\tapplied ', id_2d)
+            if id_2d in models:
+                print('\t applied ', id_2d)
                 model = models[id_2d]
                 ratio = w/d
                 pred = model.predict(np.reshape(ratio, (1,1)))[0, :]
-                res_contour = util.reconstruct_slice_contour(pred, d, w, mirror=True)
+                if util.is_leg_contour(id_2d):
+                    res_contour = util.reconstruct_leg_slice_contour(pred, d, w)
+                else:
+                    res_contour = util.reconstruct_torso_slice_contour(pred, d, w, mirror=True)
 
-                plt.clf()
-                plt.axes().set_aspect(1)
-                plt.plot(res_contour[0, :], res_contour[1, :], '-r')
-                plt.plot(slice_out[:, 0], slice_out[:, 1], '-b')
-                #plt.savefig(f'{OUTPUT_DEBUG_DIR_TEST}{idx}.png')
-                #plt.show()
+                if id_2d == 'UnderCrotch':
+                    plt.clf()
+                    plt.axes().set_aspect(1)
+                    plt.plot(res_contour[0, :], res_contour[1, :], '-r')
+                    plt.plot(slice_out[:, 0], slice_out[:, 1], '-b')
+                    #plt.savefig(f'{OUTPUT_DEBUG_DIR_TEST}{idx}.png')
+                    #plt.show()
 
                 slice_out[:,0] =  res_contour[1,:]
                 slice_out[:,1] =  res_contour[0,:]
+                #right side
+                if id_3d[0] == 'R':
+                    #mirror through X
+                    slice_out[:,0] = -slice_out[:,0]
+
+                if util.is_leg_contour(id_2d):
+                    slice_out += slc_org
 
             dim_range = np.max(slice_out, axis=0) - np.min(slice_out, axis=0)
             w_ratio = w / dim_range[0]
             d_ratio = d / dim_range[1]
             slice_out = scale_vertical_slice(slice_out, w_ratio, d_ratio, scale_center= slc_org)
-
 
             #align slice in vertical direction
             slice_out[:, 2] = slc_loc_ver + tpl_ankle_ver

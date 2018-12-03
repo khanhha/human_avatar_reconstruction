@@ -349,6 +349,7 @@ def plot_contour_correrlation(IN_DIR, DEBUG_DIR):
 def slice_model_config():
     config = defaultdict(set)
     config['Bust'] = {'n_cluster':12, 'n_output':10, 'no_regress_at_outputs':[0, 7]}
+    config['UnderCrotch'] = {'n_cluster':12, 'n_output':9, 'no_regress_at_outputs':[]}
     return config
 
 import sys
@@ -363,8 +364,8 @@ if __name__ == '__main__':
     DEBUG_DIR  = args['debug']
     MODEL_DIR  = args['model']
 
-    #slc_ids = ['Crotch', 'Aux_Crotch_Hip_0', 'Hip', 'Waist', 'UnderBust', 'Aux_Hip_Waist_0', 'Aux_Hip_Waist_1', 'Aux_Waist_UnderBust_0', 'Aux_Waist_UnderBust_1', 'Aux_Waist_UnderBust_2']
-    slc_ids = ['Aux_UnderBust_Bust_0']
+    #slc_ids = ['Crotch', 'Aux_Crotch_Hip_0', 'Hip', 'Waist', 'UnderBust', 'Aux_Hip_Waist_0', 'Aux_Hip_Waist_1', 'Aux_Waist_UnderBust_0', 'Aux_Waist_UnderBust_1', 'Aux_Waist_UnderBust_2', 'Aux_UnderBust_Bust_0']
+    slc_ids = ['UnderCrotch']
 
     #plot correlation
     # for path in Path(IN_DIR).glob('*'):
@@ -476,7 +477,11 @@ if __name__ == '__main__':
 
                 w = W[idx]
                 d = D[idx]
-                res_contour = util.reconstruct_slice_contour(pred, d, w, mirror=True)
+                if util.is_leg_contour(slc_id):
+                    res_contour = util.reconstruct_leg_slice_contour(pred, d, w)
+                else:
+                    res_contour = util.reconstruct_torso_slice_contour(pred, d, w, mirror=True)
+
                 contour = contours[idx]
                 center = util.contour_center(contour[0, :], contour[1, :])
                 res_contour[0, :] += center[0]
@@ -497,7 +502,7 @@ if __name__ == '__main__':
                 w = W[idx]
                 d = D[idx]
                 pred = net_1.predict(np.expand_dims(X[idx, :], axis=0))[0, :]
-                res_contour = util.reconstruct_slice_contour(pred, d, w, mirror=True)
+                res_contour = util.reconstruct_torso_slice_contour(pred, d, w, mirror=True)
                 contour = contours[idx]
                 center = util.contour_center(contour[0, :], contour[1, :])
                 res_contour[0, :] += center[0]
