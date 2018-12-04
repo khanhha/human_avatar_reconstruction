@@ -350,6 +350,10 @@ def slice_model_config():
     config = defaultdict(set)
     config['Bust'] = {'n_cluster':12, 'n_output':10, 'no_regress_at_outputs':[0, 7]}
     config['UnderCrotch'] = {'n_cluster':12, 'n_output':9, 'no_regress_at_outputs':[]}
+    config['Aux_Knee_UnderCrotch_3'] = {'n_cluster':12, 'n_output':9, 'no_regress_at_outputs':[]}
+    config['Aux_Knee_UnderCrotch_2'] = {'n_cluster':12, 'n_output':9, 'no_regress_at_outputs':[]}
+    config['Aux_Knee_UnderCrotch_1'] = {'n_cluster':12, 'n_output':9, 'no_regress_at_outputs':[]}
+    config['Aux_Knee_UnderCrotch_0'] = {'n_cluster':12, 'n_output':9, 'no_regress_at_outputs':[]}
     return config
 
 import sys
@@ -365,7 +369,8 @@ if __name__ == '__main__':
     MODEL_DIR  = args['model']
 
     #slc_ids = ['Crotch', 'Aux_Crotch_Hip_0', 'Hip', 'Waist', 'UnderBust', 'Aux_Hip_Waist_0', 'Aux_Hip_Waist_1', 'Aux_Waist_UnderBust_0', 'Aux_Waist_UnderBust_1', 'Aux_Waist_UnderBust_2', 'Aux_UnderBust_Bust_0']
-    slc_ids = ['UnderCrotch']
+    #slc_ids = ['UnderCrotch']
+    slc_ids = ['Aux_Knee_UnderCrotch_2']
 
     #plot correlation
     # for path in Path(IN_DIR).glob('*'):

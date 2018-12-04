@@ -158,6 +158,12 @@ def mpii_calc_slice_plane_locs(cae_obj, ld_idxs):
     under_crotch = knee + 0.9 * (crotch-knee)
     locs['UnderCrotch'] = under_crotch
 
+
+    locs['Aux_Knee_UnderCrotch_0'] = knee + 0.2*(crotch-knee)
+    locs['Aux_Knee_UnderCrotch_1'] = knee + 0.4*(crotch-knee)
+    locs['Aux_Knee_UnderCrotch_2'] = knee + 0.6*(crotch-knee)
+    locs['Aux_Knee_UnderCrotch_3'] = knee + 0.8*(crotch-knee)
+
     #print('Hip', locs['Hip'])
     #print('Bust',locs['Bust'])
     
@@ -558,7 +564,7 @@ def mpii_extract_slices():
 
     os.makedirs(DIR_OUT_LD, exist_ok=True)
     os.makedirs(DIR_OUT_SLICE, exist_ok=True)
-    slice_ids = ['UnderCrotch']
+    slice_ids = ['Aux_Knee_UnderCrotch_3']
     debug_file = 'csr4414a'
     mpii_process(DIR_IN_OBJ, DIR_OUT_SLICE=DIR_OUT_SLICE, DIR_OUT_SUPPOINT=DIR_OUT_SUPPOINT, DIR_OUT_LD_POINT = DIR_OUT_LD, slice_ids=slice_ids, debug_name=None)
 

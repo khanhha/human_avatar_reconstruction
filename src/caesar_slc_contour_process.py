@@ -197,7 +197,7 @@ def convert_leg_contour_to_radial_code(X, Y, n_sample, path_out = None):
     idx_ymax, idx_ymin = np.argmax(Y), np.argmin(Y)
     idx_xmax, idx_xmin = np.argmax(X), np.argmin(X)
     center_y = 0.5 * (Y[idx_ymax] + Y[idx_ymin])
-    center_x = 0.5 * (X[idx_ymin] + X[idx_ymax])
+    center_x = X[idx_ymax]
     center = np.array([center_x, center_y])
 
     W = Y[idx_ymax] - Y[idx_ymin]
@@ -208,6 +208,9 @@ def convert_leg_contour_to_radial_code(X, Y, n_sample, path_out = None):
         plt.axes().set_aspect(1)
         plt.plot(X, Y, 'b-')
         plt.plot(center_x, center_y, 'r+')
+        plt.plot(X[idx_ymax], Y[idx_ymax], 'go', ms=5)
+        plt.plot(X[idx_ymin], Y[idx_ymin], 'go', ms=5)
+        #plt.show()
 
     points, ok = sample_contour_radial(X, Y, center, n_sample)
     if ok is False:
@@ -299,7 +302,7 @@ def run_process_slice_contours(process_id, slc_id, paths, shared_data):
 
         #print(i, str(path))
 
-        #if 'csr4554a' not in path.name:
+        #if 'csr4205a' not in path.name:
         #    continue
 
         suppoints_path = f'{SUPPOINT_DIR}/{path.stem}.pkl'
@@ -401,7 +404,8 @@ if __name__  == '__main__':
 
     cnt = 0
     #slc_ids = ['Aux_Hip_Waist_0', 'Aux_Hip_Waist_1', 'Aux_Waist_UnderBust_0', 'Aux_Waist_UnderBust_1', 'Aux_Waist_UnderBust_2', 'Bust', 'Aux_UnderBust_Bust_0]
-    slc_ids = ['UnderCrotch']
+    #slc_ids = ['UnderCrotch']
+    slc_ids = ['Aux_Knee_UnderCrotch_2']
     failed_slice_paths = []
     for slc_id in slc_ids:
         SLICE_DIR = f'{IN_DIR}/{slc_id}/'

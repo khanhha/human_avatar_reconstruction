@@ -26,11 +26,11 @@ def slice_id_3d_2d_mappings():
     mappings['LKnee_UnderCrotch_0'] = 'Aux_Knee_UnderCrotch_0'
     mappings['LKnee_UnderCrotch_1'] = 'Aux_Knee_UnderCrotch_1'
     mappings['LKnee_UnderCrotch_2'] = 'Aux_Knee_UnderCrotch_2'
-    mappings['LKnee_UnderCrotch_3'] = 'Aux_Knee_UnderCrotch_3'
+    mappings['LAux_Knee_UnderCrotch_3'] = 'Aux_Knee_UnderCrotch_3'
     mappings['RKnee_UnderCrotch_0'] = 'Aux_Knee_UnderCrotch_0'
     mappings['RKnee_UnderCrotch_1'] = 'Aux_Knee_UnderCrotch_1'
     mappings['RKnee_UnderCrotch_2'] = 'Aux_Knee_UnderCrotch_2'
-    mappings['RKnee_UnderCrotch_3'] = 'Aux_Knee_UnderCrotch_3'
+    mappings['RAux_Knee_UnderCrotch_3'] = 'Aux_Knee_UnderCrotch_3'
 
     mappings['RUnderCrotch'] = 'UnderCrotch'
     mappings['LUnderCrotch'] = 'UnderCrotch'
@@ -352,7 +352,7 @@ if __name__ == '__main__':
                 else:
                     res_contour = util.reconstruct_torso_slice_contour(pred, d, w, mirror=True)
 
-                if id_2d == 'UnderCrotch':
+                if id_2d == 'Aux_Knee_UnderCrotch_3':
                     plt.clf()
                     plt.axes().set_aspect(1)
                     plt.plot(res_contour[0, :], res_contour[1, :], '-r')
