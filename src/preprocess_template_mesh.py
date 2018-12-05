@@ -413,7 +413,7 @@ if __name__ == '__main__':
             slc_idxs = sort_torso_slice_vertices(slc_idxs, ctl_mesh['verts'], title=id)
             slice_id_vert_idxs[id] = slc_idxs
 
-    sort_ids_1 = ['LUnderCrotch', 'RUnderCrotch', 'LAux_Knee_UnderCrotch_3']
+    sort_ids_1 = ['LKnee', 'RKnee', 'LUnderCrotch', 'RUnderCrotch', 'LAux_Knee_UnderCrotch_3', 'LAux_Knee_UnderCrotch_2', 'LAux_Knee_UnderCrotch_1', 'LAux_Knee_UnderCrotch_0']
     for id, slc_idxs in slice_id_vert_idxs.items():
         if id in sort_ids_1:
             print(f'\t\t{id}')

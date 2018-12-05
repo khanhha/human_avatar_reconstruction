@@ -116,6 +116,8 @@ def set_plane_slice_loc(planes, name, loc):
             if grp_name == name:
                 v.co[2] = loc[2]
                 found = True
+    if found == False:
+        print(name)
     assert found
 
 def centroid_vertex_set(vertices, ids):
@@ -134,14 +136,23 @@ def ucsc_calc_slice_plane_locs(cae_obj, ld_idxs):
         locs[slc_id] = centroid_vertex_set(verts, slc_idxs)
 
     return locs
-    
+
+#http://people.scs.carleton.ca/~c_shu/pdf/landmark-3dpvt06.pdf
 def mpii_calc_slice_plane_locs(cae_obj, ld_idxs):
     verts = cae_obj.data.vertices
     locs = {}
     loc_0 = verts[ld_idxs[16]].co
     loc_1 = verts[ld_idxs[18]].co
-    locs['Hip'] =  0.5*(loc_0 + loc_1)
-    
+    hip = 0.5*(loc_0 + loc_1)
+    locs['Hip'] =  hip
+
+    crotch = verts[ld_idxs[73-1]].co
+    crotch = crotch + 0.1 * (hip - crotch)
+    locs['Crotch'] =  crotch
+    locs['Aux_Crotch_Hip_0'] =  crotch + 1.0/3.0*(hip - crotch)
+    locs['Aux_Crotch_Hip_1'] =  crotch + 2.0/3.0*(hip - crotch)
+
+
     upper_bust = 0.5*(verts[ld_idxs[12]].co + verts[ld_idxs[13]].co)
     under_bust = verts[ld_idxs[14]].co
     alpha = 0.6
@@ -153,16 +164,24 @@ def mpii_calc_slice_plane_locs(cae_obj, ld_idxs):
 
     locs['Aux_UnderBust_Bust_0'] = verts[ld_idxs[14]].co
 
-    crotch = verts[ld_idxs[66]].co
-    knee   = verts[ld_idxs[58]].co
-    under_crotch = knee + 0.9 * (crotch-knee)
+    crotch = verts[ld_idxs[73-1]].co
+    knee   = 0.25*(verts[ld_idxs[64-1]].co+verts[ld_idxs[54-1]].co + verts[ld_idxs[65-1]].co + verts[ld_idxs[55-1]].co)
+    under_crotch = knee + 0.85 * (crotch-knee)
     locs['UnderCrotch'] = under_crotch
 
+    locs['Knee'] = knee
 
     locs['Aux_Knee_UnderCrotch_0'] = knee + 0.2*(crotch-knee)
     locs['Aux_Knee_UnderCrotch_1'] = knee + 0.4*(crotch-knee)
     locs['Aux_Knee_UnderCrotch_2'] = knee + 0.6*(crotch-knee)
     locs['Aux_Knee_UnderCrotch_3'] = knee + 0.8*(crotch-knee)
+
+    lankle = 0.5*(verts[ld_idxs[61]].co + verts[ld_idxs[62]].co)
+    #rankle = 0.5*(verts[ld_idxs[51]].co + verts[ld_idxs[52]].co)
+    ankle  = lankle #0.5*(lankle + rankle)
+
+    locs['Ankle'] =  ankle
+    locs['Calf']  =  ankle +  (2.0 / 3.0) * (knee - ankle)
 
     #print('Hip', locs['Hip'])
     #print('Bust',locs['Bust'])
@@ -348,8 +367,6 @@ def mpii_extract_all_ld_points(obj, ld_idxs):
     return np.array(ld_points)
 
 def mpii_process(DIR_IN_OBJ, DIR_OUT_SLICE, DIR_OUT_SUPPOINT, DIR_OUT_LD_POINT, slice_ids, debug_name = None):
-    DIR_LD = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/obj/'
-    
     obj_planes_tpl = bpy.data.objects['Slice_planes_template']
     
     ld_path = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_meta/landmarksIdxs73.npy'
@@ -564,11 +581,13 @@ def mpii_extract_slices():
 
     os.makedirs(DIR_OUT_LD, exist_ok=True)
     os.makedirs(DIR_OUT_SLICE, exist_ok=True)
-    slice_ids = ['Aux_Knee_UnderCrotch_3']
-    debug_file = 'csr4414a'
-    mpii_process(DIR_IN_OBJ, DIR_OUT_SLICE=DIR_OUT_SLICE, DIR_OUT_SUPPOINT=DIR_OUT_SUPPOINT, DIR_OUT_LD_POINT = DIR_OUT_LD, slice_ids=slice_ids, debug_name=None)
+    slice_ids = ['Hip']
+    #debug_file = 'csr4120a'
+    debug_file = None
+    mpii_process(DIR_IN_OBJ, DIR_OUT_SLICE=DIR_OUT_SLICE, DIR_OUT_SUPPOINT=DIR_OUT_SUPPOINT, DIR_OUT_LD_POINT = DIR_OUT_LD, slice_ids=slice_ids, debug_name=debug_file)
 
 if __name__ == '__main__':
     mpii_extract_slices()
     #mpii_extract_supplement_points()
 
+a

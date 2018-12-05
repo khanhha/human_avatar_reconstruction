@@ -72,7 +72,7 @@ def isect_line_line(p1, p2, p3, p4):
     return p
 
 def is_leg_contour(name):
-    leg_names = ['UnderCrotch', 'Aux_Knee_UnderCrotch_0', 'Aux_Knee_UnderCrotch_1', 'Aux_Knee_UnderCrotch_2', 'Aux_Knee_UnderCrotch_3']
+    leg_names = ['UnderCrotch', 'Aux_Knee_UnderCrotch_0', 'Aux_Knee_UnderCrotch_1', 'Aux_Knee_UnderCrotch_2', 'Aux_Knee_UnderCrotch_3', 'Knee', 'Calf', 'Ankle']
     if name in leg_names:
         return True
     else:

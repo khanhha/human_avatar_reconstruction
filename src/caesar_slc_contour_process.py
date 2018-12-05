@@ -159,6 +159,7 @@ def convert_torso_contour_to_radial_code(X, Y, n_sample, path_out = None):
         plt.axes().set_aspect(1)
         plt.plot(X, Y, 'b-')
         plt.plot(center_x, center_y, 'r+')
+        #plt.show()
 
     points, ok = sample_contour_radial(X, Y, center, n_sample)
 
@@ -189,7 +190,7 @@ def convert_torso_contour_to_radial_code(X, Y, n_sample, path_out = None):
               p = center + p
               plt.plot(p[0], p[1], 'r+')
         plt.savefig(path_out)
-        plt.show()
+        #plt.show()
 
     return np.array(feature), W, D
 
@@ -404,8 +405,9 @@ if __name__  == '__main__':
 
     cnt = 0
     #slc_ids = ['Aux_Hip_Waist_0', 'Aux_Hip_Waist_1', 'Aux_Waist_UnderBust_0', 'Aux_Waist_UnderBust_1', 'Aux_Waist_UnderBust_2', 'Bust', 'Aux_UnderBust_Bust_0]
-    #slc_ids = ['UnderCrotch']
-    slc_ids = ['Aux_Knee_UnderCrotch_2']
+    slc_ids = ['Knee']
+    #slc_ids = ['Knee']
+    n_processes = 12
     failed_slice_paths = []
     for slc_id in slc_ids:
         SLICE_DIR = f'{IN_DIR}/{slc_id}/'
@@ -437,9 +439,7 @@ if __name__  == '__main__':
             os.makedirs(DEBUG_UNDERBUST_HEIGHT_DIR, exist_ok=True)
 
         slc_paths = [path for path in Path(SLICE_DIR).glob('*.pkl')]
-        #slc_paths = slc_paths[:100]
         n_paths = len(slc_paths)
-        n_processes = 12
         processes = []
         npath_per_process = int(n_paths / n_processes)
 

@@ -215,9 +215,14 @@ class RBFNet():
         X_1 = self.transform_data(X)
 
         nan_mask = np.isnan(X_1)
+        nan_mask = np.sum(nan_mask, axis=1) > 0
         print(f'transformed_data: nan count: {np.sum(nan_mask[:])}')
+        if np.sum(nan_mask[:]) > 0:
+            debug = True
+            X_1 = X_1[~nan_mask, :]
+            Y   = Y[~nan_mask, :]
 
-        N = X.shape[0]
+        N = X_1.shape[0]
         X_train, X_test, train_idxs, test_idxs = train_test_split(X_1, np.arange(N), test_size=0.2, shuffle=True)
         self.train_idxs = train_idxs
         self.test_idxs = test_idxs
@@ -225,19 +230,6 @@ class RBFNet():
         Y_test = Y[test_idxs]
 
         self.regressor = ExtraTreesRegressor(random_state=200, max_depth=6, min_samples_leaf=5).fit(X_train, Y_train)
-        # Model
-        # xgb_params = {
-        #     'seed': 0,
-        #     'colsample_bytree': 0.7,
-        #     'silent': 1,
-        #     'subsample': 0.5,
-        #     'learning_rate': 0.1,
-        #     'objective': 'binary:logistic',
-        #     'max_depth': 10,
-        #     'min_child_weight': 100,
-        #     'booster': 'gbtree',
-        #     'eval_metric': 'logloss'
-        # }
         #self.regressor = XGBRegressor().fit(X_train, Y_train)
         #self.regressor =  GradientBoostingRegressor(**params).fit(X_train, Y_train)
         print('regression score on train set:  ', self.regressor.score(X_train, Y_train))
@@ -287,16 +279,27 @@ class RBFNet():
         return X_1
 
     def cluster_data(self, X):
-        self.kmeans_cls = KMeans(n_clusters=self.n_cluster, max_iter=1000, tol=1e-6, random_state=100).fit(X)
-        self.training_clusters = self.kmeans_cls.predict(X)
+        rd = 100
+        while True:
+            self.kmeans_cls = KMeans(n_clusters=self.n_cluster, max_iter=1000, tol=1e-6, random_state=rd).fit(X)
+            self.training_clusters = self.kmeans_cls.predict(X)
 
-        # calculate standard variance
-        self.cluster_std = np.zeros(len(self.kmeans_cls.labels_), dtype=np.float32)
-        self.cluster_mean = self.kmeans_cls.cluster_centers_.flatten()
-        for l in range(self.n_cluster):
-            cluster_mask = (self.training_clusters== l)
-            points = X[cluster_mask].flatten()
-            self.cluster_std[l] = np.std(points)
+            # calculate standard variance
+            self.cluster_std = np.zeros(self.n_cluster, dtype=np.float32)
+            self.cluster_mean = self.kmeans_cls.cluster_centers_.flatten()
+            for l in range(self.n_cluster):
+                cluster_mask = (self.training_clusters== l)
+                points = X[cluster_mask].flatten()
+                self.cluster_std[l] = np.std(points)
+
+            zero_mask = np.isclose(self.cluster_std, 0.0)
+            if np.sum(zero_mask) == 0:
+                break
+            else:
+                print(f'cluster std is zero, reduced cluster: {self.n_cluster - 1}. repeat again', file=sys.stderr)
+                self.n_cluster -= 1
+                rd = np.random.randint(0, 10000)
+
 
 def normalize_contour(X,Y):
     #cx = np.mean(X)
@@ -354,7 +357,25 @@ def slice_model_config():
     config['Aux_Knee_UnderCrotch_2'] = {'n_cluster':12, 'n_output':9, 'no_regress_at_outputs':[]}
     config['Aux_Knee_UnderCrotch_1'] = {'n_cluster':12, 'n_output':9, 'no_regress_at_outputs':[]}
     config['Aux_Knee_UnderCrotch_0'] = {'n_cluster':12, 'n_output':9, 'no_regress_at_outputs':[]}
+    config['Knee']                   = {'n_cluster':12, 'n_output':9, 'no_regress_at_outputs':[]}
     return config
+
+def load_bad_slice_names(DIR, slc_id):
+    txt_path = None
+    for path in Path(DIR).glob('*.*'):
+        if slc_id == path.stem:
+            txt_path = path
+            break
+
+    if txt_path is None:
+        print(f'missing bad slice path of slice {slc_id}', file=sys.stderr)
+    names = set()
+    with open(str(txt_path), 'r') as file:
+        for name in file.readlines():
+            name = name.replace('\n','')
+            names.add(name)
+
+    return names
 
 import sys
 if __name__ == '__main__':
@@ -362,15 +383,17 @@ if __name__ == '__main__':
     ap.add_argument("-i", "--input", required=True, help="input meta data file")
     ap.add_argument("-d", "--debug", required=True, help="input meta data file")
     ap.add_argument("-m", "--model", required=True, help="input meta data file")
+    ap.add_argument("-b", "--bad_slice_dir", required=True, help="input meta data file")
 
     args = vars(ap.parse_args())
     IN_DIR  = args['input']
     DEBUG_DIR  = args['debug']
     MODEL_DIR  = args['model']
+    BAD_SLICE_DIR = args['bad_slice_dir']
 
     #slc_ids = ['Crotch', 'Aux_Crotch_Hip_0', 'Hip', 'Waist', 'UnderBust', 'Aux_Hip_Waist_0', 'Aux_Hip_Waist_1', 'Aux_Waist_UnderBust_0', 'Aux_Waist_UnderBust_1', 'Aux_Waist_UnderBust_2', 'Aux_UnderBust_Bust_0']
     #slc_ids = ['UnderCrotch']
-    slc_ids = ['Aux_Knee_UnderCrotch_2']
+    slc_ids = ['Knee', 'Aux_Knee_UnderCrotch_0', 'Aux_Knee_UnderCrotch_1', 'Aux_Knee_UnderCrotch_2', 'Aux_Knee_UnderCrotch_3', 'UnderCrotch']
 
     #plot correlation
     # for path in Path(IN_DIR).glob('*'):
@@ -410,17 +433,18 @@ if __name__ == '__main__':
             W = []
             D = []
             contours = []
-            print('start training slice mode: ', SLC_DIR.stem)
-            error_names = mpii_error_slices[SLC_DIR.stem]
-            error_names_ucsc = ucsc_error_slices[SLC_DIR.stem]
+            slc_id = SLC_DIR.stem
+            print('start training slice mode: ', slc_id)
+            bad_slc_names = load_bad_slice_names(BAD_SLICE_DIR, slc_id)
 
             all_paths = [path for path in SLC_DIR.glob('*.*')]
             for path in all_paths:
-                if path.stem in error_names or path.stem in error_names_ucsc:
+
+                if path.stem in bad_slc_names:
                     print('\t ignore file: ',  path.stem)
                     continue
 
-                with open(path,'rb') as file:
+                with open(str(path),'rb') as file:
                     record = pickle.load(file)
                     w = record['W']
                     d = record['D']
@@ -472,6 +496,8 @@ if __name__ == '__main__':
                 net = RBFNeuralNetwork(n_cluster=K, n_output=n_output, no_regress_at_outputs=no_regress_at_outputs)
                 net.fit(X, Y)
                 net.save_to_path(MODEL_PATH )
+
+            continue
 
             net_1 = RBFNet.load_from_path(MODEL_PATH)
 
