@@ -147,7 +147,7 @@ def mpii_calc_slice_plane_locs(cae_obj, ld_idxs):
     locs['Hip'] =  hip
 
     crotch = verts[ld_idxs[73-1]].co
-    crotch = crotch + 0.1 * (hip - crotch)
+    crotch = crotch + 0.2 * (hip - crotch)
     locs['Crotch'] =  crotch
     locs['Aux_Crotch_Hip_0'] =  crotch + 1.0/3.0*(hip - crotch)
     locs['Aux_Crotch_Hip_1'] =  crotch + 2.0/3.0*(hip - crotch)
@@ -581,13 +581,11 @@ def mpii_extract_slices():
 
     os.makedirs(DIR_OUT_LD, exist_ok=True)
     os.makedirs(DIR_OUT_SLICE, exist_ok=True)
-    slice_ids = ['Hip']
-    #debug_file = 'csr4120a'
-    debug_file = None
+    slice_ids = ['Aux_Crotch_Hip_1']
+    debug_file = 'nl_1410a'
+    #debug_file = None
     mpii_process(DIR_IN_OBJ, DIR_OUT_SLICE=DIR_OUT_SLICE, DIR_OUT_SUPPOINT=DIR_OUT_SUPPOINT, DIR_OUT_LD_POINT = DIR_OUT_LD, slice_ids=slice_ids, debug_name=debug_file)
 
 if __name__ == '__main__':
     mpii_extract_slices()
     #mpii_extract_supplement_points()
-
-a

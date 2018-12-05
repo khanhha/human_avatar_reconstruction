@@ -352,6 +352,12 @@ def plot_contour_correrlation(IN_DIR, DEBUG_DIR):
 def slice_model_config():
     config = defaultdict(set)
     config['Bust'] = {'n_cluster':12, 'n_output':10, 'no_regress_at_outputs':[0, 7]}
+    config['Crotch'] = {'n_cluster':12, 'n_output':10, 'no_regress_at_outputs':[0, 7]}
+
+    config['Aux_Crotch_Hip_0'] = {'n_cluster':12, 'n_output':10, 'no_regress_at_outputs':[0, 7]}
+    config['Aux_Crotch_Hip_1'] = {'n_cluster':12, 'n_output':10, 'no_regress_at_outputs':[0, 7]}
+    config['Hip'] = {'n_cluster':12, 'n_output':10, 'no_regress_at_outputs':[0, 7]}
+
     config['UnderCrotch'] = {'n_cluster':12, 'n_output':9, 'no_regress_at_outputs':[]}
     config['Aux_Knee_UnderCrotch_3'] = {'n_cluster':12, 'n_output':9, 'no_regress_at_outputs':[]}
     config['Aux_Knee_UnderCrotch_2'] = {'n_cluster':12, 'n_output':9, 'no_regress_at_outputs':[]}
@@ -392,8 +398,10 @@ if __name__ == '__main__':
     BAD_SLICE_DIR = args['bad_slice_dir']
 
     #slc_ids = ['Crotch', 'Aux_Crotch_Hip_0', 'Hip', 'Waist', 'UnderBust', 'Aux_Hip_Waist_0', 'Aux_Hip_Waist_1', 'Aux_Waist_UnderBust_0', 'Aux_Waist_UnderBust_1', 'Aux_Waist_UnderBust_2', 'Aux_UnderBust_Bust_0']
-    #slc_ids = ['UnderCrotch']
-    slc_ids = ['Knee', 'Aux_Knee_UnderCrotch_0', 'Aux_Knee_UnderCrotch_1', 'Aux_Knee_UnderCrotch_2', 'Aux_Knee_UnderCrotch_3', 'UnderCrotch']
+    #slc_ids = ['Crotch', 'Aux_Crotch_Hip_0', 'Aux_Crotch_Hip_1', 'Hip']
+    slc_ids = ['Crotch']
+    #slc_ids = ['Knee', 'Aux_Knee_UnderCrotch_0', 'Aux_Knee_UnderCrotch_1', 'Aux_Knee_UnderCrotch_2', 'Aux_Knee_UnderCrotch_3', 'UnderCrotch']
+    inference = True
 
     #plot correlation
     # for path in Path(IN_DIR).glob('*'):
@@ -497,7 +505,8 @@ if __name__ == '__main__':
                 net.fit(X, Y)
                 net.save_to_path(MODEL_PATH )
 
-            continue
+            if not inference:
+                continue
 
             net_1 = RBFNet.load_from_path(MODEL_PATH)
 

@@ -37,6 +37,7 @@ def slice_id_3d_2d_mappings():
 
     mappings['Crotch'] = 'Crotch'
     mappings['Aux_Crotch_Hip_0'] = 'Aux_Crotch_Hip_0'
+    mappings['Aux_Crotch_Hip_1'] = 'Aux_Crotch_Hip_1'
     mappings['Hip'] = 'Hip'
     mappings['Aux_Hip_Waist_0'] = 'Aux_Hip_Waist_0'
     mappings['Aux_Hip_Waist_1'] = 'Aux_Hip_Waist_1'
@@ -302,6 +303,10 @@ if __name__ == '__main__':
             #debug
             #if id_3d not in ['L0_RAnkle', 'L0_LAnkle']:
             #    continue
+
+            if id_3d == 'Aux_Crotch_Hip_1':
+                debug = True
+
             if id_3d  not in slc_id_vert_idxs:
                 print(f'indices of {id_3d} are not available', file=sys.stderr)
                 continue
@@ -352,13 +357,13 @@ if __name__ == '__main__':
                 else:
                     res_contour = util.reconstruct_torso_slice_contour(pred, d, w, mirror=True)
 
-                if id_2d == 'Aux_Knee_UnderCrotch_3':
+                if id_2d == 'Crotch':
                     plt.clf()
                     plt.axes().set_aspect(1)
                     plt.plot(res_contour[0, :], res_contour[1, :], '-r')
                     plt.plot(slice_out[:, 0], slice_out[:, 1], '-b')
                     #plt.savefig(f'{OUTPUT_DEBUG_DIR_TEST}{idx}.png')
-                    #plt.show()
+                    plt.show()
 
                 slice_out[:,0] =  res_contour[1,:]
                 slice_out[:,1] =  res_contour[0,:]

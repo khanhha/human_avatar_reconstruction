@@ -110,11 +110,11 @@ def sample_contour_radial(X, Y, center, n_sample):
             isect_p = np.array(isect_ret[0].coords[:]).flatten()
         else:
             #assert False, 'unsupported intersection type'
-            return points, False
+            raise Exception('sample_contour_radial: no intersection found')
         isect_p = isect_p - center
         points.append(isect_p)
 
-    return points, True
+    return points
 
 def radial_code(points, D, half = True):
     n_points = points.shape[0]
@@ -130,8 +130,6 @@ def radial_code(points, D, half = True):
         dy = points[i,1] - points[i-1,1]
         dx = points[i,0] - points[i-1,0]
         c = dy/dx
-        if np.isinf(c):
-            print(f'zero division dy/dx: {dy}/{dx}')
         #c = np.clip(c, a_min=-100.0, a_max=100.0)
         feature.append(c)
 
@@ -161,16 +159,13 @@ def convert_torso_contour_to_radial_code(X, Y, n_sample, path_out = None):
         plt.plot(center_x, center_y, 'r+')
         #plt.show()
 
-    points, ok = sample_contour_radial(X, Y, center, n_sample)
+    points = sample_contour_radial(X, Y, center, n_sample)
 
     feature = []
     for i in range(1, idx_half):
         dy = points[i][1] - points[i-1][1]
         dx = points[i][0] - points[i-1][0]
         c = dy/dx
-        if np.isinf(c):
-            print(f'zero division dy/dx: {dy}/{dx}')
-        #c = np.clip(c, a_min=-100.0, a_max=100.0)
         feature.append(c)
 
     D_mid =  norm(points[0] - points[idx_half])
@@ -213,9 +208,7 @@ def convert_leg_contour_to_radial_code(X, Y, n_sample, path_out = None):
         plt.plot(X[idx_ymin], Y[idx_ymin], 'go', ms=5)
         #plt.show()
 
-    points, ok = sample_contour_radial(X, Y, center, n_sample)
-    if ok is False:
-        raise Exception('failed to calc radial points')
+    points = sample_contour_radial(X, Y, center, n_sample)
 
     points = np.array(points)
     feature = radial_code(points, D, half=False)
@@ -272,9 +265,6 @@ def align_leg_contour(X, Y, ld_points):
     #plt.show()
     return contour_1[:,0], contour_1[:,1]
 
-def process_torso_contour(contour, sup_points, ld_points):
-    pass
-
 def process_leg_contour(path, contour, sup_points, ld_points):
     Y = contour[:, 0]
     X = contour[:, 1]
@@ -286,7 +276,65 @@ def process_leg_contour(path, contour, sup_points, ld_points):
     feature, W, D = convert_leg_contour_to_radial_code(X, Y, 8, path_out=debug_path_out)
     return X, Y, W, D, feature
 
+def process_torso_contour(path, contour, sup_points, ld_points):
+    # torso contour
+    align_anchor_pos_x = True
+    if slc_id == 'Bust':
+        align_anchor_pos_x = False
+
+        armscye_path = f'{IN_DIR}/Armscye/{path.name}'
+        armscye_contour = load_contour('Armscye', armscye_path)
+
+        debug_bust_path = f'{DEBUG_BUST_DIR}/{path.stem}.png'
+        contour, has_left, has_right, fixed_left, fixed_right = remove_arm_from_bust_slice(contour,
+                                                                                           sup_points=sup_points,
+                                                                                           debug_path=debug_bust_path)
+        if has_left != fixed_left or has_right != fixed_right:
+            raise Exception('Failed bust slice')
+
+        debug_bust_height_path = f'{DEBUG_BUST_HEIGHT_DIR}/{path.stem}.png'
+        contour, ok = fix_bust_height(contour, sup_points=sup_points, ld_points=ld_points,
+                                      armscye_contour=armscye_contour, debug_path=debug_bust_height_path)
+
+    if slc_id == 'Aux_UnderBust_Bust_0':
+        align_anchor_pos_x = False
+
+        armscye_path = f'{IN_DIR}/Armscye/{path.name}'
+        armscye_contour = load_contour('Armscye', armscye_path)
+
+        arm_pnt_negx = np.array(sup_points['Aux_UnderBust_Bust_0_NegX'][:2])
+        arm_pnt_posx = np.array(sup_points['Aux_UnderBust_Bust_0_PosX'][:2])
+        debug_bust_path = f'{DEBUG_UNDERBUST_BUST_DIR}/{path.stem}_bust.png'
+        contour, has_left, has_right, fixed_left, fixed_right = remove_arm_from_under_bust_slice(contour,
+                                                                                                 arm_pnt_negx=arm_pnt_negx,
+                                                                                                 arm_pnt_posx=arm_pnt_posx,
+                                                                                                 debug_path=debug_bust_path)
+        if has_left != fixed_left or has_right != fixed_right:
+            raise Exception('Failed under_bust slice')
+
+        debug_underbust_height_path = f'{DEBUG_UNDERBUST_HEIGHT_DIR}/{path.stem}.png'
+        contour, ok = fix_bust_height(contour, sup_points=sup_points, ld_points=ld_points,
+                                      armscye_contour=armscye_contour, debug_path=debug_underbust_height_path)
+
+    # transpose, swap X and Y to make the coordinate system more natural to the contour shape
+    Y = contour[:, 0]
+    X = contour[:, 1]
+
+    debug_align_path = f'{DEBUG_ALIGN_DIR}/{path.stem}.png'
+    X, Y = util.align_torso_contour(X, Y, anchor_pos_x=align_anchor_pos_x, debug_path=debug_align_path)
+    if X is None or Y is None:
+        raise Exception('failed torso contour alignment')
+
+    X, Y = resample_contour(X, Y)
+    X, Y = util.smooth_contour(X, Y, sigma=2.0)
+
+    debug_path_out = f'{DEBUG_RADIAL_DIR}/{path.stem}.png'
+    feature, W, D = convert_torso_contour_to_radial_code(X, Y, 16, path_out=debug_path_out)
+
+    return X, Y, W, D, feature
+
 import multiprocessing
+import sys
 def run_process_slice_contours(process_id, slc_id, paths, shared_data):
     n_paths = len(paths)
     #print(f'process {self.id} started. n_paths = {n_paths}')
@@ -322,56 +370,14 @@ def run_process_slice_contours(process_id, slc_id, paths, shared_data):
             try:
                 X, Y, W, D, feature = process_leg_contour(path, contour, sup_points=sup_points, ld_points=ld_points)
             except Exception as exp:
-                print(path.stem, exp)
+                print(path.stem, exp, file=sys.stderr)
                 continue
         else:
-            #torso contour
-            align_anchor_pos_x = True
-            if slc_id == 'Bust':
-                align_anchor_pos_x = False
-
-                armscye_path = f'{IN_DIR}/Armscye/{path.name}'
-                armscye_contour = load_contour('Armscye', armscye_path)
-
-                debug_bust_path = f'{DEBUG_BUST_DIR}/{path.stem}.png'
-                contour, has_left, has_right, fixed_left, fixed_right = remove_arm_from_bust_slice(contour, sup_points=sup_points, debug_path=debug_bust_path)
-                if has_left != fixed_left or has_right != fixed_right:
-                    failed_slice_paths.append(path)
-
-                debug_bust_height_path = f'{DEBUG_BUST_HEIGHT_DIR}/{path.stem}.png'
-                contour, ok = fix_bust_height(contour, sup_points=sup_points, ld_points=ld_points, armscye_contour=armscye_contour, debug_path=debug_bust_height_path)
-
-            if slc_id == 'Aux_UnderBust_Bust_0':
-                align_anchor_pos_x = False
-
-                armscye_path = f'{IN_DIR}/Armscye/{path.name}'
-                armscye_contour = load_contour('Armscye', armscye_path)
-
-                arm_pnt_negx = np.array(sup_points['Aux_UnderBust_Bust_0_NegX'][:2])
-                arm_pnt_posx = np.array(sup_points['Aux_UnderBust_Bust_0_PosX'][:2])
-                debug_bust_path = f'{DEBUG_UNDERBUST_BUST_DIR}/{path.stem}_bust.png'
-                contour, has_left, has_right, fixed_left, fixed_right = remove_arm_from_under_bust_slice(contour, arm_pnt_negx=arm_pnt_negx, arm_pnt_posx=arm_pnt_posx, debug_path=debug_bust_path)
-                if has_left != fixed_left or has_right != fixed_right:
-                    failed_slice_paths.append(path)
-
-                debug_underbust_height_path = f'{DEBUG_UNDERBUST_HEIGHT_DIR}/{path.stem}.png'
-                contour, ok = fix_bust_height(contour, sup_points=sup_points, ld_points=ld_points, armscye_contour=armscye_contour, debug_path=debug_underbust_height_path)
-
-            #transpose, swap X and Y to make the coordinate system more natural to the contour shape
-            Y = contour[:, 0]
-            X = contour[:, 1]
-
-            debug_align_path = f'{DEBUG_ALIGN_DIR}/{path.stem}.png'
-            X, Y = util.align_torso_contour(X, Y, anchor_pos_x= align_anchor_pos_x, debug_path=debug_align_path)
-            if X is None or Y is None:
-                failed_slice_paths.append(path)
+            try:
+                X, Y, W, D, feature = process_torso_contour(path, contour, sup_points=sup_points, ld_points=ld_points)
+            except Exception as exp:
+                print(path.stem, exp, file=sys.stderr)
                 continue
-
-            X, Y = resample_contour(X, Y)
-            X, Y = util.smooth_contour(X,Y, sigma=2.0)
-
-            debug_path_out = f'{DEBUG_RADIAL_DIR}/{path.stem}.png'
-            feature, W, D = convert_torso_contour_to_radial_code(X, Y, 16, path_out=debug_path_out)
 
         #acculumate one more slice record
         Ws.append(W)
@@ -405,7 +411,7 @@ if __name__  == '__main__':
 
     cnt = 0
     #slc_ids = ['Aux_Hip_Waist_0', 'Aux_Hip_Waist_1', 'Aux_Waist_UnderBust_0', 'Aux_Waist_UnderBust_1', 'Aux_Waist_UnderBust_2', 'Bust', 'Aux_UnderBust_Bust_0]
-    slc_ids = ['Knee']
+    slc_ids = ['Hip']
     #slc_ids = ['Knee']
     n_processes = 12
     failed_slice_paths = []

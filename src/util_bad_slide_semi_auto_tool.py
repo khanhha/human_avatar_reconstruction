@@ -15,6 +15,7 @@ img_ax = None
 
 IN_IMG_DIR = None
 OUT_TXT_FILE = None
+ID = None
 
 def update_draw():
     global  img_ax
@@ -27,7 +28,7 @@ def update_draw():
     bad = False
     if path.stem in g_bad_slc_names:
         bad = True
-    g_ax.set_title(f'file_name = {path.stem}, idx = {g_cur_idx}, is_bad = {bad}')
+    g_ax.set_title(f'{ID}\nfile_name = {path.stem}, idx = {g_cur_idx}, is_bad = {bad}')
     g_fig.canvas.draw()
 
 def write_to_file():
@@ -64,11 +65,13 @@ if __name__ == '__main__':
     args = vars(ap.parse_args())
 
     IN_IMG_DIR  = args['in_dir']
-    OUT_TXT_FILE = args['file']
+    OUT_TXT_FILE = Path(args['file'])
+    ID = OUT_TXT_FILE.stem
 
     if os.path.exists(OUT_TXT_FILE):
         with open(OUT_TXT_FILE, 'r') as file:
             for name in file.readlines():
+                name = name.replace('\n','')
                 g_bad_slc_names.add(name)
 
     g_all_paths = [path for path in Path(IN_IMG_DIR).glob('*.*')]
