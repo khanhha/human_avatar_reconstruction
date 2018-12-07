@@ -70,6 +70,147 @@ def closest_point_idx(contour, point):
     dists = np.sum(np.square(diffs), axis=1)
     return np.argmin(dists)
 
+def remove_arm_from_armscye_slice(contour, sup_points, debug_path = None):
+    contour = preprocess_contour(contour, resolution = 100)
+
+    arm_pnt_negx = np.array(sup_points['Armscye_NegX'][:2])
+    arm_pnt_posx = np.array(sup_points['Armscye_PosX'][:2])
+
+    if debug_path is not None:
+        plt.clf()
+        plt.axes().set_aspect(1)
+        plt.plot(arm_pnt_negx[0], arm_pnt_negx[1], '+r')
+        plt.plot(arm_pnt_posx[0], arm_pnt_posx[1], '+r')
+        plt.plot([arm_pnt_negx[0], arm_pnt_posx[0]], [arm_pnt_negx[1], arm_pnt_posx[1]], '-r')
+
+    hor_ax  = util.normalize(arm_pnt_posx - arm_pnt_negx)
+    angle = np.arccos(np.dot(hor_ax, np.array([1.0, 0.0])))
+    if hor_ax[1] > 0.0:
+        angle = -angle
+    cos_a   = np.cos(angle)
+    sin_a   = np.sin(angle)
+
+    rot_mat = np.array([[cos_a, -sin_a], [sin_a, cos_a]])
+    rot_center = 0.5*(arm_pnt_posx+arm_pnt_negx)
+    contour = np.dot(rot_mat, (contour - rot_center).T).T + rot_center
+
+    arm_pnt_negx = (np.dot(rot_mat, (arm_pnt_negx-rot_center).reshape(2,1)).T + rot_center).flatten()
+    arm_pnt_posx = (np.dot(rot_mat, (arm_pnt_posx-rot_center).reshape(2,1)).T + rot_center).flatten()
+
+    if debug_path is not None:
+        plt.plot(contour[:,0], contour[:,1], '-b')
+        plt.plot([arm_pnt_negx[0], arm_pnt_posx[0]], [arm_pnt_negx[1], arm_pnt_posx[1]], '-b')
+
+    fixed_left = False
+    fixed_right = False
+    has_left_arm = False
+    has_right_arm = False
+
+    contour_str = LinearRing([contour[i,:] for i in range(contour.shape[0])])
+    if arm_inside_contour(contour_str, arm_pnt_negx):
+        has_right_arm = True
+
+        isct_pnt = LineString([arm_pnt_negx, arm_pnt_negx + (arm_pnt_negx-arm_pnt_posx)]).intersection(contour_str)
+        isct_pnt = np.array(isct_pnt.coords[:])
+
+        half_arm_len = norm(isct_pnt-arm_pnt_negx)
+        x_0 = arm_pnt_negx[0] - 0.2*half_arm_len
+        x_1 = arm_pnt_negx[0] + 0.2*half_arm_len
+
+        chains = extract_contour_chain(contour, x_0, x_1)
+        if len(chains) < 2:
+            fixed_right = False
+        else:
+            fixed_right = True
+            chain_lens = -np.array([len(chains[i]) for i in range(len(chains))])
+            chain_idxs = np.argsort(chain_lens)[:2]
+            chains = [chains[idx] for idx in chain_idxs]
+
+        if fixed_right:
+            chain_str_0 = MultiPoint([contour[i,:] for i in chains[0]])
+            chain_str_1 = MultiPoint([contour[i,:] for i in chains[1]])
+            points = ops.nearest_points(chain_str_0, chain_str_1)
+
+            pair_idx0 = closest_point_idx(contour, np.array(points[0].coords[:]))
+            pair_idx1 = closest_point_idx(contour, np.array(points[1].coords[:]))
+
+            if contour[pair_idx0, 1] > contour[pair_idx1, 1]:
+                pair_idx0, pair_idx1 = pair_idx1, pair_idx0
+
+            shift = 1
+            pair_idx0 -= shift
+            pair_idx1 += shift
+
+            if debug_path is not None:
+                plt.plot(contour[pair_idx0, 0], contour[pair_idx0, 1], '+r', ms=15)
+                plt.plot(contour[pair_idx1, 0], contour[pair_idx1, 1], '+r', ms=15)
+
+                for i in chains[0]:
+                    plt.plot(contour[i, 0], contour[i, 1],'+r', ms=5)
+
+                for i in chains[1]:
+                    plt.plot(contour[i, 0], contour[i, 1], '+b', ms=5)
+
+            contour = np.concatenate([contour[:pair_idx0, :], arm_pnt_negx.reshape(1,2), contour[pair_idx1:, :]], axis = 0)
+
+    if arm_inside_contour(contour_str, arm_pnt_posx):
+        has_left_arm = True
+
+        isct_pnt = LineString([arm_pnt_posx, arm_pnt_posx + (arm_pnt_posx-arm_pnt_negx)]).intersection(contour_str)
+        isct_pnt = np.array(isct_pnt.coords[:])
+        half_arm_len = norm(isct_pnt-arm_pnt_posx)
+
+        x_0 = arm_pnt_posx[0] - 0.2*half_arm_len
+        x_1 = arm_pnt_posx[0] + 0.2*half_arm_len
+        chains = extract_contour_chain(contour, x_0, x_1)
+        if len(chains) < 2:
+            fixed_left = False
+        else:
+            chain_lens = -np.array([len(chains[i]) for i in range(len(chains))])
+            chain_idxs = np.argsort(chain_lens)[:2]
+            chains = [chains[idx] for idx in chain_idxs]
+            fixed_left = True
+
+        if fixed_left:
+            chain_str_0 = MultiPoint([contour[i,:] for i in chains[0]])
+            chain_str_1 = MultiPoint([contour[i,:] for i in chains[1]])
+            points = ops.nearest_points(chain_str_0, chain_str_1)
+
+            pair_idx0 = closest_point_idx(contour, np.array(points[0].coords[:]))
+            pair_idx1 = closest_point_idx(contour, np.array(points[1].coords[:]))
+
+            shift = 1
+            if contour[pair_idx0, 1] > contour[pair_idx1, 1]:
+                pair_idx0, pair_idx1 = pair_idx1, pair_idx0
+
+            pair_idx0 += shift
+            pair_idx1 -= shift
+
+            if debug_path is not None:
+                plt.plot(contour[pair_idx0, 0], contour[pair_idx0, 1], '+r', ms=15)
+                plt.plot(contour[pair_idx1, 0], contour[pair_idx1, 1], '+r', ms=15)
+
+                for i in chains[0]:
+                    plt.plot(contour[i, 0], contour[i, 1],'+r', ms=5)
+
+                for i in chains[1]:
+                    plt.plot(contour[i, 0], contour[i, 1], '+b', ms=5)
+
+            contour = np.concatenate([contour[:pair_idx1, :], arm_pnt_posx.reshape(1,2), contour[pair_idx0:, :]], axis = 0)
+
+    if fixed_left or fixed_right:
+        X, Y = util.smooth_contour(contour[:, 0], contour[:, 1], sigma=1)
+        X, Y = util.resample_contour(X, Y, 150)
+        contour = np.concatenate([X.reshape(-1, 1), Y.reshape(-1, 1)], axis=1)
+
+    if debug_path is not None:
+        plt.plot(contour[:,0], contour[:,1], '-r')
+        if fixed_left or fixed_right:
+            plt.savefig(debug_path)
+
+    return contour, has_left_arm, has_right_arm, fixed_left, fixed_right
+
+
 #contour: clockwise order
 #landmarks: contain points inside armt parts
 def remove_arm_from_under_bust_slice(contour, arm_pnt_negx, arm_pnt_posx, debug_path = None):

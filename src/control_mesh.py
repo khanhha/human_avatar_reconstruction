@@ -357,7 +357,7 @@ if __name__ == '__main__':
                 else:
                     res_contour = util.reconstruct_torso_slice_contour(pred, d, w, mirror=True)
 
-                if id_2d == 'Crotch':
+                if id_2d == 'Armscye':
                     plt.clf()
                     plt.axes().set_aspect(1)
                     plt.plot(res_contour[0, :], res_contour[1, :], '-r')

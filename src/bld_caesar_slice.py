@@ -402,34 +402,11 @@ def mpii_process(DIR_IN_OBJ, DIR_OUT_SLICE, DIR_OUT_SUPPOINT, DIR_OUT_LD_POINT, 
             delete_obj(obj_caesar)
             continue
 
-        slc_locs = mpii_calc_slice_plane_locs(obj_caesar, ld_idxs)
-
-        #just process on slices on demand
-        slc_locs = {id:loc for id, loc in slc_locs.items() if id in slice_ids}
-        #print(slc_locs)
-
-        if debug_name is not None:
-            obj_planes = copy_obj(obj_planes_tpl, path.stem+'_slice_planes', Vector((0.0, 0.0, 0.0)))
-            for id, loc in slc_locs.items():
-                set_plane_slice_loc(obj_planes, id, loc)
-
-        slc_contours = isect_extract_slice_from_locs(slc_locs, obj_caesar)
-        assert slc_contours is not None
-
         #output landmark points
         ld_out_path = DIR_OUT_LD_POINT + '/' + path.stem + '.pkl'
         ld_points = mpii_extract_all_ld_points(obj_caesar, ld_idxs)
         with open(ld_out_path, 'wb') as file:
             pkl.dump(ld_points, file)
-
-        if debug_name != None:
-            return
-
-        for id in slice_ids:
-            id_path = DIR_OUT_SLICE + '/' + id + '/' + path.stem + '.pkl'
-            contours = slc_contours[id]
-            with open(id_path, 'wb') as file:
-                pkl.dump(contours, file)
 
         #extract support points
         verts = obj_caesar.data.vertices
@@ -439,6 +416,32 @@ def mpii_process(DIR_IN_OBJ, DIR_OUT_SLICE, DIR_OUT_SUPPOINT, DIR_OUT_LD_POINT, 
         suppoint_path = DIR_OUT_SUPPOINT + '/' + path.stem + '.pkl'
         with open(suppoint_path, 'wb') as file:
             pkl.dump(locs, file)
+
+        if len(slice_ids) > 0:
+
+            slc_locs = mpii_calc_slice_plane_locs(obj_caesar, ld_idxs)
+
+            #just process on slices on demand
+            slc_locs = {id:loc for id, loc in slc_locs.items() if id in slice_ids}
+            #print(slc_locs)
+
+            if debug_name is not None:
+                obj_planes = copy_obj(obj_planes_tpl, path.stem+'_slice_planes', Vector((0.0, 0.0, 0.0)))
+                for id, loc in slc_locs.items():
+                    set_plane_slice_loc(obj_planes, id, loc)
+
+            slc_contours = isect_extract_slice_from_locs(slc_locs, obj_caesar)
+            assert slc_contours is not None
+
+
+            for id in slice_ids:
+                id_path = DIR_OUT_SLICE + '/' + id + '/' + path.stem + '.pkl'
+                contours = slc_contours[id]
+                with open(id_path, 'wb') as file:
+                    pkl.dump(contours, file)
+
+        if debug_name != None:
+            return
 
         delete_obj(obj_caesar)
         if (debug_name is not None) and (obj_planes is not None):
@@ -581,9 +584,10 @@ def mpii_extract_slices():
 
     os.makedirs(DIR_OUT_LD, exist_ok=True)
     os.makedirs(DIR_OUT_SLICE, exist_ok=True)
-    slice_ids = ['Aux_Crotch_Hip_1']
-    debug_file = 'nl_1410a'
-    #debug_file = None
+    #slice_ids = ['Aux_Crotch_Hip_1']
+    slice_ids = []
+    #debug_file = 'nl_1410a'
+    debug_file = None
     mpii_process(DIR_IN_OBJ, DIR_OUT_SLICE=DIR_OUT_SLICE, DIR_OUT_SUPPOINT=DIR_OUT_SUPPOINT, DIR_OUT_LD_POINT = DIR_OUT_LD, slice_ids=slice_ids, debug_name=debug_file)
 
 if __name__ == '__main__':

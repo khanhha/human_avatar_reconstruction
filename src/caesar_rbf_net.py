@@ -351,7 +351,10 @@ def plot_contour_correrlation(IN_DIR, DEBUG_DIR):
 
 def slice_model_config():
     config = defaultdict(set)
-    config['Bust'] = {'n_cluster':12, 'n_output':10, 'no_regress_at_outputs':[0, 7]}
+    config['Armscye'] = {'n_cluster':12, 'n_output':10, 'no_regress_at_outputs':[]}
+    config['Bust'] = {'n_cluster':12, 'n_output':10, 'no_regress_at_outputs':[]}
+    config['Aux_UnderBust_Bust_0'] = {'n_cluster':12, 'n_output':10, 'no_regress_at_outputs':[]}
+    config['UnderBust'] = {'n_cluster':12, 'n_output':10, 'no_regress_at_outputs':[]}
     config['Crotch'] = {'n_cluster':12, 'n_output':10, 'no_regress_at_outputs':[0, 7]}
 
     config['Aux_Crotch_Hip_0'] = {'n_cluster':12, 'n_output':10, 'no_regress_at_outputs':[0, 7]}
@@ -375,13 +378,14 @@ def load_bad_slice_names(DIR, slc_id):
 
     if txt_path is None:
         print(f'missing bad slice path of slice {slc_id}', file=sys.stderr)
-    names = set()
-    with open(str(txt_path), 'r') as file:
-        for name in file.readlines():
-            name = name.replace('\n','')
-            names.add(name)
-
-    return names
+        return ()
+    else:
+        names = set()
+        with open(str(txt_path), 'r') as file:
+            for name in file.readlines():
+                name = name.replace('\n','')
+                names.add(name)
+        return names
 
 import sys
 if __name__ == '__main__':
@@ -399,9 +403,9 @@ if __name__ == '__main__':
 
     #slc_ids = ['Crotch', 'Aux_Crotch_Hip_0', 'Hip', 'Waist', 'UnderBust', 'Aux_Hip_Waist_0', 'Aux_Hip_Waist_1', 'Aux_Waist_UnderBust_0', 'Aux_Waist_UnderBust_1', 'Aux_Waist_UnderBust_2', 'Aux_UnderBust_Bust_0']
     #slc_ids = ['Crotch', 'Aux_Crotch_Hip_0', 'Aux_Crotch_Hip_1', 'Hip']
-    slc_ids = ['Crotch']
+    slc_ids = ['UnderBust','Aux_UnderBust_Bust_0','Bust', 'Armscye']
     #slc_ids = ['Knee', 'Aux_Knee_UnderCrotch_0', 'Aux_Knee_UnderCrotch_1', 'Aux_Knee_UnderCrotch_2', 'Aux_Knee_UnderCrotch_3', 'UnderCrotch']
-    inference = True
+    inference = False
 
     #plot correlation
     # for path in Path(IN_DIR).glob('*'):

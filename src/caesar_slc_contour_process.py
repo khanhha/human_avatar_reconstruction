@@ -9,7 +9,8 @@ from numpy.linalg import norm
 from pathlib import Path
 import math
 import src.util as util
-from src.caesar_slc_fix_bust import remove_arm_from_bust_slice, remove_arm_from_under_bust_slice, fix_bust_height
+from src.caesar_slc_fix_bust import \
+    remove_arm_from_bust_slice, remove_arm_from_under_bust_slice, remove_arm_from_armscye_slice, fix_bust_height
 from scipy.spatial import ConvexHull
 import scipy.ndimage as ndimage
 import shutil
@@ -279,6 +280,16 @@ def process_leg_contour(path, contour, sup_points, ld_points):
 def process_torso_contour(path, contour, sup_points, ld_points):
     # torso contour
     align_anchor_pos_x = True
+    if slc_id == 'Armscye':
+        align_anchor_pos_x = False
+
+        debug_armscye_path = f'{DEBUG_ARMSCYE_DIR}/{path.stem}.png'
+        contour, has_left, has_right, fixed_left, fixed_right = remove_arm_from_armscye_slice(contour,
+                                                                                           sup_points=sup_points,
+                                                                                           debug_path=debug_armscye_path)
+        if has_left != fixed_left or has_right != fixed_right:
+            raise Exception('Failed armscye slice')
+
     if slc_id == 'Bust':
         align_anchor_pos_x = False
 
@@ -403,15 +414,11 @@ if __name__  == '__main__':
     SUPPOINT_DIR   = args['suppoint']
     LDPOINT_DIR   = args['ldpoint']
 
-    #error_list = ['CSR2071A', 'CSR1334A', 'nl_5750a']
-    error_list= ['SPRING4188', 'SPRING4100']
-
     DEBUG_DIR = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/debug/'
     os.makedirs(DEBUG_DIR, exist_ok=True)
 
-    cnt = 0
     #slc_ids = ['Aux_Hip_Waist_0', 'Aux_Hip_Waist_1', 'Aux_Waist_UnderBust_0', 'Aux_Waist_UnderBust_1', 'Aux_Waist_UnderBust_2', 'Bust', 'Aux_UnderBust_Bust_0]
-    slc_ids = ['Hip']
+    slc_ids = ['Armscye']
     #slc_ids = ['Knee']
     n_processes = 12
     failed_slice_paths = []
@@ -425,6 +432,11 @@ if __name__  == '__main__':
         DEBUG_RADIAL_DIR = f'{DEBUG_DIR}/{slc_id}_radial/'
         shutil.rmtree(DEBUG_RADIAL_DIR, ignore_errors=True)
         os.makedirs(DEBUG_RADIAL_DIR, exist_ok=True)
+
+        if slc_id == 'Armscye':
+            DEBUG_ARMSCYE_DIR = f'{DEBUG_DIR}/{slc_id}_armscye_cutoff/'
+            shutil.rmtree(DEBUG_ARMSCYE_DIR, ignore_errors=True)
+            os.makedirs(DEBUG_ARMSCYE_DIR, exist_ok=True)
 
         if slc_id == 'Bust':
             DEBUG_BUST_DIR = f'{DEBUG_DIR}/{slc_id}_bust_cutoff/'
