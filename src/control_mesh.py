@@ -49,7 +49,7 @@ def slice_id_3d_2d_mappings():
     mappings['Aux_UnderBust_Bust_0'] = 'Aux_UnderBust_Bust_0'
     mappings['Bust'] = 'Bust'
     mappings['Armscye'] = 'Armscye'
-    mappings['Armscye_Shoulder_0'] = 'Aux_Armscye_Shoulder_0'
+    mappings['Aux_Armscye_Shoulder_0'] = 'Aux_Armscye_Shoulder_0'
     mappings['Shoulder'] = 'Shoulder'
     mappings['Collar'] = 'Collar'
     mappings['Neck'] = 'Neck'

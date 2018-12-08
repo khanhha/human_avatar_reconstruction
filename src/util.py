@@ -123,7 +123,7 @@ def reconstruct_torso_slice_contour(feature, D, W, mirror = False):
     p0 = np.array([D*feature[-2]*feature[-1], 0])
     n_points = len(feature) - 2
     half_idx = int(np.ceil(n_points / 2.0))
-    assert half_idx == 4
+    assert half_idx == 4 or half_idx == 5
 
     prev_p = p0
 

@@ -406,7 +406,8 @@ if __name__ == '__main__':
 
     print('sortinng slice vertices counter clockwise, starting from the extreme point on the +X axis')
     sort_ids = ['Crotch', 'Aux_Crotch_Hip_0', 'Aux_Crotch_Hip_1', 'Hip', 'Waist', 'UnderBust', 'Aux_Hip_Waist_0', 'Aux_Hip_Waist_1',
-                'Aux_Waist_UnderBust_0', 'Aux_Waist_UnderBust_1', 'Aux_Waist_UnderBust_2',  'Aux_UnderBust_Bust_0', 'Bust', 'Armscye']
+                'Aux_Waist_UnderBust_0', 'Aux_Waist_UnderBust_1', 'Aux_Waist_UnderBust_2',
+                'Aux_UnderBust_Bust_0', 'Bust', 'Armscye', 'Aux_Armscye_Shoulder_0', 'Shoulder']
     for id, slc_idxs in slice_id_vert_idxs.items():
         if id in sort_ids:
             print(f'\t\t{id}')

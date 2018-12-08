@@ -97,13 +97,15 @@ def load_contour(type, path):
 
 def sample_contour_radial(X, Y, center, n_sample):
     contour = LinearRing([(x,y) for x, y in zip(X,Y)])
-    extend_dst =  (np.max(X)-np.min(X))
+    range_x =  np.max(X) - np.min(X)
+    range_y =  np.max(Y) - np.min(Y)
+    extend_len = max(range_x, range_y)
     angle_step = (2.0*np.pi)/float(n_sample)
     points = []
     for i in range(n_sample):
         x = np.cos(i*angle_step)
         y = np.sin(i*angle_step)
-        p = center + extend_dst * np.array([x,y])
+        p = center + extend_len * np.array([x,y])
         isect_ret = LineString([(center[0], center[1]), (p[0],p[1])]).intersection(contour)
         if isect_ret.geom_type == 'Point':
             isect_p = np.array(isect_ret.coords[:]).flatten()
@@ -153,14 +155,13 @@ def convert_torso_contour_to_radial_code(X, Y, n_sample, path_out = None):
     W = Y[idx_ymax] - Y[idx_ymin]
     D = X[idx_xmax] - X[idx_xmin]
 
+    points = sample_contour_radial(X, Y, center, n_sample)
+
     if path_out is not None:
         plt.clf()
         plt.axes().set_aspect(1)
         plt.plot(X, Y, 'b-')
         plt.plot(center_x, center_y, 'r+')
-        #plt.show()
-
-    points = sample_contour_radial(X, Y, center, n_sample)
 
     feature = []
     for i in range(1, idx_half):
@@ -339,8 +340,11 @@ def process_torso_contour(path, contour, sup_points, ld_points):
     X, Y = resample_contour(X, Y)
     X, Y = util.smooth_contour(X, Y, sigma=2.0)
 
+    n_sample = 16
+    if slc_id == 'Shoulder' or slc_id == 'Aux_Armscye_Shoulder_0':
+        n_sample = 20
     debug_path_out = f'{DEBUG_RADIAL_DIR}/{path.stem}.png'
-    feature, W, D = convert_torso_contour_to_radial_code(X, Y, 16, path_out=debug_path_out)
+    feature, W, D = convert_torso_contour_to_radial_code(X, Y, n_sample, path_out=debug_path_out)
 
     return X, Y, W, D, feature
 
@@ -420,7 +424,7 @@ if __name__  == '__main__':
     #slc_ids = ['Aux_Hip_Waist_0', 'Aux_Hip_Waist_1', 'Aux_Waist_UnderBust_0', 'Aux_Waist_UnderBust_1', 'Aux_Waist_UnderBust_2', 'Bust', 'Aux_UnderBust_Bust_0]
     slc_ids = ['Armscye']
     #slc_ids = ['Knee']
-    n_processes = 12
+    n_processes = 1
     failed_slice_paths = []
     for slc_id in slc_ids:
         SLICE_DIR = f'{IN_DIR}/{slc_id}/'

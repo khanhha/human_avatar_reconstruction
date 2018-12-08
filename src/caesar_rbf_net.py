@@ -12,12 +12,18 @@ from keras.models import Model
 from keras.callbacks import ModelCheckpoint
 from keras.optimizers import RMSprop, Adadelta
 from sklearn.linear_model import LinearRegression
-from sklearn.ensemble import ExtraTreesRegressor
+from sklearn.ensemble import ExtraTreesRegressor, RandomForestRegressor
 from sklearn.ensemble import GradientBoostingRegressor
 from sklearn.multioutput import MultiOutputRegressor
+from sklearn.model_selection import GridSearchCV
+from sklearn.tree import export_graphviz
 from xgboost import XGBRegressor
+
+from dtreeviz.trees import *
+
 import src.util as util
 from  src.error_files import mpii_error_slices, ucsc_error_slices
+
 
 def kmeans(X, k):
     """Performs k-means clustering for 1D input
@@ -184,7 +190,9 @@ class RBFNeuralNetwork():
             self.cluster_std[l] = np.std(points)
 
 class RBFNet():
-    def __init__(self, n_cluster = 0, n_output = 0, no_regress_at_outputs= []):
+    def __init__(self, slc_id, n_cluster = 0, n_output = 0, no_regress_at_outputs= [], debug_mode = False):
+        self.slc_id = slc_id
+        self.debug_mode = debug_mode
         self.n_cluster = n_cluster
         self.n_output = n_output
         self.no_regress_at_outputs = no_regress_at_outputs
@@ -218,18 +226,33 @@ class RBFNet():
         nan_mask = np.sum(nan_mask, axis=1) > 0
         print(f'transformed_data: nan count: {np.sum(nan_mask[:])}')
         if np.sum(nan_mask[:]) > 0:
-            debug = True
             X_1 = X_1[~nan_mask, :]
             Y   = Y[~nan_mask, :]
 
         N = X_1.shape[0]
-        X_train, X_test, train_idxs, test_idxs = train_test_split(X_1, np.arange(N), test_size=0.2, shuffle=True)
+        X_train, X_test, train_idxs, test_idxs = train_test_split(X_1, np.arange(N), test_size=0.2, shuffle=True, random_state=200)
         self.train_idxs = train_idxs
         self.test_idxs = test_idxs
         Y_train = Y[train_idxs]
         Y_test = Y[test_idxs]
 
-        self.regressor = ExtraTreesRegressor(random_state=200, max_depth=6, min_samples_leaf=5).fit(X_train, Y_train)
+        if self.debug_mode == True:
+            self.X_train = X_train
+            self.Y_train = Y_train
+
+        search = False
+        if search:
+            parameters = {'n_estimators':[40, 60, 80, 100, 120], 'min_samples_leaf':[20, 40, 60, 80, 100, 120]}
+            regressor = ExtraTreesRegressor(random_state=200)
+            clf = GridSearchCV(regressor, parameters, cv = 5)
+            clf.fit(X_train, Y_train)
+            print(clf.best_estimator_)
+            self.regressor = clf.best_estimator_
+        else:
+            #self.regressor = ExtraTreesRegressor(random_state=200, n_estimators=100, min_samples_leaf=100)
+            self.regressor = MultiOutputRegressor(RandomForestRegressor(n_estimators=1, min_samples_leaf=100))
+            self.regressor.fit(X_train, Y_train)
+
         #self.regressor = XGBRegressor().fit(X_train, Y_train)
         #self.regressor =  GradientBoostingRegressor(**params).fit(X_train, Y_train)
         print('regression score on train set:  ', self.regressor.score(X_train, Y_train))
@@ -245,12 +268,35 @@ class RBFNet():
 
     def loss(self, X, Y):
         Y_hat = self.regressor.predict(X)
-        #for i in range(10):
-        #    print('')
-            #print('y_hat', Y_hat[i,:])
-            #print('y    ', Y[i,:])
         l = np.sqrt(np.mean((Y-Y_hat)**2))
         return l
+
+    def visualize_regressor(self, DIR):
+        is_viz = True
+        if is_viz:
+            for i, forest in enumerate(self.regressor.estimators_):
+                for j, tree in enumerate(forest.estimators_):
+                    viz = dtreeviz(tree,
+                                   self.X_train,
+                                   self.Y_train[:,i],
+                                   feature_names=[str(i) for i in range(self.n_cluster)],
+                                   target_name=f'target_{i}')
+                    viz.save(f'{DIR}/{slc_id}/{i}_{j}.svg')
+
+    def visualize_an_obsevation(self, x, DIR, file_name = ''):
+        X = np.expand_dims(x, axis=0)
+        X_1 = self.transform_data(X)
+        for i, forest in enumerate(self.regressor.estimators_):
+            for j, tree in enumerate(forest.estimators_):
+                viz = dtreeviz(tree,
+                               self.X_train,
+                               self.Y_train[:, i],
+                               feature_names=[str(i) for i in range(self.n_cluster)],
+                               target_name=f'target_{i}',
+                               X = X_1.flatten())
+                viz.save(f'{DIR}/{self.slc_id}/{file_name}_{i}_{j}.svg')
+
+        return self.regressor.predict(X_1)
 
     def predict(self, X):
         if len(X.shape) == 1:
@@ -300,17 +346,9 @@ class RBFNet():
                 self.n_cluster -= 1
                 rd = np.random.randint(0, 10000)
 
-
-def normalize_contour(X,Y):
-    #cx = np.mean(X)
-    #cy = np.mean(Y)
-    idx_ymax, idx_ymin = np.argmax(Y), np.argmin(Y)
-    idx_xmax, idx_xmin = np.argmax(X), np.argmin(X)
-    cy = 0.5 * (Y[idx_ymax] + Y[idx_ymin])
-    cx = X[idx_ymin]
-
-    X = X-cx
-    Y = Y-cy
+def normalize_contour(X,Y, center):
+    X = X-center[0]
+    Y = Y-center[1]
     dsts = np.sqrt(np.square(X) + np.square(Y))
     mean_dst = np.max(dsts)
     X = X / mean_dst
@@ -318,14 +356,14 @@ def normalize_contour(X,Y):
     return X, Y
 
 import os
-def plot_contour_correrlation(IN_DIR, DEBUG_DIR):
+def plot_contour_correrlation(IN_DIR, DEBUG_DIR, K):
     ratios = []
     contours = []
     for path in Path(DEBUG_DIR).glob('*.*'):
-        os.remove(path)
+        os.remove(str(path))
 
     for path in Path(IN_DIR).glob("*.*"):
-        with open(path, 'rb') as file:
+        with open(str(path), 'rb') as file:
             data = pickle.load(file)
             w = data['W']
             d = data['D']
@@ -333,24 +371,39 @@ def plot_contour_correrlation(IN_DIR, DEBUG_DIR):
             contours.append(data['cnt'])
 
     n_contour = len(ratios)
-    K = 32
+    ratios = np.array(ratios).reshape(n_contour, 1)
     kmeans = KMeans(n_clusters=K)
-    cnt_labels =  kmeans.fit_predict(np.array(ratios).reshape(n_contour, 1))
+    cnt_labels =  kmeans.fit_predict(ratios)
     for l in kmeans.labels_:
         l_contour_idxs = np.argwhere(cnt_labels==l)[:,0]
+        cls_center = kmeans.cluster_centers_[l]
+        cluster_mask = (cnt_labels == l)
+        points = ratios[cluster_mask].flatten()
+        std = np.std(points)
         plt.clf()
         plt.axes().set_aspect(1.0)
+        #cnt_centers = [util.contour_center(contours[i][:,0], contours[i][:,1]) for i in l_contour_idxs]
+        #cnt_centers = np.array(cnt_centers)
+        #mean_center = np.mean(cnt_centers, axis=0)
         for idx in l_contour_idxs:
             contour = contours[idx]
             X = contour[0,:]
             Y = contour[1,:]
-            X,Y = normalize_contour(X,Y)
+            X,Y = normalize_contour(X,Y, util.contour_center(X,Y))
+            X0 = X[0].reshape(-1)
+            X = np.concatenate([X, X0], axis=0)
+            Y0 = Y[0].reshape(-1)
+            Y = np.concatenate([Y, Y0], axis=0)
             plt.plot(X, Y, '-b')
-        #plt.show()
+            plt.title(f'n_contour_in_cluster = {len(l_contour_idxs)}\n center = {cls_center}, inertia={std}')
+
         plt.savefig(f'{DEBUG_DIR}/label_{l}.png')
 
 def slice_model_config():
     config = defaultdict(set)
+
+    config['Shoulder'] = {'n_cluster':12, 'n_output':12, 'no_regress_at_outputs':[]}
+
     config['Armscye'] = {'n_cluster':12, 'n_output':10, 'no_regress_at_outputs':[]}
     config['Bust'] = {'n_cluster':12, 'n_output':10, 'no_regress_at_outputs':[]}
     config['Aux_UnderBust_Bust_0'] = {'n_cluster':12, 'n_output':10, 'no_regress_at_outputs':[]}
@@ -387,6 +440,22 @@ def load_bad_slice_names(DIR, slc_id):
                 names.add(name)
         return names
 
+def print_statistic(X, Y):
+    mean = np.mean(Y, axis=0)
+    median = np.median(Y, axis=0)
+    std = np.std(Y, axis=0)
+    max = np.max(Y, axis=0)
+    min = np.min(Y, axis=0)
+    np.set_printoptions(suppress=True)
+    print('Target Y statistics: ')
+    for i in range(mean.shape[0]):
+        print(f'\tY[{i}] mean, median, std, max, min = {mean[i]}, {median[i]}, {std[i]}, {max[i]}, {min[i]}' )
+
+    print('nan count: ', np.isnan(X).flatten().sum())
+    print('nan count: ', np.isnan(Y).flatten().sum())
+    print('inf count: ', np.isinf(X).flatten().sum())
+    print('inf count: ', np.isinf(Y).flatten().sum())
+
 import sys
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
@@ -403,19 +472,26 @@ if __name__ == '__main__':
 
     #slc_ids = ['Crotch', 'Aux_Crotch_Hip_0', 'Hip', 'Waist', 'UnderBust', 'Aux_Hip_Waist_0', 'Aux_Hip_Waist_1', 'Aux_Waist_UnderBust_0', 'Aux_Waist_UnderBust_1', 'Aux_Waist_UnderBust_2', 'Aux_UnderBust_Bust_0']
     #slc_ids = ['Crotch', 'Aux_Crotch_Hip_0', 'Aux_Crotch_Hip_1', 'Hip']
-    slc_ids = ['UnderBust','Aux_UnderBust_Bust_0','Bust', 'Armscye']
+    #slc_ids = ['UnderBust','Aux_UnderBust_Bust_0','Bust', 'Armscye']
     #slc_ids = ['Knee', 'Aux_Knee_UnderCrotch_0', 'Aux_Knee_UnderCrotch_1', 'Aux_Knee_UnderCrotch_2', 'Aux_Knee_UnderCrotch_3', 'UnderCrotch']
-    inference = False
+    slc_ids = ['Armscye']
+    inference = True
+    model_configs = slice_model_config()
 
     #plot correlation
+    # print('plotting correlation k-means')
     # for path in Path(IN_DIR).glob('*'):
-    #     if path.stem in slc_ids:
-    #         CORR_DIR = f'{DEBUG_DIR}{path.stem}_correlation/'
+    #     slc_id = path.stem
+    #     if slc_id in slc_ids:
+    #
+    #         model_config = model_configs[slc_id]
+    #         K = model_config['n_cluster'] if 'n_cluster' in model_config else 12
+    #
+    #         CORR_DIR = f'{DEBUG_DIR}{slc_id}_correlation/'
     #         os.makedirs(CORR_DIR, exist_ok=True)
-    #         plot_contour_correrlation(str(path), CORR_DIR)
+    #         plot_contour_correrlation(str(path), CORR_DIR, K)
     # exit()
 
-    model_configs = slice_model_config()
 
     #load data from disk
     for SLC_DIR in Path(IN_DIR).glob('*'):
@@ -435,9 +511,8 @@ if __name__ == '__main__':
             os.makedirs(OUTPUT_DEBUG_DIR_TRAIN, exist_ok=True)
             os.makedirs(OUTPUT_DEBUG_DIR_TEST, exist_ok=True)
 
-
             model_config = model_configs[slc_id]
-            K = model_config['K'] if 'K' in model_config else 12
+            K = model_config['n_cluster'] if 'n_cluster' in model_config else 12
 
             #collect all slices
             X = []
@@ -491,23 +566,28 @@ if __name__ == '__main__':
             N = len(X)
             X = np.array(X)
             Y = np.array(Y)
-            print('nan count: ', np.isnan(X).flatten().sum())
-            print('nan count: ', np.isnan(Y).flatten().sum())
-            print('inf count: ', np.isinf(X).flatten().sum())
-            print('inf count: ', np.isinf(Y).flatten().sum())
             X = np.reshape(X, (-1, 1))
+
+            print_statistic(X, Y)
 
             n_output = model_config['n_output'] if 'n_output' in model_config else 10
             no_regress_at_outputs = model_config['no_regress_at_outputs'] if 'no_regress_at_outputs' in model_config else [0, 7]
 
-            if True:
-                net = RBFNet(n_cluster=K, n_output=n_output, no_regress_at_outputs=no_regress_at_outputs)
+            use_tree = True
+            if use_tree:
+                net = RBFNet(slc_id=slc_id, n_cluster=K, n_output=n_output, no_regress_at_outputs=no_regress_at_outputs, debug_mode=True)
                 net.fit(X, Y)
-                net.save_to_path(MODEL_PATH )
+                net.save_to_path(MODEL_PATH)
+
+                #debug
+                VIZ_DEBUG_DIR = f'{DEBUG_DIR}/tree_viz/'
+                test_id = 45
+                preds = net.visualize_an_obsevation(X[test_id,:], VIZ_DEBUG_DIR, test_id.__str__())
+                print(f'prediction result of {test_id}: {preds}')
             else:
                 net = RBFNeuralNetwork(n_cluster=K, n_output=n_output, no_regress_at_outputs=no_regress_at_outputs)
                 net.fit(X, Y)
-                net.save_to_path(MODEL_PATH )
+                net.save_to_path(MODEL_PATH)
 
             if not inference:
                 continue
@@ -516,6 +596,7 @@ if __name__ == '__main__':
 
             for i in range(len(net.test_idxs)):
                 idx = net_1.test_idxs[i]
+
                 print('processing test idx: ', idx)
                 pred = net_1.predict(np.expand_dims(X[idx, :], axis=0))[0, :]
 
@@ -540,23 +621,25 @@ if __name__ == '__main__':
                 plt.savefig(f'{OUTPUT_DEBUG_DIR_TEST}{idx}.png')
                 #plt.show()
 
-            for i in range(len(net.train_idxs)):
-                idx = net.train_idxs[i]
-                print('processing train idx: ', idx)
-                w = W[idx]
-                d = D[idx]
-                pred = net_1.predict(np.expand_dims(X[idx, :], axis=0))[0, :]
-                res_contour = util.reconstruct_torso_slice_contour(pred, d, w, mirror=True)
-                contour = contours[idx]
-                center = util.contour_center(contour[0, :], contour[1, :])
-                res_contour[0, :] += center[0]
-                res_contour[1, :] += center[1]
-                last_p = res_contour[:,0].reshape(2,1)
-                res_contour = np.concatenate([res_contour, last_p], axis=1)
-                plt.clf()
-                plt.axes().set_aspect(1)
-                plt.plot(contour[0, :], contour[1, :], '-b')
-                plt.plot(res_contour[0, :], res_contour[1, :], '-r')
-                plt.plot(res_contour[0, :], res_contour[1, :], '+r')
-                plt.savefig(f'{OUTPUT_DEBUG_DIR_TRAIN}{idx}.png')
+            infer_on_train = False
+            if infer_on_train:
+                for i in range(len(net.train_idxs)):
+                    idx = net.train_idxs[i]
+                    print('processing train idx: ', idx)
+                    w = W[idx]
+                    d = D[idx]
+                    pred = net_1.predict(np.expand_dims(X[idx, :], axis=0))[0, :]
+                    res_contour = util.reconstruct_torso_slice_contour(pred, d, w, mirror=True)
+                    contour = contours[idx]
+                    center = util.contour_center(contour[0, :], contour[1, :])
+                    res_contour[0, :] += center[0]
+                    res_contour[1, :] += center[1]
+                    last_p = res_contour[:,0].reshape(2,1)
+                    res_contour = np.concatenate([res_contour, last_p], axis=1)
+                    plt.clf()
+                    plt.axes().set_aspect(1)
+                    plt.plot(contour[0, :], contour[1, :], '-b')
+                    plt.plot(res_contour[0, :], res_contour[1, :], '-r')
+                    plt.plot(res_contour[0, :], res_contour[1, :], '+r')
+                    plt.savefig(f'{OUTPUT_DEBUG_DIR_TRAIN}{idx}.png')
 
