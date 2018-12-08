@@ -91,6 +91,21 @@ def resample_contour(X, Y, n_point):
     X, Y = splev(u_1, tck)
     return X, Y
 
+from scipy.fftpack import ifft
+def reconstruct_contour_fourier(fourier):
+    n = len(fourier)
+    fouriers = []
+    fouriers.append(np.complex(0.0, 0.0))
+    for i in range(0, n, 2):
+        real = fourier[i]
+        img =  fourier[i+1]
+        fouriers.append(np.complex(real, img))
+
+    cpl_contour = ifft(fouriers)
+    X = np.real(cpl_contour)
+    Y = np.imag(cpl_contour)
+    return np.concatenate([X.reshape(1, -1), Y.reshape(1, -1)], axis=0)
+
 def reconstruct_leg_slice_contour(feature, D, W):
     p0 = np.array([D*feature[-2]*feature[-1], 0])
     n_points = len(feature) -1

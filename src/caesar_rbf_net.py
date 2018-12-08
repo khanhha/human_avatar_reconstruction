@@ -194,10 +194,7 @@ class RBFNet():
         self.slc_id = slc_id
         self.debug_mode = debug_mode
         self.n_cluster = n_cluster
-        self.n_output = n_output
         self.no_regress_at_outputs = no_regress_at_outputs
-        for k in self.no_regress_at_outputs:
-            assert 0<=k and k < n_output
 
     @staticmethod
     def load_from_path(path):
@@ -250,7 +247,7 @@ class RBFNet():
             self.regressor = clf.best_estimator_
         else:
             #self.regressor = ExtraTreesRegressor(random_state=200, n_estimators=100, min_samples_leaf=100)
-            self.regressor = MultiOutputRegressor(RandomForestRegressor(n_estimators=1, min_samples_leaf=100))
+            self.regressor = MultiOutputRegressor(RandomForestRegressor(n_estimators=100, min_samples_leaf=50))
             self.regressor.fit(X_train, Y_train)
 
         #self.regressor = XGBRegressor().fit(X_train, Y_train)
@@ -260,9 +257,10 @@ class RBFNet():
         print('regression score on test mse loss: ', self.loss(X_test, Y_test))
 
         # calc median of the first and last curvature for each cluster
-        self.output_cluster_median = np.zeros(shape=(self.n_cluster, self.n_output))
+        n_ouput = Y.shape[1]
+        self.output_cluster_median = np.zeros(shape=(self.n_cluster, n_ouput))
         for cluster in range(self.n_cluster):
-            for output_idx in range(self.n_output):
+            for output_idx in range(n_ouput):
                 features = Y[self.training_clusters == cluster]
                 self.output_cluster_median[cluster, output_idx] = np.median(features[:, output_idx])
 
@@ -474,8 +472,9 @@ if __name__ == '__main__':
     #slc_ids = ['Crotch', 'Aux_Crotch_Hip_0', 'Aux_Crotch_Hip_1', 'Hip']
     #slc_ids = ['UnderBust','Aux_UnderBust_Bust_0','Bust', 'Armscye']
     #slc_ids = ['Knee', 'Aux_Knee_UnderCrotch_0', 'Aux_Knee_UnderCrotch_1', 'Aux_Knee_UnderCrotch_2', 'Aux_Knee_UnderCrotch_3', 'UnderCrotch']
-    slc_ids = ['Armscye']
+    slc_ids = ['Shoulder']
     inference = True
+    use_fourier = True
     model_configs = slice_model_config()
 
     #plot correlation
@@ -540,7 +539,15 @@ if __name__ == '__main__':
                         print('zero w or d: ', w, d, file=sys.stderr)
                         continue
 
-                    feature = record['feature']
+                    #feature = record['feature']
+                    if 'fourier' not in record:
+                        continue
+
+                    if use_fourier:
+                        feature = record['fourier']
+                    else:
+                        feature = record['feature']
+
                     if np.isnan(feature).flatten().sum() > 0:
                         print(f'nan feature: {path}', file=sys.stderr)
                         continue
@@ -580,10 +587,10 @@ if __name__ == '__main__':
                 net.save_to_path(MODEL_PATH)
 
                 #debug
-                VIZ_DEBUG_DIR = f'{DEBUG_DIR}/tree_viz/'
-                test_id = 45
-                preds = net.visualize_an_obsevation(X[test_id,:], VIZ_DEBUG_DIR, test_id.__str__())
-                print(f'prediction result of {test_id}: {preds}')
+                #VIZ_DEBUG_DIR = f'{DEBUG_DIR}/tree_viz/'
+                #test_id = 45
+                #preds = net.visualize_an_obsevation(X[test_id,:], VIZ_DEBUG_DIR, test_id.__str__())
+                #print(f'prediction result of {test_id}: {preds}')
             else:
                 net = RBFNeuralNetwork(n_cluster=K, n_output=n_output, no_regress_at_outputs=no_regress_at_outputs)
                 net.fit(X, Y)
@@ -602,13 +609,29 @@ if __name__ == '__main__':
 
                 w = W[idx]
                 d = D[idx]
-                if util.is_leg_contour(slc_id):
-                    res_contour = util.reconstruct_leg_slice_contour(pred, d, w)
-                else:
-                    res_contour = util.reconstruct_torso_slice_contour(pred, d, w, mirror=True)
-
                 contour = contours[idx]
                 center = util.contour_center(contour[0, :], contour[1, :])
+
+                if use_fourier:
+                    res_contour = util.reconstruct_contour_fourier(pred.flatten())
+                    res_range_x = np.max(res_contour[0,:]) - np.min(res_contour[0,:])
+                    range_x = np.max(contour[0,:]) - np.min(contour[0,:])
+                    scale_x = range_x / res_range_x
+
+                    res_range_y = np.max(res_contour[1,:]) - np.min(res_contour[1,:])
+                    range_y = np.max(contour[1,:]) - np.min(contour[1,:])
+                    scale_y = range_y / res_range_y
+
+                    res_contour[0,:] *= scale_x
+                    res_contour[1,:] *= scale_y
+
+                else:
+                    if util.is_leg_contour(slc_id):
+                        res_contour = util.reconstruct_leg_slice_contour(pred, d, w)
+                    else:
+                        res_contour = util.reconstruct_torso_slice_contour(pred, d, w, mirror=True)
+
+
                 res_contour[0, :] += center[0]
                 res_contour[1, :] += center[1]
                 last_p = res_contour[:,0].reshape(2,1)
@@ -621,7 +644,7 @@ if __name__ == '__main__':
                 plt.savefig(f'{OUTPUT_DEBUG_DIR_TEST}{idx}.png')
                 #plt.show()
 
-            infer_on_train = False
+            infer_on_train = True
             if infer_on_train:
                 for i in range(len(net.train_idxs)):
                     idx = net.train_idxs[i]
@@ -629,7 +652,20 @@ if __name__ == '__main__':
                     w = W[idx]
                     d = D[idx]
                     pred = net_1.predict(np.expand_dims(X[idx, :], axis=0))[0, :]
-                    res_contour = util.reconstruct_torso_slice_contour(pred, d, w, mirror=True)
+                    if use_fourier:
+                        res_contour = util.reconstruct_contour_fourier(pred.flatten())
+                        res_range_x = np.max(res_contour[0, :]) - np.min(res_contour[0, :])
+                        range_x = np.max(contour[0, :]) - np.min(contour[0, :])
+                        scale_x = range_x / res_range_x
+
+                        res_range_y = np.max(res_contour[1, :]) - np.min(res_contour[1, :])
+                        range_y = np.max(contour[1, :]) - np.min(contour[1, :])
+                        scale_y = range_y / res_range_y
+
+                        res_contour[0, :] *= scale_x
+                        res_contour[1, :] *= scale_y
+
+                        res_contour = util.reconstruct_torso_slice_contour(pred, d, w, mirror=True)
                     contour = contours[idx]
                     center = util.contour_center(contour[0, :], contour[1, :])
                     res_contour[0, :] += center[0]

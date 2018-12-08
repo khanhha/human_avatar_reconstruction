@@ -15,6 +15,7 @@ from scipy.spatial import ConvexHull
 import scipy.ndimage as ndimage
 import shutil
 from scipy.interpolate import splev, splrep, splprep, splev
+import cv2 as cv
 
 G_cur_file_path = Path()
 IN_DIR = ''
@@ -142,6 +143,32 @@ def radial_code(points, D, half = True):
     feature.extend([r1, r2])
 
     return feature
+
+
+from scipy.fftpack import fft2, ifft2, fft, ifft
+def calc_fourier_descriptor(X, Y, resolution, path_debug = None):
+    np.set_printoptions(suppress=True)
+    cnt_complex = np.array([np.complex(x,y) for x, y in zip(X,Y)])
+    #cnt_complex = cnt_complex[:int(cnt_complex.shape[0]/2)]
+    tf_1 = fft(cnt_complex)
+    tf_1 = np.concatenate([tf_1[0:8], tf_1[-8:]])
+    contour_1 = ifft(tf_1)
+    # plt.clf()
+    # plt.axes().set_aspect(1.0)
+    # plt.plot(X, Y, '-b')
+    # plt.plot(np.real(contour_1), np.imag(contour_1), '-r')
+    # plt.show()
+
+    #normalize
+    tf_1 = tf_1 / norm(tf_1[1])
+    #cut off the center
+    tf = tf_1[1:]
+    fcode = []
+    for i in range(tf.shape[0]):
+        t = tf[i]
+        fcode.append(np.real(t))
+        fcode.append(np.imag(t))
+    return np.array(fcode)
 
 def convert_torso_contour_to_radial_code(X, Y, n_sample, path_out = None):
     idx_ymax, idx_ymin = np.argmax(Y), np.argmin(Y)
@@ -357,6 +384,7 @@ def run_process_slice_contours(process_id, slc_id, paths, shared_data):
     Ws = []
     Ds = []
     Fs = []
+    Frs = []
     Cs = []
     Ns = []
 
@@ -384,12 +412,14 @@ def run_process_slice_contours(process_id, slc_id, paths, shared_data):
         if util.is_leg_contour(slc_id):
             try:
                 X, Y, W, D, feature = process_leg_contour(path, contour, sup_points=sup_points, ld_points=ld_points)
+                fourier = calc_fourier_descriptor(X, Y, resolution=12)
             except Exception as exp:
                 print(path.stem, exp, file=sys.stderr)
                 continue
         else:
             try:
                 X, Y, W, D, feature = process_torso_contour(path, contour, sup_points=sup_points, ld_points=ld_points)
+                fourier = calc_fourier_descriptor(X, Y, resolution=16)
             except Exception as exp:
                 print(path.stem, exp, file=sys.stderr)
                 continue
@@ -398,10 +428,11 @@ def run_process_slice_contours(process_id, slc_id, paths, shared_data):
         Ws.append(W)
         Ds.append(D)
         Fs.append(feature)
+        Frs.append(fourier)
         Cs.append(np.vstack([X,Y]))
         Ns.append(path.stem)
 
-    shared_data[process_id] = {'Ws':Ws, 'Ds':Ds, 'Fs':Fs, 'Cs':Cs, 'Ns':Ns}
+    shared_data[process_id] = {'Ws':Ws, 'Ds':Ds, 'Fs':Fs, 'Frs':Frs ,'Cs':Cs, 'Ns':Ns}
 
     print(f'process {process_id} finished. len(Ws)={len(Ws)}')
 
@@ -422,9 +453,9 @@ if __name__  == '__main__':
     os.makedirs(DEBUG_DIR, exist_ok=True)
 
     #slc_ids = ['Aux_Hip_Waist_0', 'Aux_Hip_Waist_1', 'Aux_Waist_UnderBust_0', 'Aux_Waist_UnderBust_1', 'Aux_Waist_UnderBust_2', 'Bust', 'Aux_UnderBust_Bust_0]
-    slc_ids = ['Armscye']
+    slc_ids = ['Shoulder']
     #slc_ids = ['Knee']
-    n_processes = 1
+    n_processes = 12
     failed_slice_paths = []
     for slc_id in slc_ids:
         SLICE_DIR = f'{IN_DIR}/{slc_id}/'
@@ -461,6 +492,7 @@ if __name__  == '__main__':
             os.makedirs(DEBUG_UNDERBUST_HEIGHT_DIR, exist_ok=True)
 
         slc_paths = [path for path in Path(SLICE_DIR).glob('*.pkl')]
+        #slc_paths = slc_paths[:3]
         n_paths = len(slc_paths)
         processes = []
         npath_per_process = int(n_paths / n_processes)
@@ -482,6 +514,7 @@ if __name__  == '__main__':
         Ws = []
         Ds = []
         Fs = []
+        Frs = []
         Cs = []
         Ns = []
         print('syncronizing data across processes')
@@ -493,12 +526,14 @@ if __name__  == '__main__':
             Ws.extend(data['Ws'])
             Ds.extend(data['Ds'])
             Fs.extend(data['Fs'])
+            Frs.extend(data['Frs'])
             Cs.extend(data['Cs'])
             Ns.extend(data['Ns'])
 
         #dump all records of that slice
         n_contour = len(Ns)
         Fs = np.array(Fs)
+        Frs = np.array(Frs)
 
         feature_dir_out = f'{OUT_DIR}/{slc_id}/'
         os.makedirs(feature_dir_out, exist_ok=True)
@@ -507,10 +542,11 @@ if __name__  == '__main__':
             W = Ws[i]
             D = Ds[i]
             F = Fs[i,:]
+            Fourier = Frs[i,:]
             C = Cs[i]
             name = Ns[i]
             with open(f'{feature_dir_out}{name}.pkl', 'wb') as file:
-                 pickle.dump({'W':W, 'D':D, 'feature':F, 'cnt':C}, file)
+                 pickle.dump({'W':W, 'D':D, 'feature':F, 'fourier':Fourier, 'cnt':C}, file)
 
     print('failed slice paths')
     print(failed_slice_paths)
