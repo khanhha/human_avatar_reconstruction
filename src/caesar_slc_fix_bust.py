@@ -31,11 +31,16 @@ def preprocess_contour(contour, resolution = 400):
 
     #clockwise order
     p0 = np.array([X[0], Y[0]])
-    pnext = np.array([X[7], Y[7]])
+    pnext = np.array([X[10], Y[10]])
     if (pnext - p0).dot(np.array([1.0, 0])) < 0:
         X = X[::-1]
         Y = Y[::-1]
-
+    # plt.clf()
+    # plt.axes().set_aspect(1.0)
+    # plt.plot(X, Y, '-b')
+    # plt.plot(X[0], Y[0], '+r', ms = 20)
+    # plt.plot(X[10], Y[10], '+g', ms = 20)
+    # plt.show()
     contour = np.concatenate([X.reshape(-1, 1), Y.reshape(-1, 1)], axis=1)
 
     return contour

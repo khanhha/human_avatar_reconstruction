@@ -138,8 +138,8 @@ def sort_torso_slice_vertices(slc_vert_idxs, mesh_verts, title =''):
         assert closest_idx not in slc_sorted_vert_idxs
         slc_sorted_vert_idxs.append(slc_vert_idxs[closest_idx])
 
-    sorted_X =  mesh_verts[slc_sorted_vert_idxs][:,0]
-    sorted_Y =  mesh_verts[slc_sorted_vert_idxs][:,1]
+    # sorted_X =  mesh_verts[slc_sorted_vert_idxs][:,0]
+    # sorted_Y =  mesh_verts[slc_sorted_vert_idxs][:,1]
     # plt.clf()
     # plt.axes().set_aspect(1)
     # plt.plot(points_0[:,0], points_0[:,1], '+r')
@@ -405,8 +405,8 @@ if __name__ == '__main__':
     print('victoria mesh: nverts = {0}, nfaces = {1}'.format(tpl_mesh['verts'].shape[0], len(tpl_mesh['faces'])))
 
     print('sortinng slice vertices counter clockwise, starting from the extreme point on the +X axis')
-    sort_ids = ['Crotch', 'Aux_Crotch_Hip_0', 'Aux_Crotch_Hip_1', 'Hip', 'Waist', 'UnderBust', 'Aux_Hip_Waist_0', 'Aux_Hip_Waist_1',
-                'Aux_Waist_UnderBust_0', 'Aux_Waist_UnderBust_1', 'Aux_Waist_UnderBust_2',
+    sort_ids = ['Crotch', 'Aux_Crotch_Hip_0', 'Aux_Crotch_Hip_1', 'Hip', 'Waist', 'UnderBust', 'Aux_Hip_Waist_0',
+                'Aux_Waist_UnderBust_0', 'Aux_Waist_UnderBust_1',
                 'Aux_UnderBust_Bust_0', 'Bust', 'Armscye', 'Aux_Armscye_Shoulder_0', 'Shoulder']
     for id, slc_idxs in slice_id_vert_idxs.items():
         if id in sort_ids:

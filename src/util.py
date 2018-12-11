@@ -91,6 +91,38 @@ def resample_contour(X, Y, n_point):
     X, Y = splev(u_1, tck)
     return X, Y
 
+from scipy.fftpack import fft2, ifft2, fft, ifft
+def calc_fourier_descriptor(X, Y, resolution, path_debug = None):
+    np.set_printoptions(suppress=True)
+    cnt_complex = np.array([np.complex(x,y) for x, y in zip(X,Y)])
+    #cnt_complex = cnt_complex[:int(cnt_complex.shape[0]/2)]
+    half = int(resolution/2)
+    tf_1 = fft(cnt_complex)
+    tf_1 = np.concatenate([tf_1[0:half], tf_1[-half:]])
+
+    if path_debug is not None:
+        contour_1 = ifft(tf_1)
+        plt.clf()
+        plt.axes().set_aspect(1.0)
+        plt.plot(X, Y, '-b')
+        plt.plot(X[:2], Y[:2], '+b')
+        plt.plot(np.real(contour_1), np.imag(contour_1), '-r')
+        plt.plot(np.real(contour_1)[:2], np.imag(contour_1)[:2], '+r')
+        plt.show()
+        pass
+
+    #normalize
+    tf_1 = tf_1 / norm(tf_1[1])
+    #cut off the center
+    tf = tf_1[1:]
+    fcode = []
+    for i in range(tf.shape[0]):
+        t = tf[i]
+        fcode.append(np.real(t))
+        fcode.append(np.imag(t))
+    return np.array(fcode)
+
+
 from scipy.fftpack import ifft
 def reconstruct_contour_fourier(fourier):
     n = len(fourier)

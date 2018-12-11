@@ -10,7 +10,9 @@ from pathlib import Path
 import math
 import src.util as util
 from src.caesar_slc_fix_bust import \
-    remove_arm_from_bust_slice, remove_arm_from_under_bust_slice, remove_arm_from_armscye_slice, fix_bust_height
+    remove_arm_from_bust_slice, remove_arm_from_under_bust_slice, remove_arm_from_armscye_slice, fix_bust_height, preprocess_contour
+import multiprocessing
+import sys
 from scipy.spatial import ConvexHull
 import scipy.ndimage as ndimage
 import shutil
@@ -67,10 +69,11 @@ def resample_contour(X, Y, n_point = 150, debug_path = None):
     if debug_path is not None:
         plt.clf()
         plt.axes().set_aspect(1)
-        plt.plot(X, Y, 'b+')
+        plt.plot(X, Y, 'b-')
         plt.plot(center_x, center_y, 'r+')
         plt.plot(X[0], Y[0], 'r+', ms = 20)
-        plt.show()
+        plt.plot(X[5], Y[5], 'g+', ms = 20)
+        plt.savefig(debug_path)
     return X, Y
 
 def load_contour(type, path):
@@ -143,32 +146,6 @@ def radial_code(points, D, half = True):
     feature.extend([r1, r2])
 
     return feature
-
-
-from scipy.fftpack import fft2, ifft2, fft, ifft
-def calc_fourier_descriptor(X, Y, resolution, path_debug = None):
-    np.set_printoptions(suppress=True)
-    cnt_complex = np.array([np.complex(x,y) for x, y in zip(X,Y)])
-    #cnt_complex = cnt_complex[:int(cnt_complex.shape[0]/2)]
-    tf_1 = fft(cnt_complex)
-    tf_1 = np.concatenate([tf_1[0:8], tf_1[-8:]])
-    contour_1 = ifft(tf_1)
-    # plt.clf()
-    # plt.axes().set_aspect(1.0)
-    # plt.plot(X, Y, '-b')
-    # plt.plot(np.real(contour_1), np.imag(contour_1), '-r')
-    # plt.show()
-
-    #normalize
-    tf_1 = tf_1 / norm(tf_1[1])
-    #cut off the center
-    tf = tf_1[1:]
-    fcode = []
-    for i in range(tf.shape[0]):
-        t = tf[i]
-        fcode.append(np.real(t))
-        fcode.append(np.imag(t))
-    return np.array(fcode)
 
 def convert_torso_contour_to_radial_code(X, Y, n_sample, path_out = None):
     idx_ymax, idx_ymin = np.argmax(Y), np.argmin(Y)
@@ -295,14 +272,18 @@ def align_leg_contour(X, Y, ld_points):
     return contour_1[:,0], contour_1[:,1]
 
 def process_leg_contour(path, contour, sup_points, ld_points):
+    contour = preprocess_contour(contour, resolution=150)
+
     Y = contour[:, 0]
     X = contour[:, 1]
+
     X, Y = align_leg_contour(X, Y, ld_points)
+
     X, Y = resample_contour(X, Y)
-    X, Y = util.smooth_contour(X, Y, sigma=2.0)
 
     debug_path_out = f'{DEBUG_RADIAL_DIR}/{path.stem}.png'
     feature, W, D = convert_leg_contour_to_radial_code(X, Y, 8, path_out=debug_path_out)
+
     return X, Y, W, D, feature
 
 def process_torso_contour(path, contour, sup_points, ld_points):
@@ -318,7 +299,7 @@ def process_torso_contour(path, contour, sup_points, ld_points):
         if has_left != fixed_left or has_right != fixed_right:
             raise Exception('Failed armscye slice')
 
-    if slc_id == 'Bust':
+    elif slc_id == 'Bust':
         align_anchor_pos_x = False
 
         armscye_path = f'{IN_DIR}/Armscye/{path.name}'
@@ -335,7 +316,7 @@ def process_torso_contour(path, contour, sup_points, ld_points):
         contour, ok = fix_bust_height(contour, sup_points=sup_points, ld_points=ld_points,
                                       armscye_contour=armscye_contour, debug_path=debug_bust_height_path)
 
-    if slc_id == 'Aux_UnderBust_Bust_0':
+    elif slc_id == 'Aux_UnderBust_Bust_0':
         align_anchor_pos_x = False
 
         armscye_path = f'{IN_DIR}/Armscye/{path.name}'
@@ -354,6 +335,9 @@ def process_torso_contour(path, contour, sup_points, ld_points):
         debug_underbust_height_path = f'{DEBUG_UNDERBUST_HEIGHT_DIR}/{path.stem}.png'
         contour, ok = fix_bust_height(contour, sup_points=sup_points, ld_points=ld_points,
                                       armscye_contour=armscye_contour, debug_path=debug_underbust_height_path)
+    else:
+        contour = preprocess_contour(contour, resolution=150)
+        pass
 
     # transpose, swap X and Y to make the coordinate system more natural to the contour shape
     Y = contour[:, 0]
@@ -365,7 +349,7 @@ def process_torso_contour(path, contour, sup_points, ld_points):
         raise Exception('failed torso contour alignment')
 
     X, Y = resample_contour(X, Y)
-    X, Y = util.smooth_contour(X, Y, sigma=2.0)
+    #X, Y = util.smooth_contour(X, Y, sigma=2.0)
 
     n_sample = 16
     if slc_id == 'Shoulder' or slc_id == 'Aux_Armscye_Shoulder_0':
@@ -375,8 +359,8 @@ def process_torso_contour(path, contour, sup_points, ld_points):
 
     return X, Y, W, D, feature
 
-import multiprocessing
-import sys
+
+import warnings
 def run_process_slice_contours(process_id, slc_id, paths, shared_data):
     n_paths = len(paths)
     #print(f'process {self.id} started. n_paths = {n_paths}')
@@ -384,18 +368,14 @@ def run_process_slice_contours(process_id, slc_id, paths, shared_data):
     Ws = []
     Ds = []
     Fs = []
-    Frs = []
     Cs = []
     Ns = []
+
+    warnings.filterwarnings('error')
 
     for i, path in enumerate(paths):
         if i % 20 == 0:
             print(f'process {process_id}: {100.0 * float(i) / float(n_paths)}%')
-
-        #print(i, str(path))
-
-        #if 'csr4205a' not in path.name:
-        #    continue
 
         suppoints_path = f'{SUPPOINT_DIR}/{path.stem}.pkl'
         assert os.path.exists(suppoints_path)
@@ -411,28 +391,28 @@ def run_process_slice_contours(process_id, slc_id, paths, shared_data):
 
         if util.is_leg_contour(slc_id):
             try:
-                X, Y, W, D, feature = process_leg_contour(path, contour, sup_points=sup_points, ld_points=ld_points)
-                fourier = calc_fourier_descriptor(X, Y, resolution=12)
+                X, Y, W, D, radial_code = process_leg_contour(path, contour, sup_points=sup_points, ld_points=ld_points)
             except Exception as exp:
                 print(path.stem, exp, file=sys.stderr)
                 continue
         else:
             try:
-                X, Y, W, D, feature = process_torso_contour(path, contour, sup_points=sup_points, ld_points=ld_points)
-                fourier = calc_fourier_descriptor(X, Y, resolution=16)
+                X, Y, W, D, radial_code = process_torso_contour(path, contour, sup_points=sup_points, ld_points=ld_points)
             except Exception as exp:
-                print(path.stem, exp, file=sys.stderr)
+                print(path.stem, f'khanh exp: {exp}', file=sys.stderr)
+                continue
+            except RuntimeWarning as warn:
+                print(path.stem, f'khanh warn: {warn}', file=sys.stderr)
                 continue
 
         #acculumate one more slice record
         Ws.append(W)
         Ds.append(D)
-        Fs.append(feature)
-        Frs.append(fourier)
+        Fs.append(radial_code)
         Cs.append(np.vstack([X,Y]))
         Ns.append(path.stem)
 
-    shared_data[process_id] = {'Ws':Ws, 'Ds':Ds, 'Fs':Fs, 'Frs':Frs ,'Cs':Cs, 'Ns':Ns}
+    shared_data[process_id] = {'Ws':Ws, 'Ds':Ds, 'Fs':Fs, 'Cs':Cs, 'Ns':Ns}
 
     print(f'process {process_id} finished. len(Ws)={len(Ws)}')
 
@@ -442,23 +422,31 @@ if __name__  == '__main__':
     ap.add_argument("-o", "--output", required=True, help="")
     ap.add_argument("-p", "--suppoint", required=True, help="")
     ap.add_argument("-l", "--ldpoint", required=True, help="")
+    ap.add_argument("-ids", "--slc_ids", required=True, help="")
 
     args = vars(ap.parse_args())
     IN_DIR  = args['input']
     OUT_DIR = args['output']
     SUPPOINT_DIR   = args['suppoint']
     LDPOINT_DIR   = args['ldpoint']
+    slc_ids = args['slc_ids']
 
     DEBUG_DIR = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/debug/'
     os.makedirs(DEBUG_DIR, exist_ok=True)
 
-    #slc_ids = ['Aux_Hip_Waist_0', 'Aux_Hip_Waist_1', 'Aux_Waist_UnderBust_0', 'Aux_Waist_UnderBust_1', 'Aux_Waist_UnderBust_2', 'Bust', 'Aux_UnderBust_Bust_0]
-    slc_ids = ['Shoulder']
-    #slc_ids = ['Knee']
+    all_slc_ids = [path.stem for path in Path(IN_DIR).glob('./*')]
+    if slc_ids == 'all':
+        slc_ids = all_slc_ids
+    else:
+        slc_ids = slc_ids.split(',')
+        for id in slc_ids:
+            assert id in all_slc_ids, f'{id}: unrecognized slice id'
+
     n_processes = 12
     failed_slice_paths = []
     for slc_id in slc_ids:
         SLICE_DIR = f'{IN_DIR}/{slc_id}/'
+        print(f'start processing slice {slc_id}')
 
         DEBUG_ALIGN_DIR = f'{DEBUG_DIR}/{slc_id}_align/'
         shutil.rmtree(DEBUG_ALIGN_DIR, ignore_errors=True)
@@ -514,7 +502,6 @@ if __name__  == '__main__':
         Ws = []
         Ds = []
         Fs = []
-        Frs = []
         Cs = []
         Ns = []
         print('syncronizing data across processes')
@@ -526,14 +513,12 @@ if __name__  == '__main__':
             Ws.extend(data['Ws'])
             Ds.extend(data['Ds'])
             Fs.extend(data['Fs'])
-            Frs.extend(data['Frs'])
             Cs.extend(data['Cs'])
             Ns.extend(data['Ns'])
 
         #dump all records of that slice
         n_contour = len(Ns)
         Fs = np.array(Fs)
-        Frs = np.array(Frs)
 
         feature_dir_out = f'{OUT_DIR}/{slc_id}/'
         os.makedirs(feature_dir_out, exist_ok=True)
@@ -542,11 +527,10 @@ if __name__  == '__main__':
             W = Ws[i]
             D = Ds[i]
             F = Fs[i,:]
-            Fourier = Frs[i,:]
             C = Cs[i]
             name = Ns[i]
             with open(f'{feature_dir_out}{name}.pkl', 'wb') as file:
-                 pickle.dump({'W':W, 'D':D, 'feature':F, 'fourier':Fourier, 'cnt':C}, file)
+                 pickle.dump({'W':W, 'D':D, 'feature':F, 'cnt':C}, file)
 
     print('failed slice paths')
     print(failed_slice_paths)

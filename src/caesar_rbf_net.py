@@ -454,29 +454,7 @@ def print_statistic(X, Y):
     print('inf count: ', np.isinf(X).flatten().sum())
     print('inf count: ', np.isinf(Y).flatten().sum())
 
-import sys
-if __name__ == '__main__':
-    ap = argparse.ArgumentParser()
-    ap.add_argument("-i", "--input", required=True, help="input meta data file")
-    ap.add_argument("-d", "--debug", required=True, help="input meta data file")
-    ap.add_argument("-m", "--model", required=True, help="input meta data file")
-    ap.add_argument("-b", "--bad_slice_dir", required=True, help="input meta data file")
-
-    args = vars(ap.parse_args())
-    IN_DIR  = args['input']
-    DEBUG_DIR  = args['debug']
-    MODEL_DIR  = args['model']
-    BAD_SLICE_DIR = args['bad_slice_dir']
-
-    #slc_ids = ['Crotch', 'Aux_Crotch_Hip_0', 'Hip', 'Waist', 'UnderBust', 'Aux_Hip_Waist_0', 'Aux_Hip_Waist_1', 'Aux_Waist_UnderBust_0', 'Aux_Waist_UnderBust_1', 'Aux_Waist_UnderBust_2', 'Aux_UnderBust_Bust_0']
-    #slc_ids = ['Crotch', 'Aux_Crotch_Hip_0', 'Aux_Crotch_Hip_1', 'Hip']
-    #slc_ids = ['UnderBust','Aux_UnderBust_Bust_0','Bust', 'Armscye']
-    #slc_ids = ['Knee', 'Aux_Knee_UnderCrotch_0', 'Aux_Knee_UnderCrotch_1', 'Aux_Knee_UnderCrotch_2', 'Aux_Knee_UnderCrotch_3', 'UnderCrotch']
-    slc_ids = ['Shoulder']
-    inference = True
-    use_fourier = True
-    model_configs = slice_model_config()
-
+def plot_all_contour_correlation():
     #plot correlation
     # print('plotting correlation k-means')
     # for path in Path(IN_DIR).glob('*'):
@@ -490,7 +468,43 @@ if __name__ == '__main__':
     #         os.makedirs(CORR_DIR, exist_ok=True)
     #         plot_contour_correrlation(str(path), CORR_DIR, K)
     # exit()
+    pass
 
+import sys
+if __name__ == '__main__':
+    ap = argparse.ArgumentParser()
+    ap.add_argument("-i", "--input", required=True, help="input meta data file")
+    ap.add_argument("-c", "--code", required=True, help="contour code")
+    ap.add_argument("-d", "--debug", required=True, help="input meta data file")
+    ap.add_argument("-m", "--model", required=True, help="input meta data file")
+    ap.add_argument("-b", "--bad_slice_dir", required=True, help="input meta data file")
+    ap.add_argument("-ids", "--slc_ids", required=True, help="input meta data file")
+    ap.add_argument("-test_infer", "--test_inference", required=True, help="input meta data file")
+    ap.add_argument("-train_infer", "--train_inference", required=True, help="input meta data file")
+
+    args = vars(ap.parse_args())
+    IN_DIR  = args['input']
+    CODE_DIR  = args['code']
+    DEBUG_DIR  = args['debug']
+    MODEL_DIR_ROOT  = args['model']
+    BAD_SLICE_DIR = args['bad_slice_dir']
+    slc_ids = args['slc_ids']
+    do_test_infer = int(args['test_inference'])   > 0
+    do_train_infer = int(args['train_inference']) > 0
+
+    all_slc_ids = [path.stem for path in Path(IN_DIR).glob('./*')]
+    if slc_ids == 'all':
+        slc_ids = all_slc_ids
+    else:
+        slc_ids = slc_ids.split(',')
+        for id in slc_ids:
+            assert id in all_slc_ids, f'{id}: unrecognized slice id'
+
+    model_configs = slice_model_config()
+
+    code_type = Path(CODE_DIR).stem
+    MODEL_DIR = f'{MODEL_DIR_ROOT}/{code_type}/'
+    os.makedirs(MODEL_DIR, exist_ok=True)
 
     #load data from disk
     for SLC_DIR in Path(IN_DIR).glob('*'):
@@ -498,8 +512,6 @@ if __name__ == '__main__':
         slc_id = SLC_DIR.stem
 
         if slc_id in slc_ids:
-            #if SLC_DIR.stem != 'Waist':
-            #     continue
 
             MODEL_PATH = f'{MODEL_DIR}/{SLC_DIR.stem}.pkl'
 
@@ -514,20 +526,17 @@ if __name__ == '__main__':
             K = model_config['n_cluster'] if 'n_cluster' in model_config else 12
 
             #collect all slices
-            X = []
-            Y = []
-            W = []
-            D = []
-            contours = []
+            X = []; Y = []; W = [];   D = [];  contours = []
             slc_id = SLC_DIR.stem
             print('start training slice mode: ', slc_id)
             bad_slc_names = load_bad_slice_names(BAD_SLICE_DIR, slc_id)
 
-            all_paths = [path for path in SLC_DIR.glob('*.*')]
+            SLC_CODE_DIR = f'{CODE_DIR}/{slc_id}/'
+
+            all_paths = [path for path in Path(SLC_CODE_DIR).glob('*.*')]
             for path in all_paths:
 
                 if path.stem in bad_slc_names:
-                    print('\t ignore file: ',  path.stem)
                     continue
 
                 with open(str(path),'rb') as file:
@@ -539,14 +548,8 @@ if __name__ == '__main__':
                         print('zero w or d: ', w, d, file=sys.stderr)
                         continue
 
-                    #feature = record['feature']
-                    if 'fourier' not in record:
-                        continue
 
-                    if use_fourier:
-                        feature = record['fourier']
-                    else:
-                        feature = record['feature']
+                    feature = record['Code']
 
                     if np.isnan(feature).flatten().sum() > 0:
                         print(f'nan feature: {path}', file=sys.stderr)
@@ -563,29 +566,36 @@ if __name__ == '__main__':
                     if np.isinf(X).flatten().sum() > 0:
                         print(f'inf X: {path}', file=sys.stderr)
                         continue
+
                     X.append(w/d)
                     Y.append(feature)
                     W.append(w)
                     D.append(d)
-                    contours.append(record['cnt'])
 
+                slc_path = f'{SLC_DIR}/{path.stem}.pkl'
+                with open(slc_path, 'rb') as file:
+                    record = pickle.load(file)
+                    contours.append(record['cnt'])
 
             N = len(X)
             X = np.array(X)
             Y = np.array(Y)
             X = np.reshape(X, (-1, 1))
 
-            print_statistic(X, Y)
+            #print_statistic(X, Y)
 
-            n_output = model_config['n_output'] if 'n_output' in model_config else 10
-            no_regress_at_outputs = model_config['no_regress_at_outputs'] if 'no_regress_at_outputs' in model_config else [0, 7]
+            if code_type == 'fourier':
+                n_output = None
+                no_regress_at_outputs = []
+            else:
+                n_output = model_config['n_output'] if 'n_output' in model_config else 10
+                no_regress_at_outputs = model_config['no_regress_at_outputs'] if 'no_regress_at_outputs' in model_config else [0, 7]
 
             use_tree = True
             if use_tree:
                 net = RBFNet(slc_id=slc_id, n_cluster=K, n_output=n_output, no_regress_at_outputs=no_regress_at_outputs, debug_mode=True)
                 net.fit(X, Y)
                 net.save_to_path(MODEL_PATH)
-
                 #debug
                 #VIZ_DEBUG_DIR = f'{DEBUG_DIR}/tree_viz/'
                 #test_id = 45
@@ -596,63 +606,64 @@ if __name__ == '__main__':
                 net.fit(X, Y)
                 net.save_to_path(MODEL_PATH)
 
-            if not inference:
-                continue
-
             net_1 = RBFNet.load_from_path(MODEL_PATH)
 
-            for i in range(len(net.test_idxs)):
-                idx = net_1.test_idxs[i]
+            if do_test_infer:
 
-                print('processing test idx: ', idx)
-                pred = net_1.predict(np.expand_dims(X[idx, :], axis=0))[0, :]
+                for i in range(len(net.test_idxs)):
+                    idx = net_1.test_idxs[i]
 
-                w = W[idx]
-                d = D[idx]
-                contour = contours[idx]
-                center = util.contour_center(contour[0, :], contour[1, :])
+                    print('processing test idx: ', idx)
+                    pred = net_1.predict(np.expand_dims(X[idx, :], axis=0))[0, :]
 
-                if use_fourier:
-                    res_contour = util.reconstruct_contour_fourier(pred.flatten())
-                    res_range_x = np.max(res_contour[0,:]) - np.min(res_contour[0,:])
-                    range_x = np.max(contour[0,:]) - np.min(contour[0,:])
-                    scale_x = range_x / res_range_x
+                    w = W[idx]
+                    d = D[idx]
+                    contour = contours[idx]
+                    center = util.contour_center(contour[0, :], contour[1, :])
 
-                    res_range_y = np.max(res_contour[1,:]) - np.min(res_contour[1,:])
-                    range_y = np.max(contour[1,:]) - np.min(contour[1,:])
-                    scale_y = range_y / res_range_y
+                    if code_type == 'fourier':
+                        res_contour = util.reconstruct_contour_fourier(pred.flatten())
+                        res_range_x = np.max(res_contour[0,:]) - np.min(res_contour[0,:])
+                        range_x = np.max(contour[0,:]) - np.min(contour[0,:])
+                        scale_x = range_x / res_range_x
 
-                    res_contour[0,:] *= scale_x
-                    res_contour[1,:] *= scale_y
+                        res_range_y = np.max(res_contour[1,:]) - np.min(res_contour[1,:])
+                        range_y = np.max(contour[1,:]) - np.min(contour[1,:])
+                        scale_y = range_y / res_range_y
 
-                else:
-                    if util.is_leg_contour(slc_id):
-                        res_contour = util.reconstruct_leg_slice_contour(pred, d, w)
+                        res_contour[0,:] *= scale_x
+                        res_contour[1,:] *= scale_y
+
                     else:
-                        res_contour = util.reconstruct_torso_slice_contour(pred, d, w, mirror=True)
+                        if util.is_leg_contour(slc_id):
+                            res_contour = util.reconstruct_leg_slice_contour(pred, d, w)
+                        else:
+                            res_contour = util.reconstruct_torso_slice_contour(pred, d, w, mirror=True)
 
 
-                res_contour[0, :] += center[0]
-                res_contour[1, :] += center[1]
-                last_p = res_contour[:,0].reshape(2,1)
-                res_contour = np.concatenate([res_contour, last_p], axis=1)
-                plt.clf()
-                plt.axes().set_aspect(1)
-                plt.plot(contour[0, :], contour[1, :], '-b')
-                plt.plot(res_contour[0, :], res_contour[1, :], '-r')
-                plt.plot(res_contour[0, :], res_contour[1, :], '+r')
-                plt.savefig(f'{OUTPUT_DEBUG_DIR_TEST}{idx}.png')
-                #plt.show()
+                    res_contour[0, :] += center[0]
+                    res_contour[1, :] += center[1]
+                    last_p = res_contour[:,0].reshape(2,1)
+                    res_contour = np.concatenate([res_contour, last_p], axis=1)
+                    plt.clf()
+                    plt.axes().set_aspect(1)
+                    plt.plot(contour[0, :], contour[1, :], '-b')
+                    plt.plot(res_contour[0, :], res_contour[1, :], '-r')
+                    plt.plot(res_contour[0, :], res_contour[1, :], '+r')
+                    plt.plot(res_contour[0, 0], res_contour[1, 0], '+r', ms=20)
+                    plt.plot(res_contour[0, 2], res_contour[1, 2], '+g', ms=20)
+                    plt.savefig(f'{OUTPUT_DEBUG_DIR_TEST}{idx}.png')
+                    #plt.show()
 
-            infer_on_train = True
-            if infer_on_train:
+            if do_train_infer:
                 for i in range(len(net.train_idxs)):
                     idx = net.train_idxs[i]
                     print('processing train idx: ', idx)
                     w = W[idx]
                     d = D[idx]
+                    contour = contours[idx]
                     pred = net_1.predict(np.expand_dims(X[idx, :], axis=0))[0, :]
-                    if use_fourier:
+                    if code_type == 'fourier':
                         res_contour = util.reconstruct_contour_fourier(pred.flatten())
                         res_range_x = np.max(res_contour[0, :]) - np.min(res_contour[0, :])
                         range_x = np.max(contour[0, :]) - np.min(contour[0, :])
@@ -664,9 +675,9 @@ if __name__ == '__main__':
 
                         res_contour[0, :] *= scale_x
                         res_contour[1, :] *= scale_y
-
+                    else:
                         res_contour = util.reconstruct_torso_slice_contour(pred, d, w, mirror=True)
-                    contour = contours[idx]
+
                     center = util.contour_center(contour[0, :], contour[1, :])
                     res_contour[0, :] += center[0]
                     res_contour[1, :] += center[1]
@@ -674,7 +685,7 @@ if __name__ == '__main__':
                     res_contour = np.concatenate([res_contour, last_p], axis=1)
                     plt.clf()
                     plt.axes().set_aspect(1)
-                    plt.plot(contour[0, :], contour[1, :], '-b')
+                    #plt.plot(contour[0, :], contour[1, :], '-b')
                     plt.plot(res_contour[0, :], res_contour[1, :], '-r')
                     plt.plot(res_contour[0, :], res_contour[1, :], '+r')
                     plt.savefig(f'{OUTPUT_DEBUG_DIR_TRAIN}{idx}.png')

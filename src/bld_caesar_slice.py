@@ -152,15 +152,22 @@ def mpii_calc_slice_plane_locs(cae_obj, ld_idxs):
     locs['Aux_Crotch_Hip_0'] =  crotch + 1.0/3.0*(hip - crotch)
     locs['Aux_Crotch_Hip_1'] =  crotch + 2.0/3.0*(hip - crotch)
 
+    waist = 0.5*(verts[ld_idxs[20-1]].co + verts[ld_idxs[22-1]].co)
+    locs['Waist'] =  waist
+    locs['Aux_Hip_Waist_0'] =  0.5*(hip + waist)
 
     upper_bust = 0.5*(verts[ld_idxs[12]].co + verts[ld_idxs[13]].co)
-    under_bust = verts[ld_idxs[14]].co
+    under_bust_ld = verts[ld_idxs[14]].co
     alpha = 0.6
-    locs['Bust'] = alpha*upper_bust+(1-alpha)*under_bust
+    locs['Bust'] = alpha*upper_bust+(1-alpha)*under_bust_ld
 
-    locs['UnderBust'] = under_bust + 0.6*(under_bust - upper_bust)
+    under_bust = under_bust_ld + 0.6*(under_bust_ld - upper_bust)
+    locs['UnderBust'] = under_bust
 
-    armscye = upper_bust + 0.6*(upper_bust - under_bust)
+    locs['Aux_Waist_UnderBust_0'] =  waist + 1.0/3.0*(under_bust - waist)
+    locs['Aux_Waist_UnderBust_1'] =  waist + 2.0/3.0*(under_bust - waist)
+
+    armscye = upper_bust + 0.6*(upper_bust - under_bust_ld)
     locs['Armscye']  = armscye
 
     shoulder = 0.5*(verts[ld_idxs[29-1]].co + verts[ld_idxs[41-1]].co)
@@ -591,11 +598,11 @@ def mpii_extract_slices():
     os.makedirs(DIR_OUT_LD, exist_ok=True)
     os.makedirs(DIR_OUT_SLICE, exist_ok=True)
     slice_ids = []
-    slice_ids = ['Aux_Armscye_Shoulder_0']
-    debug_file = 'nl_1410a'
+    slice_ids = ['Aux_Hip_Waist_0', 'Waist', 'Aux_Waist_UnderBust_0', 'Aux_Waist_UnderBust_1']
+    #debug_file = 'csr4149a.obj'
     debug_file = None
     mpii_process(DIR_IN_OBJ, DIR_OUT_SLICE=DIR_OUT_SLICE, DIR_OUT_SUPPOINT=DIR_OUT_SUPPOINT, DIR_OUT_LD_POINT = DIR_OUT_LD, slice_ids=slice_ids, debug_name=debug_file)
 
 if __name__ == '__main__':
     mpii_extract_slices()
-    #mpii_extract_supplement_points()
+    #mpii_extract_supplement_points()a

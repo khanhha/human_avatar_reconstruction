@@ -40,11 +40,9 @@ def slice_id_3d_2d_mappings():
     mappings['Aux_Crotch_Hip_1'] = 'Aux_Crotch_Hip_1'
     mappings['Hip'] = 'Hip'
     mappings['Aux_Hip_Waist_0'] = 'Aux_Hip_Waist_0'
-    mappings['Aux_Hip_Waist_1'] = 'Aux_Hip_Waist_1'
     mappings['Waist'] = 'Waist'
     mappings['Aux_Waist_UnderBust_0'] = 'Aux_Waist_UnderBust_0'
     mappings['Aux_Waist_UnderBust_1'] = 'Aux_Waist_UnderBust_1'
-    mappings['Aux_Waist_UnderBust_2'] = 'Aux_Waist_UnderBust_2'
     mappings['UnderBust'] = 'UnderBust'
     mappings['Aux_UnderBust_Bust_0'] = 'Aux_UnderBust_Bust_0'
     mappings['Bust'] = 'Bust'
@@ -231,17 +229,15 @@ if __name__ == '__main__':
     M_DIR = args['measure_dir']
     OUT_DIR = args['out_dir'] + '/'
     is_deform = bool(int(args['weight']))
-    MODEL_DIR = args['model_dir'] + '/'
+    MODEL_DIR = args['model_dir']
     models = {}
     for path in Path(MODEL_DIR).glob('*.pkl'):
         models[path.stem] = RBFNet.load_from_path(path)
     print('load models: ', models.keys())
 
     for fpath in Path(OUT_DIR).glob('*.*'):
-        os.remove(fpath)
+        os.remove(str(fpath))
 
-    slice_locs = None
-    vic_height = None
     with open(f'{IN_DIR}/vic_data.pkl', 'rb') as f:
         data = pickle.load(f)
         ctl_mesh = data['control_mesh']
@@ -253,9 +249,6 @@ if __name__ == '__main__':
         tpl_mesh = data['template_mesh']
         vic_height = data['template_height']
 
-    vert_UVWs = None
-    vert_weights = None
-    vert_effect_idxs = None
     with open(f'{IN_DIR}/vic_weight.pkl', 'rb') as f:
         data = pickle.load(f)
         vert_UVWs = data['template_vert_UVW']
@@ -304,7 +297,7 @@ if __name__ == '__main__':
             #if id_3d not in ['L0_RAnkle', 'L0_LAnkle']:
             #    continue
 
-            if id_3d == 'Aux_Crotch_Hip_1':
+            if id_3d == 'Shoulder':
                 debug = True
 
             if id_3d  not in slc_id_vert_idxs:
@@ -318,7 +311,6 @@ if __name__ == '__main__':
                 print(f'measurement of {id_2d} is not available', file=sys.stderr)
                 continue
 
-            seg_log = None
             if id_2d not in seg_location:
                 print(f'location of {id_2d} is not available. ignore this slice', file=sys.stderr)
                 continue
@@ -352,21 +344,18 @@ if __name__ == '__main__':
                 model = models[id_2d]
                 ratio = w/d
                 pred = model.predict(np.reshape(ratio, (1,1)))[0, :]
-                if util.is_leg_contour(id_2d):
-                    res_contour = util.reconstruct_leg_slice_contour(pred, d, w)
+                fourier = True
+                if fourier:
+                    res_contour = util.reconstruct_contour_fourier(pred)
                 else:
-                    res_contour = util.reconstruct_torso_slice_contour(pred, d, w, mirror=True)
-
-                if id_2d == 'Armscye':
-                    plt.clf()
-                    plt.axes().set_aspect(1)
-                    plt.plot(res_contour[0, :], res_contour[1, :], '-r')
-                    plt.plot(slice_out[:, 0], slice_out[:, 1], '-b')
-                    #plt.savefig(f'{OUTPUT_DEBUG_DIR_TEST}{idx}.png')
-                    plt.show()
+                    if util.is_leg_contour(id_2d):
+                        res_contour = util.reconstruct_leg_slice_contour(pred, d, w)
+                    else:
+                        res_contour = util.reconstruct_torso_slice_contour(pred, d, w, mirror=True)
 
                 slice_out[:,0] =  res_contour[1,:]
                 slice_out[:,1] =  res_contour[0,:]
+
                 #right side
                 if id_3d[0] == 'R':
                     #mirror through X
@@ -379,6 +368,23 @@ if __name__ == '__main__':
             w_ratio = w / dim_range[0]
             d_ratio = d / dim_range[1]
             slice_out = scale_vertical_slice(slice_out, w_ratio, d_ratio, scale_center= slc_org)
+
+            if id_2d == 'UnderCrotch':
+                plt.clf()
+                plt.axes().set_aspect(1.0)
+                plt.plot(res_contour[1, :], res_contour[0, :], '-r')
+                plt.plot(res_contour[1, 0], res_contour[0, 0], '+r', ms=20)
+                plt.plot(res_contour[1, 2], res_contour[0, 2], '+g', ms=20)
+
+                plt.plot(slice_out[:, 0], slice_out[:, 1], '-b')
+                plt.plot(slice_out[0, 0], slice_out[0, 1], '+r', ms=20)
+                plt.plot(slice_out[2, 0], slice_out[2, 1], '+g', ms=20)
+
+                plt.plot(slice[:, 0], slice[:, 1], '-y')
+                plt.plot(slice[0, 0], slice[0, 1], '+r', ms=20)
+                plt.plot(slice[2, 0], slice[2, 1], '+g', ms=20)
+                #plt.savefig(f'{OUTPUT_DEBUG_DIR_TEST}{idx}.png')
+                plt.show()
 
             #align slice in vertical direction
             slice_out[:, 2] = slc_loc_ver + tpl_ankle_ver
