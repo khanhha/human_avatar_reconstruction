@@ -91,17 +91,24 @@ def resample_contour(X, Y, n_point):
     X, Y = splev(u_1, tck)
     return X, Y
 
-from scipy.fftpack import fft2, ifft2, fft, ifft
-def calc_fourier_descriptor(X, Y, resolution, path_debug = None):
+from scipy.fftpack import fft2, ifft2, fft, ifft, dct, idct
+def calc_fourier_descriptor(X, Y, resolution, use_radial = False, path_debug = None):
     np.set_printoptions(suppress=True)
     cnt_complex = np.array([np.complex(x,y) for x, y in zip(X,Y)])
     #cnt_complex = cnt_complex[:int(cnt_complex.shape[0]/2)]
     half = int(resolution/2)
-    tf_1 = fft(cnt_complex)
-    tf_1 = np.concatenate([tf_1[0:half], tf_1[-half:]])
+    tf_0 = fft(cnt_complex)
+    tf_1 = np.concatenate([tf_0[0:half], tf_0[-half:]])
 
+    #db_dif = tf_1[0:half] - tf_1[-half:]
+    #print(db_dif)
     if path_debug is not None:
-        contour_1 = ifft(tf_1)
+        angle = np.angle(tf_1)
+        value = np.absolute(tf_1)
+
+        exp_cpl = [v*np.exp(np.complex(real=0.0, imag=a)) for v,a in zip(value, angle)]
+
+        contour_1 = ifft(exp_cpl)
         plt.clf()
         plt.axes().set_aspect(1.0)
         plt.plot(X, Y, '-b')
@@ -109,29 +116,61 @@ def calc_fourier_descriptor(X, Y, resolution, path_debug = None):
         plt.plot(np.real(contour_1), np.imag(contour_1), '-r')
         plt.plot(np.real(contour_1)[:2], np.imag(contour_1)[:2], '+r')
         plt.show()
+
+        # d = dct(cnt_complex)
+        # d = d / np.abs(d[0])
+        # d = d[:20]
+        # print(d)
+        # d_0 = idct(d)
+        # plt.clf()
+        # plt.axes().set_aspect(1.0)
+        #
+        # #X = X*100
+        # #Y = Y*100
+        # plt.plot(X, Y, '-b')
+        # plt.plot(X[:2], Y[:2], '+b')
+        #
+        # plt.plot(np.real(d_0), np.imag(d_0), '-r')
+        # plt.plot(np.real(d_0)[:2], np.imag(d_0)[:2], '+r')
+        # plt.show()
         pass
 
     #normalize
     tf_1 = tf_1 / norm(tf_1[1])
     #cut off the center
-    tf = tf_1[1:]
     fcode = []
-    for i in range(tf.shape[0]):
-        t = tf[i]
-        fcode.append(np.real(t))
-        fcode.append(np.imag(t))
+    tf = tf_1[1:]
+    if use_radial:
+        angle = np.angle(tf)
+        value = np.absolute(tf)
+        for i in range(tf.shape[0]):
+            fcode.append(angle[i])
+            fcode.append(value[i])
+    else:
+        for i in range(tf.shape[0]):
+            t = tf[i]
+            fcode.append(np.real(t))
+            fcode.append(np.imag(t))
+
     return np.array(fcode)
 
 
 from scipy.fftpack import ifft
-def reconstruct_contour_fourier(fourier):
+def reconstruct_contour_fourier(fourier, use_radal = False):
     n = len(fourier)
     fouriers = []
     fouriers.append(np.complex(0.0, 0.0))
-    for i in range(0, n, 2):
-        real = fourier[i]
-        img =  fourier[i+1]
-        fouriers.append(np.complex(real, img))
+    if use_radal:
+        for i in range(0, n, 2):
+            angle = fourier[i]
+            value =  fourier[i+1]
+            cpl   = value * np.exp(np.complex(real=0.0, imag=angle))
+            fouriers.append(cpl)
+    else:
+        for i in range(0, n, 2):
+            real = fourier[i]
+            img =  fourier[i+1]
+            fouriers.append(np.complex(real, img))
 
     cpl_contour = ifft(fouriers)
     X = np.real(cpl_contour)

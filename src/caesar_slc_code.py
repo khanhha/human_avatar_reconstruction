@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+import numpy as np
 import argparse
 import multiprocessing
 import pickle
@@ -7,10 +8,14 @@ from functools import partial
 import shutil
 import src.util as util
 
+G_DEBUG_ROOT_DIR = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/debug/'
+G_DEBUG_SLC_DIR = ''
+
 def fourier(record, n):
     contour = record['cnt']
     X = contour[0,:]
     Y = contour[1,:]
+    debug_path = f'{G_DEBUG_SLC_DIR}/{np.random.choice(1000000)}.png'
     code = util.calc_fourier_descriptor(X, Y, resolution=n, path_debug=None)
     return code
 
@@ -34,8 +39,8 @@ if __name__ == '__main__':
     OUT_DIR = args['OUT_DIR']
     ids = args['slc_ids']
 
-    nprocess = 12
-    pool = multiprocessing.Pool(12)
+    nprocess = 1
+    pool = multiprocessing.Pool(nprocess)
 
     all_ids = [path.stem for path in Path(IN_DIR).glob('./*')]
     if ids == 'all':
@@ -47,6 +52,7 @@ if __name__ == '__main__':
 
     for slc_id in slc_ids:
         SLC_DIR = f'{IN_DIR}/{slc_id}/'
+        G_DEBUG_SLC_DIR = f'{G_DEBUG_ROOT_DIR}/{slc_id}_fourier/'
         paths = [path for path in Path(SLC_DIR).glob('*.pkl')]
         records = []
         for path in paths:

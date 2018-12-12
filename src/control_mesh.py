@@ -244,6 +244,7 @@ if __name__ == '__main__':
         ctl_mesh_quad_dom = data['control_mesh_quad_dom']
         slc_id_vert_idxs = data['slice_vert_idxs']
         slc_id_locs = data['slice_locs']
+        mirror_vert_pairs = data['mirror_pairs']
         ctl_tri_bs = data['control_mesh_tri_basis']
         arm_3d_tpl = data['arm_bone_locs']
         tpl_mesh = data['template_mesh']
@@ -297,6 +298,10 @@ if __name__ == '__main__':
             #if id_3d not in ['L0_RAnkle', 'L0_LAnkle']:
             #    continue
 
+            #ignore the right body part
+            if id_3d[0] == 'R':
+                continue
+
             if id_3d == 'Shoulder':
                 debug = True
 
@@ -340,6 +345,8 @@ if __name__ == '__main__':
             slice_out = copy(slice)
             #TEST
             if id_2d in models:
+                if id_2d == 'Shoulder':
+                    debug = True
                 print('\t applied ', id_2d)
                 model = models[id_2d]
                 ratio = w/d
@@ -384,7 +391,7 @@ if __name__ == '__main__':
                 plt.plot(slice[0, 0], slice[0, 1], '+r', ms=20)
                 plt.plot(slice[2, 0], slice[2, 1], '+g', ms=20)
                 #plt.savefig(f'{OUTPUT_DEBUG_DIR_TEST}{idx}.png')
-                plt.show()
+                #plt.show()
 
             #align slice in vertical direction
             slice_out[:, 2] = slc_loc_ver + tpl_ankle_ver
@@ -397,6 +404,12 @@ if __name__ == '__main__':
             ctl_new_mesh['verts'][slc_idxs, :] = slice_out
 
         #transform_arm_slices(ctl_new_mesh, slc_id_locs, slc_id_vert_idxs, arm_3d)
+
+        verts = ctl_new_mesh['verts']
+        for pair in mirror_vert_pairs:
+            mirror_co = deepcopy(verts[pair[0]])
+            mirror_co[0] = -mirror_co[0]
+            verts[pair[1]] = mirror_co
 
         if is_deform == True:
             ctl_df_basis = util.calc_triangle_local_basis(ctl_new_mesh['verts'], ctl_new_mesh['faces'])

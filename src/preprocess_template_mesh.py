@@ -392,6 +392,8 @@ if __name__ == '__main__':
         vic_height = np.linalg.norm(vic_seg)
         slice_id_vert_idxs = data['slice_vert_idxs']
 
+        mirror_pairs = data['mirror_pairs']
+
         ctl_mesh = data['ctl_mesh']
         ctl_mesh_quad_dom = data['ctl_mesh_quad_dom']
         ctl_f_body_parts = data['ctl_f_body_parts']
@@ -410,6 +412,8 @@ if __name__ == '__main__':
                 'Aux_UnderBust_Bust_0', 'Bust', 'Armscye', 'Aux_Armscye_Shoulder_0', 'Shoulder']
     for id, slc_idxs in slice_id_vert_idxs.items():
         if id in sort_ids:
+            if id == 'Aux_Crotch_Hip_0':
+                debug = True
             print(f'\t\t{id}')
             slc_idxs = sort_torso_slice_vertices(slc_idxs, ctl_mesh['verts'], title=id)
             slice_id_vert_idxs[id] = slc_idxs
@@ -460,6 +464,7 @@ if __name__ == '__main__':
     out_data['template_height']  = vic_height
     out_data['slice_locs']  = slc_id_locs
     out_data['slice_vert_idxs']  = slice_id_vert_idxs
+    out_data['mirror_pairs']  = mirror_pairs
 
     out_data['arm_bone_locs']  = arm_bone_locs
 

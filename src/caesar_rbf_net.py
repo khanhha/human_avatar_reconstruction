@@ -471,6 +471,7 @@ def plot_all_contour_correlation():
     pass
 
 import sys
+from copy import copy, deepcopy
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
     ap.add_argument("-i", "--input", required=True, help="input meta data file")
@@ -623,6 +624,7 @@ if __name__ == '__main__':
 
                     if code_type == 'fourier':
                         res_contour = util.reconstruct_contour_fourier(pred.flatten())
+                        res_contour_org = np.copy(res_contour)
                         res_range_x = np.max(res_contour[0,:]) - np.min(res_contour[0,:])
                         range_x = np.max(contour[0,:]) - np.min(contour[0,:])
                         scale_x = range_x / res_range_x
@@ -633,6 +635,12 @@ if __name__ == '__main__':
 
                         res_contour[0,:] *= scale_x
                         res_contour[1,:] *= scale_y
+
+                        res_contour_org *= max(scale_x, scale_y)
+
+                        error = np.sqrt(np.mean(np.square(res_contour_org - res_contour)))
+                        print(f'\tmean error uniform scale vs non-uniform scale = {error}')
+                        print(f'prediction = {pred}')
 
                     else:
                         if util.is_leg_contour(slc_id):
@@ -645,9 +653,18 @@ if __name__ == '__main__':
                     res_contour[1, :] += center[1]
                     last_p = res_contour[:,0].reshape(2,1)
                     res_contour = np.concatenate([res_contour, last_p], axis=1)
+
+                    res_contour_org[0, :] += center[0]
+                    res_contour_org[1, :] += center[1]
+                    last_p = res_contour_org[:,0].reshape(2,1)
+                    res_contour_org = np.concatenate([res_contour_org, last_p], axis=1)
+
                     plt.clf()
                     plt.axes().set_aspect(1)
                     plt.plot(contour[0, :], contour[1, :], '-b')
+
+                    plt.plot(res_contour_org[0, :], res_contour_org[1, :], '-y')
+
                     plt.plot(res_contour[0, :], res_contour[1, :], '-r')
                     plt.plot(res_contour[0, :], res_contour[1, :], '+r')
                     plt.plot(res_contour[0, 0], res_contour[1, 0], '+r', ms=20)
