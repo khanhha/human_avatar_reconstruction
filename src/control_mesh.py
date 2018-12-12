@@ -244,14 +244,16 @@ if __name__ == '__main__':
         ctl_mesh_quad_dom = data['control_mesh_quad_dom']
         slc_id_vert_idxs = data['slice_vert_idxs']
         slc_id_locs = data['slice_locs']
-        mirror_vert_pairs = data['mirror_pairs']
-        ctl_tri_bs = data['control_mesh_tri_basis']
         arm_3d_tpl = data['arm_bone_locs']
+
+        mirror_vert_pairs = data['mirror_pairs']
+
         tpl_mesh = data['template_mesh']
-        vic_height = data['template_height']
+        tpl_height = data['template_height']
 
     with open(f'{IN_DIR}/vic_weight.pkl', 'rb') as f:
         data = pickle.load(f)
+        #ctl_tri_bs = data['control_mesh_tri_basis']
         vert_UVWs = data['template_vert_UVW']
         vert_weights = data['template_vert_weight']
         vert_effect_idxs = data['template_vert_effect_idxs']
@@ -281,7 +283,7 @@ if __name__ == '__main__':
         height = measurements['Height']
 
         arm_2d_f = mdata.item().get('armature_f')
-        h_ratio = vic_height/height
+        h_ratio = tpl_height / height
         arm_3d = scale_tpl_armature(arm_3d_tpl, arm_2d_f, h_ratio)
 
         id_mappings = slice_id_3d_2d_mappings()
