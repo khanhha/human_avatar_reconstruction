@@ -147,10 +147,11 @@ def mpii_calc_slice_plane_locs(cae_obj, ld_idxs):
     locs['Hip'] =  hip
 
     crotch = verts[ld_idxs[73-1]].co
-    crotch = crotch + 0.2 * (hip - crotch)
+    crotch = crotch + 0.1 * (hip - crotch)
     locs['Crotch'] =  crotch
-    locs['Aux_Crotch_Hip_0'] =  crotch + 1.0/3.0*(hip - crotch)
-    locs['Aux_Crotch_Hip_1'] =  crotch + 2.0/3.0*(hip - crotch)
+    locs['Aux_Crotch_Hip_0'] =  crotch + 1.0/4.0*(hip - crotch)
+    locs['Aux_Crotch_Hip_1'] =  crotch + 2.0/4.0*(hip - crotch)
+    locs['Aux_Crotch_Hip_2'] =  crotch + 3.0/4.0*(hip - crotch)
 
     waist = 0.5*(verts[ld_idxs[20-1]].co + verts[ld_idxs[22-1]].co)
     locs['Waist'] =  waist
@@ -598,7 +599,7 @@ def mpii_extract_slices():
     os.makedirs(DIR_OUT_LD, exist_ok=True)
     os.makedirs(DIR_OUT_SLICE, exist_ok=True)
     slice_ids = []
-    slice_ids = ['Aux_Hip_Waist_0', 'Waist', 'Aux_Waist_UnderBust_0', 'Aux_Waist_UnderBust_1']
+    slice_ids = ['Aux_Crotch_Hip_0', 'Aux_Crotch_Hip_1', 'Aux_Crotch_Hip_2']
     #debug_file = 'csr4149a.obj'
     debug_file = None
     mpii_process(DIR_IN_OBJ, DIR_OUT_SLICE=DIR_OUT_SLICE, DIR_OUT_SUPPOINT=DIR_OUT_SUPPOINT, DIR_OUT_LD_POINT = DIR_OUT_LD, slice_ids=slice_ids, debug_name=debug_file)

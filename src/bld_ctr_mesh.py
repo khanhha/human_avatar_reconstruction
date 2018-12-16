@@ -255,7 +255,7 @@ def sort_leg_slice_vertices(slc_vert_idxs, mesh_verts):
     #find the starting point of the leg contour
     #the contour must start at that point to match the order of the prediction contour
     #check the leg contour in the blender file for why it is this way
-    start_idx  = np.argmin(points_0[:,1])+1
+    start_idx  = np.argmin(points_0[:,1]) + 2
     points_0 = np.roll(points_0, axis=0, shift=-start_idx)
 
     #concatenate two sorted part.
@@ -360,7 +360,7 @@ def extract_slice_vert_indices(ctl_obj):
 
     print('sortinng slice vertices counter clockwise, starting from the extreme point on the +X axis')
     leg_slc_names = ['LKnee', 'RKnee', 'LUnderCrotch', 'RUnderCrotch', 'LAux_Knee_UnderCrotch_3', 'LAux_Knee_UnderCrotch_2', 'LAux_Knee_UnderCrotch_1', 'LAux_Knee_UnderCrotch_0']
-    torso_slc_names = ['Crotch', 'Aux_Crotch_Hip_0', 'Aux_Crotch_Hip_1', 'Hip', 'Waist', 'UnderBust', 'Aux_Hip_Waist_0',
+    torso_slc_names = ['Crotch', 'Aux_Crotch_Hip_0', 'Aux_Crotch_Hip_1', 'Aux_Crotch_Hip_2', 'Hip', 'Waist', 'UnderBust', 'Aux_Hip_Waist_0',
                         'Aux_Waist_UnderBust_0', 'Aux_Waist_UnderBust_1',
                         'Aux_UnderBust_Bust_0', 'Bust', 'Armscye', 'Aux_Armscye_Shoulder_0', 'Shoulder']
     for id, slc_idxs in output.items():

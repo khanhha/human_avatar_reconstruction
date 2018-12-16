@@ -11,17 +11,18 @@ import src.util as util
 G_DEBUG_ROOT_DIR = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/debug/'
 G_DEBUG_SLC_DIR = ''
 
-def fourier(record, n):
-    contour = record['cnt']
+def fourier(item, n, G_DEBUG_DIR):
+    name = item[0]
+    contour = item[1]['cnt']
     X = contour[0,:]
     Y = contour[1,:]
-    debug_path = f'{G_DEBUG_SLC_DIR}/{np.random.choice(1000000)}.png'
-    code = util.calc_fourier_descriptor(X, Y, resolution=n, path_debug=None)
+    debug_path = f'{G_DEBUG_DIR}/{name}.png'
+    code = util.calc_fourier_descriptor(X, Y, resolution=n, path_debug=debug_path)
     return code
 
 def fourier_resolution(slc_id):
     if util.is_leg_contour(slc_id):
-        return 8
+        return 9
     elif slc_id in ['Shoulder', 'Aux_Armscye_Shoulder_0']:
         return 20
     else:
@@ -39,7 +40,7 @@ if __name__ == '__main__':
     OUT_DIR = args['OUT_DIR']
     ids = args['slc_ids']
 
-    nprocess = 1
+    nprocess = 12
     pool = multiprocessing.Pool(nprocess)
 
     all_ids = [path.stem for path in Path(IN_DIR).glob('./*')]
@@ -53,18 +54,24 @@ if __name__ == '__main__':
     for slc_id in slc_ids:
         SLC_DIR = f'{IN_DIR}/{slc_id}/'
         G_DEBUG_SLC_DIR = f'{G_DEBUG_ROOT_DIR}/{slc_id}_fourier/'
+
+        shutil.rmtree(G_DEBUG_SLC_DIR, ignore_errors=True)
+        os.makedirs(G_DEBUG_SLC_DIR)
+
         paths = [path for path in Path(SLC_DIR).glob('*.pkl')]
         records = []
+        names = []
         for path in paths:
             if 'CSR1228A' in path.stem:
                 debug = True
             with open(str(path), 'rb') as file:
                 r = pickle.load(file)
                 records.append(r)
+                names.append(path.stem)
 
         print(f'{slc_id} : n_slices = {len(paths)}')
         resolution = fourier_resolution(slc_id)
-        codes = pool.map(func=partial(fourier, n=resolution), iterable=records, chunksize=128)
+        codes = pool.map(func=partial(fourier, n=resolution, G_DEBUG_DIR = G_DEBUG_SLC_DIR), iterable=zip(names, records), chunksize=128)
 
         CODE_OUT_DIR = f'{OUT_DIR}/fourier/{slc_id}'
         shutil.rmtree(CODE_OUT_DIR, ignore_errors=True)

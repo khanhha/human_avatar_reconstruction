@@ -549,7 +549,6 @@ if __name__ == '__main__':
                         print('zero w or d: ', w, d, file=sys.stderr)
                         continue
 
-
                     feature = record['Code']
 
                     if np.isnan(feature).flatten().sum() > 0:
@@ -640,7 +639,7 @@ if __name__ == '__main__':
 
                         error = np.sqrt(np.mean(np.square(res_contour_org - res_contour)))
                         print(f'\tmean error uniform scale vs non-uniform scale = {error}')
-                        print(f'prediction = {pred}')
+                        #print(f'prediction = {pred}')
 
                     else:
                         if util.is_leg_contour(slc_id):

@@ -9,6 +9,9 @@ from src.util import  normalize
 import matplotlib.pyplot as plt
 import src.util as util
 from shapely.geometry import Polygon, Point
+import multiprocessing
+from functools import partial
+from scipy import stats
 
 from enum import Enum
 class BDPart(Enum):
@@ -165,7 +168,24 @@ def calc_vertex_weigth_control_mesh_local(verts_tpl, verts_ctl, tris_ctl, tpl_v_
 
     return effect_idxs, effect_weights
 
-def calc_vertex_weigth_control_mesh_global(verts, verts_ref, tris_ref, effective_range_factor = 3.0):
+def vertex_process_global(v, tris_ref, tri_centers, tri_radius, effective_range_factor):
+    idxs = []
+    weights = []
+    for j, t in enumerate(tris_ref):
+        #w = vert_tri_weight(v, verts_ref[t[0]], verts_ref[t[1]], verts_ref[t[2]])
+        d = np.linalg.norm(v - tri_centers[j, :])
+        ratio = d/tri_radius[j]
+        if ratio < effective_range_factor:
+            #w = 1.0 - ratio / effective_range_factor
+            w = ratio/effective_range_factor
+            w = 1.0 - w
+            #w = np.exp(w*w)
+            idxs.append(j)
+            weights.append(w)
+
+    return (idxs, weights)
+
+def calc_vertex_weigth_control_mesh_global(verts, verts_ref, tris_ref, effective_range_factor = 1.5):
     print('calc_vertex_weigth_control_mesh')
     effect_idxs = []
     effect_weights = []
@@ -178,28 +198,42 @@ def calc_vertex_weigth_control_mesh_global(verts, verts_ref, tris_ref, effective
         tri_centers[j, :] = center
         tri_radius[j] = (np.linalg.norm(v0-center) + np.linalg.norm(v1-center) + np.linalg.norm(v2-center))/3.0
 
-    for i in range(verts.shape[0]):
-        v = verts[i,:]
-        idxs = []
-        weights = []
+    nprocess = 12
+    pool = multiprocessing.Pool(nprocess)
+    results = pool.map(func=partial(vertex_process_global, tris_ref=tris_ref, tri_centers=tri_centers, tri_radius =tri_radius, effective_range_factor=effective_range_factor),
+                       iterable=verts, chunksize=128)
 
-        for j,t in enumerate(tris_ref):
-            #w = vert_tri_weight(v, verts_ref[t[0]], verts_ref[t[1]], verts_ref[t[2]])
-            d = np.linalg.norm(v-tri_centers[j,:])
-            ratio = d/tri_radius[j]
-            if ratio < effective_range_factor:
-                #w = 1.0 - ratio / effective_range_factor
-                w = ratio/effective_range_factor
-                w = np.exp(-6.0*w*w)
-                idxs.append(j)
-                weights.append(w)
+    # for i in range(verts.shape[0]):
+    #     v = verts[i,:]
+    #     idxs = []
+    #     weights = []
+    #
+    #     for j,t in enumerate(tris_ref):
+    #         #w = vert_tri_weight(v, verts_ref[t[0]], verts_ref[t[1]], verts_ref[t[2]])
+    #         d = np.linalg.norm(v-tri_centers[j,:])
+    #         ratio = d/tri_radius[j]
+    #         if ratio < effective_range_factor:
+    #             #w = 1.0 - ratio / effective_range_factor
+    #             w = ratio/effective_range_factor
+    #             w = np.exp(-6.0*w*w)
+    #             idxs.append(j)
+    #             weights.append(w)
+    #
+    #     if i % 500 == 0:
+    #         print(i,'/',verts.shape[0])
+    #     effect_idxs.append(idxs)
+    #     effect_weights.append(weights)
+    #     effect_idxs.append([d_min_idx])
+    #     effect_weights.append([w_min])
+    for pair in results:
+        effect_idxs.append(pair[0])
+        effect_weights.append(pair[1])
 
-        if i % 500 == 0:
-            print(i,'/',verts.shape[0])
-        effect_idxs.append(idxs)
-        effect_weights.append(weights)
-        #effect_idxs.append([d_min_idx])
-        #effect_weights.append([w_min])
+    lens = np.array([len(idxs) for idxs in effect_idxs])
+    stat = stats.describe(lens)
+    print(f'finish calculating weights')
+    print(f'\tneighbor size statistics:')
+    print(f'\t{stat}')
 
     return effect_idxs, effect_weights
 
@@ -213,18 +247,17 @@ if __name__ == '__main__':
     ap = argparse.ArgumentParser()
     ap.add_argument("-vic", "--victoria", required=True, help="victoria pkl file")
     ap.add_argument("-o", "--out_dir", required=True, help="directory for expxorting control mesh slices")
+    ap.add_argument("-g", "--global", required=True, help="global weight")
     args = vars(ap.parse_args())
 
     vic_path = args['victoria']
     OUT_DIR = args['out_dir']
-    update_weight = int(args['weight_update'])
+    is_global = int(args['global']) > 0
 
     with open(vic_path, 'rb') as f:
         data = pickle.load(f)
         slc_id_locs = data['slice_locs']
         arm_bone_locs = data['arm_bone_locs']
-        vic_seg = data['height_segment']
-        vic_height = np.linalg.norm(vic_seg)
         slice_id_vert_idxs = data['slice_vert_idxs']
 
         mirror_pairs = data['mirror_pairs']
@@ -244,7 +277,11 @@ if __name__ == '__main__':
     print('calculating weight')
     ctl_tri_bs = util.calc_triangle_local_basis(ctl_mesh['verts'], ctl_mesh['faces'])
 
-    vert_effect_idxs, vert_weights = calc_vertex_weigth_control_mesh_local(tpl_mesh['verts'], ctl_mesh['verts'], ctl_mesh['faces'], tpl_v_body_parts, ctl_f_body_parts)
+    if is_global:
+        vert_effect_idxs, vert_weights = calc_vertex_weigth_control_mesh_global(tpl_mesh['verts'], ctl_mesh['verts'], ctl_mesh['faces'])
+    else:
+        vert_effect_idxs, vert_weights = calc_vertex_weigth_control_mesh_local(tpl_mesh['verts'], ctl_mesh['verts'], ctl_mesh['faces'], tpl_v_body_parts, ctl_f_body_parts)
+
     vert_UVW = parameterize(tpl_mesh['verts'], vert_effect_idxs, ctl_tri_bs)
 
     w_data = {}
@@ -253,6 +290,8 @@ if __name__ == '__main__':
     w_data['template_vert_effect_idxs'] = vert_effect_idxs
     w_data['control_mesh_tri_basis'] = ctl_tri_bs
 
-    with open(f'{OUT_DIR}/vic_weight.pkl', 'wb') as f:
+    label = 'global'if is_global else 'local'
+    out_path =  f'{OUT_DIR}/vic_weight_{label}.pkl'
+    with open(out_path, 'wb') as f:
         pickle.dump(w_data, f)
 

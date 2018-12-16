@@ -98,41 +98,40 @@ def calc_fourier_descriptor(X, Y, resolution, use_radial = False, path_debug = N
     #cnt_complex = cnt_complex[:int(cnt_complex.shape[0]/2)]
     half = int(resolution/2)
     tf_0 = fft(cnt_complex)
-    tf_1 = np.concatenate([tf_0[0:half], tf_0[-half:]])
+    if resolution % 2 == 0:
+        tf_1 = np.concatenate([tf_0[0:half], tf_0[-half:]])
+    else:
+        tf_1 = np.concatenate([tf_0[0:half+1], tf_0[-half:]])
 
     #db_dif = tf_1[0:half] - tf_1[-half:]
     #print(db_dif)
     if path_debug is not None:
-        angle = np.angle(tf_1)
-        value = np.absolute(tf_1)
+        res_contour = ifft(tf_1)
 
-        exp_cpl = [v*np.exp(np.complex(real=0.0, imag=a)) for v,a in zip(value, angle)]
+        res_contour = np.concatenate([np.real(res_contour).reshape(-1,1), np.imag(res_contour).reshape(-1, 1)], axis=1)
 
-        contour_1 = ifft(exp_cpl)
+        res_range_x = np.max(res_contour[:,0]) - np.min(res_contour[:, 0])
+        range_x = np.max(X) - np.min(X)
+        scale_x = range_x / res_range_x
+
+        res_range_y = np.max(res_contour[:,1]) - np.min(res_contour[:,1])
+        range_y = np.max(Y) - np.min(Y)
+        scale_y = range_y / res_range_y
+
+        res_contour *= max(scale_x, scale_y)
+
         plt.clf()
         plt.axes().set_aspect(1.0)
         plt.plot(X, Y, '-b')
         plt.plot(X[:2], Y[:2], '+b')
-        plt.plot(np.real(contour_1), np.imag(contour_1), '-r')
-        plt.plot(np.real(contour_1)[:2], np.imag(contour_1)[:2], '+r')
-        plt.show()
-
-        # d = dct(cnt_complex)
-        # d = d / np.abs(d[0])
-        # d = d[:20]
-        # print(d)
-        # d_0 = idct(d)
-        # plt.clf()
-        # plt.axes().set_aspect(1.0)
-        #
-        # #X = X*100
-        # #Y = Y*100
-        # plt.plot(X, Y, '-b')
-        # plt.plot(X[:2], Y[:2], '+b')
-        #
-        # plt.plot(np.real(d_0), np.imag(d_0), '-r')
-        # plt.plot(np.real(d_0)[:2], np.imag(d_0)[:2], '+r')
-        # plt.show()
+        plt.plot(res_contour[:,0], res_contour[:,1], '-r')
+        plt.plot(res_contour[:,0], res_contour[:,1], '+r', ms=5)
+        plt.plot(res_contour[0,1], res_contour[0,1], '+r', ms=10)
+        plt.plot(res_contour[1,1], res_contour[1,1], '+g', ms=10)
+        for i in range(res_contour.shape[0]):
+            p = res_contour[i,:]
+            plt.plot([0, p[0]], [0, p[1]], '-r', ms=10)
+        plt.savefig(path_debug)
         pass
 
     #normalize

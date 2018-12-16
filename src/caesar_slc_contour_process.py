@@ -282,7 +282,7 @@ def process_leg_contour(path, contour, sup_points, ld_points):
     X, Y = resample_contour(X, Y)
 
     debug_path_out = f'{DEBUG_RADIAL_DIR}/{path.stem}.png'
-    feature, W, D = convert_leg_contour_to_radial_code(X, Y, 8, path_out=debug_path_out)
+    feature, W, D = convert_leg_contour_to_radial_code(X, Y, 9, path_out=debug_path_out)
 
     return X, Y, W, D, feature
 

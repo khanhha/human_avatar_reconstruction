@@ -38,6 +38,8 @@ def slice_id_3d_2d_mappings():
     mappings['Crotch'] = 'Crotch'
     mappings['Aux_Crotch_Hip_0'] = 'Aux_Crotch_Hip_0'
     mappings['Aux_Crotch_Hip_1'] = 'Aux_Crotch_Hip_1'
+    mappings['Aux_Crotch_Hip_2'] = 'Aux_Crotch_Hip_2'
+
     mappings['Hip'] = 'Hip'
     mappings['Aux_Hip_Waist_0'] = 'Aux_Hip_Waist_0'
     mappings['Waist'] = 'Waist'
@@ -251,9 +253,9 @@ if __name__ == '__main__':
         tpl_mesh = data['template_mesh']
         tpl_height = data['template_height']
 
-    with open(f'{IN_DIR}/vic_weight.pkl', 'rb') as f:
+    with open(f'{IN_DIR}/vic_weight_global.pkl', 'rb') as f:
         data = pickle.load(f)
-        #ctl_tri_bs = data['control_mesh_tri_basis']
+        ctl_tri_bs = data['control_mesh_tri_basis']
         vert_UVWs = data['template_vert_UVW']
         vert_weights = data['template_vert_weight']
         vert_effect_idxs = data['template_vert_effect_idxs']
@@ -342,7 +344,7 @@ if __name__ == '__main__':
             #print('slice = {0:25}, width = {1:20}, depth = {2:20}, hor = {3:20}, ver = {4:20}'.format(id_2d, w, d, slc_loc_hor, slc_loc_ver))
             #print('slice = {0:25}, width = {1:20}, depth = {2:20}, height = {3:20}'.format(id_2d, w, d, z))
 
-            slc_org = slc_id_locs[id_3d]
+            #slc_org = slc_id_locs[id_3d]
 
             slice_out = copy(slice)
             #TEST
@@ -371,12 +373,12 @@ if __name__ == '__main__':
                     slice_out[:,0] = -slice_out[:,0]
 
                 if util.is_leg_contour(id_2d):
-                    slice_out += slc_org
+                    slice_out += np.mean(slice, axis=0)
 
             dim_range = np.max(slice_out, axis=0) - np.min(slice_out, axis=0)
             w_ratio = w / dim_range[0]
             d_ratio = d / dim_range[1]
-            slice_out = scale_vertical_slice(slice_out, w_ratio, d_ratio, scale_center= slc_org)
+            slice_out = scale_vertical_slice(slice_out, w_ratio, d_ratio)
 
             if id_2d == 'UnderCrotch':
                 plt.clf()
