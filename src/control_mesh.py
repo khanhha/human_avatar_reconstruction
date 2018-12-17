@@ -216,6 +216,12 @@ def scale_breast_height(brst_slc, slc_height):
 
     return brst_slc, end_0_idx, end_1_idx
 
+def fix_crotch_hip_cleavage(slice, depth):
+    delta = 0.05*depth
+    clv_idx = 0
+    slice[clv_idx, 1] = slice[clv_idx, 1] - delta
+    return slice
+
 import sys
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
@@ -227,10 +233,12 @@ if __name__ == '__main__':
 
     args = vars(ap.parse_args())
 
-    IN_DIR = args['input']
+    in_path = args['input']
     M_DIR = args['measure_dir']
     OUT_DIR = args['out_dir'] + '/'
-    is_deform = bool(int(args['weight']))
+
+    weight_path = args['weight']
+
     MODEL_DIR = args['model_dir']
     models = {}
     for path in Path(MODEL_DIR).glob('*.pkl'):
@@ -240,25 +248,19 @@ if __name__ == '__main__':
     for fpath in Path(OUT_DIR).glob('*.*'):
         os.remove(str(fpath))
 
-    with open(f'{IN_DIR}/vic_data.pkl', 'rb') as f:
+    with open(in_path, 'rb') as f:
         data = pickle.load(f)
         ctl_mesh = data['control_mesh']
         ctl_mesh_quad_dom = data['control_mesh_quad_dom']
         slc_id_vert_idxs = data['slice_vert_idxs']
         slc_id_locs = data['slice_locs']
         arm_3d_tpl = data['arm_bone_locs']
+        torso_cleavage_vert_idxs = data['torso_cleavage_vert_idxs']
 
         mirror_vert_pairs = data['mirror_pairs']
 
         tpl_mesh = data['template_mesh']
         tpl_height = data['template_height']
-
-    with open(f'{IN_DIR}/vic_weight_global.pkl', 'rb') as f:
-        data = pickle.load(f)
-        ctl_tri_bs = data['control_mesh_tri_basis']
-        vert_UVWs = data['template_vert_UVW']
-        vert_weights = data['template_vert_weight']
-        vert_effect_idxs = data['template_vert_effect_idxs']
 
     print('control  mesh: nverts = {0}, ntris = {1}'.format(ctl_mesh['verts'].shape[0], len(ctl_mesh['faces'])))
     print('victoria mesh: nverts = {0}, ntris = {1}'.format(tpl_mesh['verts'].shape[0], len(tpl_mesh['faces'])))
@@ -380,6 +382,10 @@ if __name__ == '__main__':
             d_ratio = d / dim_range[1]
             slice_out = scale_vertical_slice(slice_out, w_ratio, d_ratio)
 
+            if util.is_torso_contour(id_2d):
+                if id_2d == 'Hip' or 'Crotch' in id_2d:
+                    slice_out = fix_crotch_hip_cleavage(slice_out, d)
+
             if id_2d == 'UnderCrotch':
                 plt.clf()
                 plt.axes().set_aspect(1.0)
@@ -415,12 +421,19 @@ if __name__ == '__main__':
             mirror_co[0] = -mirror_co[0]
             verts[pair[1]] = mirror_co
 
-        if is_deform == True:
+        if Path(weight_path).is_file():
+            with open(weight_path, 'rb') as f:
+                data = pickle.load(f)
+                ctl_tri_bs = data['control_mesh_tri_basis']
+                vert_UVWs = data['template_vert_UVW']
+                vert_weights = data['template_vert_weight']
+                vert_effect_idxs = data['template_vert_effect_idxs']
+
             ctl_df_basis = util.calc_triangle_local_basis(ctl_new_mesh['verts'], ctl_new_mesh['faces'])
-            if vert_UVWs is not None and vert_effect_idxs is not None and vert_weights is not None:
-                tpl_df_mesh = deform_template_mesh(tpl_mesh, vert_effect_idxs, vert_weights, vert_UVWs, ctl_df_basis)
+            tpl_df_mesh = deform_template_mesh(tpl_mesh, vert_effect_idxs, vert_weights, vert_UVWs, ctl_df_basis)
 
             out_path = f'{OUT_DIR}{mdata_path.stem}_deform.obj'
+            print(f'\toutput deformed mesh to {out_path}')
             export_mesh(out_path, tpl_df_mesh['verts'], tpl_df_mesh['faces'])
 
         ctl_mesh_quad_dom_new = deepcopy(ctl_mesh_quad_dom)

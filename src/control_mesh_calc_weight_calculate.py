@@ -93,7 +93,7 @@ def find_neighbour_body_part_triangles(tris_ctl, ctl_tri_bd_parts):
 
     return bd_part_adj_tri_idxs
 
-def calc_vertex_weigth_control_mesh_local(verts_tpl, verts_ctl, tris_ctl, tpl_v_body_parts, ctl_tri_bd_parts, effective_range_factor = 2):
+def calc_vertex_weigth_control_mesh_local(verts_tpl, verts_ctl, tris_ctl, tpl_v_body_parts, ctl_tri_bd_parts, effective_range_factor = 6):
 
     effect_idxs = [None]* len(verts_tpl)
     effect_weights =[None]* len(verts_tpl)
@@ -185,7 +185,7 @@ def vertex_process_global(v, tris_ref, tri_centers, tri_radius, effective_range_
 
     return (idxs, weights)
 
-def calc_vertex_weigth_control_mesh_global(verts, verts_ref, tris_ref, effective_range_factor = 1.5):
+def calc_vertex_weigth_control_mesh_global(verts, verts_ref, tris_ref, effective_range_factor = 4):
     print('calc_vertex_weigth_control_mesh')
     effect_idxs = []
     effect_weights = []
@@ -251,7 +251,7 @@ if __name__ == '__main__':
     args = vars(ap.parse_args())
 
     vic_path = args['victoria']
-    OUT_DIR = args['out_dir']
+    out_path = args['out_dir']
     is_global = int(args['global']) > 0
 
     with open(vic_path, 'rb') as f:
@@ -264,12 +264,8 @@ if __name__ == '__main__':
 
         ctl_mesh = data['control_mesh']
         ctl_mesh_quad_dom = data['control_mesh_quad_dom']
-        ctl_f_body_parts = data['control_mesh_face_body_parts']
 
         tpl_mesh = data['template_mesh']
-        tpl_v_body_parts = data['template_vert_body_parts']
-
-        body_part_dict = data['body_part_dict']
 
     print('control  mesh: nverts = {0}, nfaces = {1}'.format(ctl_mesh['verts'].shape[0], len(ctl_mesh['faces'])))
     print('victoria mesh: nverts = {0}, nfaces = {1}'.format(tpl_mesh['verts'].shape[0], len(tpl_mesh['faces'])))
@@ -278,8 +274,11 @@ if __name__ == '__main__':
     ctl_tri_bs = util.calc_triangle_local_basis(ctl_mesh['verts'], ctl_mesh['faces'])
 
     if is_global:
-        vert_effect_idxs, vert_weights = calc_vertex_weigth_control_mesh_global(tpl_mesh['verts'], ctl_mesh['verts'], ctl_mesh['faces'])
+        vert_effect_idxs, vert_weights = calc_vertex_weigth_control_mesh_global(tpl_mesh['verts'], ctl_mesh['verts'], ctl_mesh['faces'], effective_range_factor=2)
     else:
+        ctl_f_body_parts = data['control_mesh_face_body_parts']
+        tpl_v_body_parts = data['template_vert_body_parts']
+        body_part_dict = data['body_part_dict']
         vert_effect_idxs, vert_weights = calc_vertex_weigth_control_mesh_local(tpl_mesh['verts'], ctl_mesh['verts'], ctl_mesh['faces'], tpl_v_body_parts, ctl_f_body_parts)
 
     vert_UVW = parameterize(tpl_mesh['verts'], vert_effect_idxs, ctl_tri_bs)
@@ -290,8 +289,6 @@ if __name__ == '__main__':
     w_data['template_vert_effect_idxs'] = vert_effect_idxs
     w_data['control_mesh_tri_basis'] = ctl_tri_bs
 
-    label = 'global'if is_global else 'local'
-    out_path =  f'{OUT_DIR}/vic_weight_{label}.pkl'
     with open(out_path, 'wb') as f:
         pickle.dump(w_data, f)
 

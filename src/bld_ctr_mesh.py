@@ -206,7 +206,7 @@ def extract_body_part_indices(obj, grp_mark):
             v_types[v.index] = id
             cnt += 1         
                
-    assert cnt == len(mesh.vertices)
+    #assert cnt == len(mesh.vertices)
     
     return v_types
 
@@ -341,6 +341,22 @@ def sort_torso_slice_vertices(slc_vert_idxs, mesh_verts, title =''):
     return slc_sorted_vert_idxs
 
 
+def is_torso_slice(id):
+    torso_slc_ids= {'Crotch', 'Aux_Crotch_Hip_0', 'Aux_Crotch_Hip_1', 'Aux_Crotch_Hip_2', 'Hip', 'Waist', 'UnderBust', 'Aux_Hip_Waist_0',
+                        'Aux_Waist_UnderBust_0', 'Aux_Waist_UnderBust_1',
+                        'Aux_UnderBust_Bust_0', 'Bust', 'Armscye', 'Aux_Armscye_Shoulder_0', 'Shoulder'}
+    if id in torso_slc_ids:
+        return True
+    else:
+        return False
+
+def is_leg_slice(id):
+    leg_slc_ids = {'LKnee', 'RKnee', 'LUnderCrotch', 'RUnderCrotch', 'LAux_Knee_UnderCrotch_3', 'LAux_Knee_UnderCrotch_2', 'LAux_Knee_UnderCrotch_1', 'LAux_Knee_UnderCrotch_0'}
+    if id in leg_slc_ids :
+        return True
+    else:
+        return False
+
 def extract_slice_vert_indices(ctl_obj):
     print(ctl_obj.name)
     mesh = ctl_obj.data
@@ -357,18 +373,13 @@ def extract_slice_vert_indices(ctl_obj):
     for slc_id, idxs in slc_vert_idxs.items():
         output[slc_id] = np.array(idxs) 
 
-
     print('sortinng slice vertices counter clockwise, starting from the extreme point on the +X axis')
-    leg_slc_names = ['LKnee', 'RKnee', 'LUnderCrotch', 'RUnderCrotch', 'LAux_Knee_UnderCrotch_3', 'LAux_Knee_UnderCrotch_2', 'LAux_Knee_UnderCrotch_1', 'LAux_Knee_UnderCrotch_0']
-    torso_slc_names = ['Crotch', 'Aux_Crotch_Hip_0', 'Aux_Crotch_Hip_1', 'Aux_Crotch_Hip_2', 'Hip', 'Waist', 'UnderBust', 'Aux_Hip_Waist_0',
-                        'Aux_Waist_UnderBust_0', 'Aux_Waist_UnderBust_1',
-                        'Aux_UnderBust_Bust_0', 'Bust', 'Armscye', 'Aux_Armscye_Shoulder_0', 'Shoulder']
     for id, slc_idxs in output.items():
-        if id in leg_slc_names:
+        if is_leg_slice(id):
             print('\t\t sort slice: ', id)
             slc_idxs = sort_leg_slice_vertices(slc_idxs, ctl_verts)
             output[id] = slc_idxs
-        elif id in torso_slc_names:
+        elif is_torso_slice(id):
             print('\t\t sort slice: ', id)
             slc_idxs = sort_torso_slice_vertices(slc_idxs, ctl_verts, title=id)
             output[id] = slc_idxs
@@ -422,6 +433,24 @@ def find_mirror_vertices(obj, group_name):
 
     return pairs
 
+def find_torso_slice_cleavage(mesh, slice_vert_idxs):
+    epsilon = 0.001
+    cleavage_idxs = {}
+    for slc_id, slc_idxs in slice_vert_idxs.items():
+        if is_torso_slice(slc_id):
+            mid_verts = []
+            for idx in slc_idxs:
+                v = mesh.vertices[idx]
+                if abs(v.co.x) < epsilon:
+                    mid_verts.append(idx)
+
+            assert len(mid_verts) == 2, 'len(mid_verts) of torso slice is not equal to 2'
+
+            #take one with larger y
+            clv_idx = mid_verts[0] if mesh.vertices[mid_verts[0]].co.y > mesh.vertices[mid_verts[1]].co.y else mid_verts[1]
+            cleavage_idxs[slc_id] = clv_idx
+
+    return cleavage_idxs
 
 scene = bpy.context.scene
 
@@ -464,12 +493,15 @@ height_locs = extract_vertices(scene.objects['HeightSegment'])
 
 mirror_pairs = find_mirror_vertices(bpy.data.objects['ControlMesh'], 'LBody')
 
+torso_cleavage_vert_idxs = find_torso_slice_cleavage(ctl_obj_quad.data, slc_vert_idxs)
+
 filepath = os.path.join(OUT_DIR, 'vic_data.pkl')
 with open(filepath, 'wb') as f:
     data = {}
     data['slice_locs'] = slc_id_locs
     data['slice_vert_idxs'] = slc_vert_idxs
     data['arm_bone_locs'] = arm_bone_locs
+    data['torso_cleavage_vert_idxs'] = torso_cleavage_vert_idxs
 
     data['mirror_pairs'] = mirror_pairs
     

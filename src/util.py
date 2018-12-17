@@ -78,6 +78,17 @@ def is_leg_contour(name):
     else:
         return False
 
+def is_torso_contour(name):
+    torso_slc_ids = {'Crotch', 'Aux_Crotch_Hip_0', 'Aux_Crotch_Hip_1', 'Aux_Crotch_Hip_2',
+                     'Hip', 'Aux_Hip_Waist_0', 'Waist',
+                     'Aux_Waist_UnderBust_0', 'Aux_Waist_UnderBust_1',
+                     'UnderBust',
+                     'Aux_UnderBust_Bust_0', 'Bust', 'Armscye', 'Aux_Armscye_Shoulder_0', 'Shoulder'}
+    if name in torso_slc_ids:
+        return True
+    else:
+        return False
+
 def contour_center(X, Y):
     idx_ymax, idx_ymin = np.argmax(Y), np.argmin(Y)
     center_y = 0.5 * (Y[idx_ymax] + Y[idx_ymin])
