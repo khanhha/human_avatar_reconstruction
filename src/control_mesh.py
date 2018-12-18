@@ -206,10 +206,7 @@ def projec_mesh_onto_mesh(mesh_0, mesh_1):
     for v_idx in range(nv_0):
         v_co = verts_0[v_idx,:]
         #query closest faces
-        _, idxs = tree.query(v_co, 2)
-
-        _, test_idx = tree.query(v_co, 1)
-
+        _, idxs = tree.query(v_co, 5)
         cls_dst = np.inf
         cls_pnt = v_co
         for f_idx in idxs:
