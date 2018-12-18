@@ -10,6 +10,7 @@ import shapely.geometry as geo
 from shapely.ops import nearest_points
 from src.caesar_rbf_net import RBFNet
 import matplotlib.pyplot as plt
+from scipy.spatial import cKDTree, KDTree
 from copy import copy
 
 def slice_id_3d_2d_mappings():
@@ -98,6 +99,134 @@ def scale_tpl_armature(arm_3d, arm_2d, ratio):
 
     return arm_3d
 
+def subdivide_catmull_temp(mesh):
+    verts = mesh['verts']
+    faces = mesh['faces']
+    edges = mesh['edges']
+    loops = mesh['loops'] #l[0]: vertex, l[1]: edge
+
+    nv = len(verts)
+    nf = len(faces)
+    ne = len(edges)
+
+    e_f = mesh['e_f']
+    v_f = mesh['v_f']
+    v_e = mesh['v_e']
+    f_l = mesh['f_l']
+
+    new_vert_pnts = np.zeros(shape=(nv,3), dtype=np.float32)
+    new_edge_pnts = np.zeros(shape=(ne,3), dtype=np.float32)
+    new_face_pnts = np.zeros(shape=(nf,3), dtype=np.float32)
+
+    for f_idx in range(nf):
+        co = np.zeros(shape=(3,), dtype=np.float32)
+        f = faces[f_idx]
+        for vf_idx in f:
+            co += verts[vf_idx, :]
+        co /= len(f)
+        new_face_pnts[f_idx, :] = co
+
+    for e_idx in range(ne):
+        co = np.zeros(shape=(3,))
+        for ef_idx in e_f[e_idx]:
+            co += new_face_pnts[ef_idx,:]
+
+        ev0 = edges[e_idx][0]
+        ev1 = edges[e_idx][1]
+        co += verts[ev0,:]
+        co += verts[ev1,:]
+        new_edge_pnts[e_idx, :] = co/(2.0 + len(e_f[e_idx]))
+
+    for v_idx in range(nv):
+        co_avg_f = np.zeros(shape=(3,))
+        co_avg_e = np.zeros(shape=(3,))
+
+        nvf = len(v_f[v_idx])
+        for vf_idx in v_f[v_idx]:
+            co_avg_f += new_face_pnts[vf_idx, :]
+        co_avg_f /= nvf
+
+        nve = len(v_e[v_idx])
+        for ve_idx in v_e[v_idx]:
+            co_avg_e += new_edge_pnts[ve_idx, :]
+        co_avg_e /= nve
+
+        #not a boundary vertex
+        if nve == nvf:
+            new_vert_pnts[v_idx, :] = (co_avg_f + 2.0*co_avg_e + (nve - 3.0) * verts[v_idx, :]) / nve
+        else:
+            new_vert_pnts[v_idx, :] = verts[v_idx,:]
+
+    #create new topology
+    new_vert_pnts = np.concatenate([new_vert_pnts, new_face_pnts, new_edge_pnts], axis=0)
+    new_faces = []
+    for f_idx in range(nf):
+        nl = len(f_l[f_idx])
+        for idx in range(nl):
+            l_0 = loops[f_l[f_idx][idx]]
+            l_1 = loops[f_l[f_idx][(idx + 1) % nl]]
+            v0 = nv + nf + l_0[1]
+            v1 = l_1[0]
+            v2 = nv + nf + l_1[1]
+            v3 = nv + f_idx
+            new_faces.append((v0, v1, v2, v3))
+
+    new_mesh = {'verts':new_vert_pnts, 'faces': new_faces}
+
+    return new_mesh
+
+def projec_mesh_onto_mesh(mesh_0, mesh_1):
+    verts_0 = mesh_0['verts']
+    nv_0 = len(verts_0)
+
+    faces_1 = mesh_1['faces']
+    verts_1 = mesh_1['verts']
+    nf_1 = len(faces_1)
+
+    centroid_faces_1 = np.zeros(shape=(nf_1, 3), dtype=np.float)
+    for f_idx in range(nf_1):
+
+        co = np.zeros(shape=(3,), dtype=np.float32)
+        for v_idx in faces_1[f_idx]:
+            co += verts_1[v_idx,:]
+        co /= len(faces_1[f_idx])
+
+        centroid_faces_1[f_idx, :] = co
+
+    out_path = f'{OUT_DIR}{mdata_path.stem}_debug_centroid_faces.obj'
+    print(f'\toutput deformed mesh to {out_path}')
+    export_mesh(out_path, centroid_faces_1, [])
+
+    out_path = f'{OUT_DIR}{mdata_path.stem}_debug_mesh_0.obj'
+    print(f'\toutput deformed mesh to {out_path}')
+    export_mesh(out_path, verts_0, [])
+
+#    tree = cKDTree(centroid_faces_1, leafsize=5)
+    tree = KDTree(centroid_faces_1, leafsize=5)
+    for v_idx in range(nv_0):
+        v_co = verts_0[v_idx,:]
+        #query closest faces
+        _, idxs = tree.query(v_co, 2)
+
+        _, test_idx = tree.query(v_co, 1)
+
+        cls_dst = np.inf
+        cls_pnt = v_co
+        for f_idx in idxs:
+            f = faces_1[f_idx]
+            assert len(f) == 4
+            on_quad_p = util.closest_on_quad_to_point_v3(v_co, verts_1[f[0],:], verts_1[f[1],:], verts_1[f[2],:], verts_1[f[3],:])
+            dst = norm(on_quad_p - v_co)
+            if dst < cls_dst:
+                cls_dst = dst
+                #cls_pnt = 0.25*(verts_1[f[0],:] + verts_1[f[1],:] + verts_1[f[2],:] + verts_1[f[3],:])
+                cls_pnt = on_quad_p
+        verts_0[v_idx, :] = cls_pnt
+
+    #out_path = f'{OUT_DIR}{mdata_path.stem}_debug_projected.obj'
+    #print(f'\toutput deformed mesh to {out_path}')
+    #export_mesh(out_path, np.array(test_points), [])
+
 #the basis origin of armature is the midhip position
 def transform_non_vertical_slice(slice, loc, loc_after, radius):
     slice_n = slice - loc
@@ -185,7 +314,6 @@ def is_breast_segment(id_seg_2d):
 #note: this function just works for breast slice
 def scale_breast_height(brst_slc, slc_height):
     #hack
-
     #find two ending points of the breast slice
     #1. the point with smallest x
     end_0_idx = np.argmin(brst_slc[:,0])
@@ -255,7 +383,6 @@ if __name__ == '__main__':
         slc_id_vert_idxs = data['slice_vert_idxs']
         slc_id_locs = data['slice_locs']
         arm_3d_tpl = data['arm_bone_locs']
-        torso_cleavage_vert_idxs = data['torso_cleavage_vert_idxs']
 
         mirror_vert_pairs = data['mirror_pairs']
 
@@ -274,9 +401,6 @@ if __name__ == '__main__':
 
     for mdata_path in Path(M_DIR).glob('*.npy'):
         print(mdata_path)
-
-        #debug
-        #if '1928' not in str(mdata_path): continue
 
         # load 2d measurements
         mdata = np.load(mdata_path )
@@ -342,9 +466,6 @@ if __name__ == '__main__':
             d = d*h_ratio
             slc_loc_ver = slc_loc_ver * h_ratio
             slc_loc_hor = slc_loc_hor * h_ratio
-
-            #print('slice = {0:25}, width = {1:20}, depth = {2:20}, hor = {3:20}, ver = {4:20}'.format(id_2d, w, d, slc_loc_hor, slc_loc_ver))
-            #print('slice = {0:25}, width = {1:20}, depth = {2:20}, height = {3:20}'.format(id_2d, w, d, z))
 
             #slc_org = slc_id_locs[id_3d]
 
@@ -421,6 +542,18 @@ if __name__ == '__main__':
             mirror_co[0] = -mirror_co[0]
             verts[pair[1]] = mirror_co
 
+        ctl_mesh_quad_dom_new = deepcopy(ctl_mesh_quad_dom)
+        ctl_mesh_quad_dom_new['verts'] = deepcopy(ctl_new_mesh['verts'])
+
+        out_path = f'{OUT_DIR}{mdata_path.stem}_ctl.obj'
+        print(f'\toutput control mesh: {out_path}')
+        export_mesh(out_path, ctl_mesh_quad_dom_new['verts'], ctl_mesh_quad_dom_new['faces'])
+
+        ctl_new_mesh_1 = subdivide_catmull_temp(ctl_mesh_quad_dom_new)
+        out_path = f'{OUT_DIR}{mdata_path.stem}_ctl_subdivided.obj'
+        print(f'\toutput subdivided control mesh: {out_path}')
+        export_mesh(out_path, ctl_new_mesh_1['verts'], ctl_new_mesh_1['faces'])
+
         if Path(weight_path).is_file():
             with open(weight_path, 'rb') as f:
                 data = pickle.load(f)
@@ -436,8 +569,9 @@ if __name__ == '__main__':
             print(f'\toutput deformed mesh to {out_path}')
             export_mesh(out_path, tpl_df_mesh['verts'], tpl_df_mesh['faces'])
 
-        ctl_mesh_quad_dom_new = deepcopy(ctl_mesh_quad_dom)
-        ctl_mesh_quad_dom_new['verts'] = deepcopy(ctl_new_mesh['verts'])
-        out_path = f'{OUT_DIR}{mdata_path.stem}_ctl.obj'
-        print(f'\toutput control mesh: {out_path}')
-        export_mesh(out_path, ctl_mesh_quad_dom_new['verts'], ctl_mesh_quad_dom_new['faces'])
+            projec_mesh_onto_mesh(tpl_df_mesh, ctl_new_mesh_1)
+            out_path = f'{OUT_DIR}{mdata_path.stem}_deform_projected.obj'
+            print(f'\toutput deformed mesh to {out_path}')
+            export_mesh(out_path, tpl_df_mesh['verts'], tpl_df_mesh['faces'])
+
+

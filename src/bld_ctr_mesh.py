@@ -66,8 +66,44 @@ def mesh_to_numpy(mesh):
     faces = []
     for p in mesh.polygons:
         faces.append(p.vertices[:])
-    
-    return np.array(verts), faces
+
+    edges = []
+    for e in mesh.edges:
+        edges.append(e.vertices[:])
+
+    v_e = [[] for _ in range(nverts)]
+    nedges = len(mesh.edges)
+    for ie in range(nedges):
+        e = mesh.edges[ie]
+        iv_0 = e.vertices[0]
+        iv_1 = e.vertices[1]
+        v_e[iv_0].append(ie)
+        v_e[iv_1].append(ie)
+
+    v_f = [[] for _ in range(nverts)]
+    nfaces = len(mesh.polygons)
+    for ip in range(nfaces):
+        p = mesh.polygons[ip]
+        for iv in p.vertices:
+            v_f[iv].append(ip)
+
+    e_f = [[] for _ in range(nedges)]
+    for ip in range(nfaces):
+        p = mesh.polygons[ip]
+        for il in p.loop_indices:
+            l = mesh.loops[il]
+            e_f[l.edge_index].append(ip)
+
+    loops = [(l.vertex_index, l.edge_index) for l in mesh.loops]
+    f_l = [[] for _ in range(nfaces)]
+    for ip in range(nfaces):
+        p = mesh.polygons[ip]
+        for il in p.loop_indices:
+            f_l[ip].append(il)
+
+    mesh = {'verts':np.array(verts), 'faces':faces, 'edges': edges, 'loops': loops, 'f_l':f_l, 'v_e':v_e, 'v_f':v_f, 'e_f': e_f}
+
+    return mesh
 
 def slice_type(name):
     if ( 'Knee' in name) or ('Ankle' in name) or ('Thigh' in name) or ( 'Calf' in name) or ('Foot' in name) or ('UnderCrotch' in name):
@@ -361,7 +397,8 @@ def extract_slice_vert_indices(ctl_obj):
     print(ctl_obj.name)
     mesh = ctl_obj.data
 
-    ctl_verts, ctl_faces = mesh_to_numpy(mesh)
+    mdata = mesh_to_numpy(mesh)
+    ctl_verts = mdata['verts']
 
     slc_vert_idxs = defaultdict(list)
     for v in mesh.vertices:
@@ -433,25 +470,6 @@ def find_mirror_vertices(obj, group_name):
 
     return pairs
 
-def find_torso_slice_cleavage(mesh, slice_vert_idxs):
-    epsilon = 0.001
-    cleavage_idxs = {}
-    for slc_id, slc_idxs in slice_vert_idxs.items():
-        if is_torso_slice(slc_id):
-            mid_verts = []
-            for idx in slc_idxs:
-                v = mesh.vertices[idx]
-                if abs(v.co.x) < epsilon:
-                    mid_verts.append(idx)
-
-            assert len(mid_verts) == 2, 'len(mid_verts) of torso slice is not equal to 2'
-
-            #take one with larger y
-            clv_idx = mid_verts[0] if mesh.vertices[mid_verts[0]].co.y > mesh.vertices[mid_verts[1]].co.y else mid_verts[1]
-            cleavage_idxs[slc_id] = clv_idx
-
-    return cleavage_idxs
-
 scene = bpy.context.scene
 
 OUT_DIR = '/home/khanhhh/data_1/projects/Oh/codes/human_estimation/data/meta_data/'
@@ -474,42 +492,39 @@ slc_vert_idxs = extract_slice_vert_indices(bpy.context.scene.objects["ControlMes
 
 slc_id_locs = calc_slice_location(bpy.data.objects["Armature"], bpy.data.objects["ControlMesh_Tri"], slc_vert_idxs)
         
-ctl_obj = scene.objects['ControlMesh_Tri']
-ctl_verts, ctl_faces = mesh_to_numpy(ctl_obj.data)
+ctl_obj_tri = scene.objects['ControlMesh_Tri']
+ctl_obj_tri_mesh = mesh_to_numpy(ctl_obj_tri.data)
 
 ctl_obj_quad = scene.objects['ControlMesh']
-ctl_verts_quad, ctl_faces_quad = mesh_to_numpy(ctl_obj_quad.data)
+ctl_obj_quad_mesh = mesh_to_numpy(ctl_obj_quad.data)
 
 vic_obj = scene.objects['VictoriaMesh']
-vic_verts, vic_faces = mesh_to_numpy(vic_obj.data)
-print('victoria mesh: nverts = {0}, nfaces = {1}'.format(vic_verts.shape[0], len(vic_faces)))
+vic_obj_mesh = mesh_to_numpy(vic_obj.data)
 
 vic_v_body_parts = extract_body_part_indices(vic_obj, grp_mark = 'Part_')
-ctl_f_body_parts = extract_body_part_face_indices(ctl_obj, grp_mark = 'Part_')
+ctl_f_body_parts = extract_body_part_face_indices(ctl_obj_tri, grp_mark ='Part_')
 print('classified {0} faces of control mesh to body part'.format(ctl_f_body_parts.shape[0]))
-assert ctl_f_body_parts.shape[0] == len(ctl_obj.data.polygons)
+assert ctl_f_body_parts.shape[0] == len(ctl_obj_tri.data.polygons)
 
 height_locs = extract_vertices(scene.objects['HeightSegment'])
 
 mirror_pairs = find_mirror_vertices(bpy.data.objects['ControlMesh'], 'LBody')
 
-torso_cleavage_vert_idxs = find_torso_slice_cleavage(ctl_obj_quad.data, slc_vert_idxs)
 
-filepath = os.path.join(OUT_DIR, 'vic_data.pkl')
+filepath = os.path.join(OUT_DIR, 'vic_data_uniform.pkl')
 with open(filepath, 'wb') as f:
     data = {}
     data['slice_locs'] = slc_id_locs
     data['slice_vert_idxs'] = slc_vert_idxs
     data['arm_bone_locs'] = arm_bone_locs
-    data['torso_cleavage_vert_idxs'] = torso_cleavage_vert_idxs
 
     data['mirror_pairs'] = mirror_pairs
     
-    data['control_mesh'] = {'verts':ctl_verts, 'faces':ctl_faces}
+    data['control_mesh'] = ctl_obj_tri_mesh
     data['control_mesh_face_body_parts'] = ctl_f_body_parts
-    data['control_mesh_quad_dom'] = {'verts':ctl_verts_quad, 'faces':ctl_faces_quad}
+    data['control_mesh_quad_dom'] = ctl_obj_quad_mesh
     
-    data['template_mesh'] = {'verts':vic_verts, 'faces':vic_faces}
+    data['template_mesh'] = vic_obj_mesh
     data['template_height'] = np.linalg.norm(height_locs)
     data['template_vert_body_parts'] = vic_v_body_parts
     data['body_part_dict'] = {v:k for k,v in body_part_dict().items()}
