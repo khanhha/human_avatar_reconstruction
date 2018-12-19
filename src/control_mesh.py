@@ -175,7 +175,7 @@ def subdivide_catmull_temp(mesh):
 
     return new_mesh
 
-def projec_mesh_onto_mesh(mesh_0, mesh_1):
+def projec_mesh_onto_mesh(mesh_0, mesh_0_vert_idxs, mesh_1):
     verts_0 = mesh_0['verts']
     nv_0 = len(verts_0)
 
@@ -193,17 +193,21 @@ def projec_mesh_onto_mesh(mesh_0, mesh_1):
 
         centroid_faces_1[f_idx, :] = co
 
-    out_path = f'{OUT_DIR}{mdata_path.stem}_debug_centroid_faces.obj'
-    print(f'\toutput deformed mesh to {out_path}')
-    export_mesh(out_path, centroid_faces_1, [])
+    # out_path = f'{OUT_DIR}{mdata_path.stem}_debug_centroid_faces.obj'
+    # print(f'\toutput deformed mesh to {out_path}')
+    # export_mesh(out_path, centroid_faces_1, [])
 
-    out_path = f'{OUT_DIR}{mdata_path.stem}_debug_mesh_0.obj'
-    print(f'\toutput deformed mesh to {out_path}')
-    export_mesh(out_path, verts_0, [])
+    # out_path = f'{OUT_DIR}{mdata_path.stem}_debug_mesh_0.obj'
+    # print(f'\toutput deformed mesh to {out_path}')
+    # export_mesh(out_path, verts_0, [])
 
 #    tree = cKDTree(centroid_faces_1, leafsize=5)
     tree = KDTree(centroid_faces_1, leafsize=5)
-    for v_idx in range(nv_0):
+
+    if mesh_0_vert_idxs is None:
+        mesh_0_vert_idxs = range(nv_0)
+
+    for v_idx in mesh_0_vert_idxs:
         v_co = verts_0[v_idx,:]
         #query closest faces
         _, idxs = tree.query(v_co, 5)
@@ -243,10 +247,15 @@ def scale_vertical_slice(slice, w_ratio, d_ratio, scale_center = None):
     return nslice
 
 from copy import deepcopy
-def deform_template_mesh(org_mesh, effect_vert_tri_idxs, vert_weights, vert_UVWs, ctl_df_basis):
+def deform_template_mesh(org_mesh, effect_vert_tri_idxs, vert_weights, vert_UVWs, ctl_df_basis, deform_vert_idxs = None):
     df_mesh  = deepcopy(org_mesh)
     df_verts = df_mesh['verts']
-    for i in range(df_verts.shape[0]):
+    nv = len(df_verts)
+
+    if deform_vert_idxs == None:
+        deform_vert_idxs = range(nv)
+
+    for i in deform_vert_idxs:
         df_co = np.zeros(3, np.float32)
         W = 0.0
         for idx, ev_idx in enumerate(effect_vert_tri_idxs[i]):
@@ -381,7 +390,11 @@ if __name__ == '__main__':
         slc_id_locs = data['slice_locs']
         arm_3d_tpl = data['arm_bone_locs']
 
-        mirror_vert_pairs = data['mirror_pairs']
+        ctl_sym_vert_pairs = data['control_mesh_symmetric_vert_pairs']
+
+        tpl_sym_vert_pairs = data['template_symmetric_vert_pairs']
+        tpl_lbody_vert_idxs = [pair[0] for pair in tpl_sym_vert_pairs]
+        tpl_rbody_vert_idxs = [pair[1] for pair in tpl_sym_vert_pairs]
 
         tpl_mesh = data['template_mesh']
         tpl_height = data['template_height']
@@ -534,7 +547,7 @@ if __name__ == '__main__':
         #transform_arm_slices(ctl_new_mesh, slc_id_locs, slc_id_vert_idxs, arm_3d)
 
         verts = ctl_new_mesh['verts']
-        for pair in mirror_vert_pairs:
+        for pair in ctl_sym_vert_pairs:
             mirror_co = deepcopy(verts[pair[0]])
             mirror_co[0] = -mirror_co[0]
             verts[pair[1]] = mirror_co
@@ -560,13 +573,21 @@ if __name__ == '__main__':
                 vert_effect_idxs = data['template_vert_effect_idxs']
 
             ctl_df_basis = util.calc_triangle_local_basis(ctl_new_mesh['verts'], ctl_new_mesh['faces'])
-            tpl_df_mesh = deform_template_mesh(tpl_mesh, vert_effect_idxs, vert_weights, vert_UVWs, ctl_df_basis)
+            tpl_df_mesh = deform_template_mesh(tpl_mesh, vert_effect_idxs, vert_weights, vert_UVWs, ctl_df_basis, deform_vert_idxs=None)
 
             out_path = f'{OUT_DIR}{mdata_path.stem}_deform.obj'
             print(f'\toutput deformed mesh to {out_path}')
             export_mesh(out_path, tpl_df_mesh['verts'], tpl_df_mesh['faces'])
 
-            projec_mesh_onto_mesh(tpl_df_mesh, ctl_new_mesh_1)
+            projec_mesh_onto_mesh(tpl_df_mesh, tpl_lbody_vert_idxs, ctl_new_mesh_1)
+
+            #mirror
+            verts = tpl_df_mesh['verts']
+            for pair in tpl_sym_vert_pairs:
+                mirror_co = deepcopy(verts[pair[0]])
+                mirror_co[0] = -mirror_co[0]
+                verts[pair[1]] = mirror_co
+
             out_path = f'{OUT_DIR}{mdata_path.stem}_deform_projected.obj'
             print(f'\toutput deformed mesh to {out_path}')
             export_mesh(out_path, tpl_df_mesh['verts'], tpl_df_mesh['faces'])

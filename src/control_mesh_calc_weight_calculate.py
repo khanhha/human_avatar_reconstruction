@@ -260,8 +260,6 @@ if __name__ == '__main__':
         arm_bone_locs = data['arm_bone_locs']
         slice_id_vert_idxs = data['slice_vert_idxs']
 
-        mirror_pairs = data['mirror_pairs']
-
         ctl_mesh = data['control_mesh']
         ctl_mesh_quad_dom = data['control_mesh_quad_dom']
 

@@ -231,19 +231,14 @@ def extract_body_part_indices(obj, grp_mark):
     mesh = obj.data
     maps = body_part_dict()    
     v_types  = np.zeros(len(mesh.vertices), dtype=np.uint8)        
-    cnt = 0
     for v in mesh.vertices:
         ##assert len(v.groups) == 1
         for vgrp in v.groups:
             grp_name = obj.vertex_groups[vgrp.group].name
             bd_part_name = grp_name.split('.')[0]
-            assert bd_part_name in maps
-            id  = maps[bd_part_name] 
-            v_types[v.index] = id
-            cnt += 1         
-               
-    #assert cnt == len(mesh.vertices)
-    
+            if bd_part_name in maps:
+                id  = maps[bd_part_name]
+                v_types[v.index] = id
     return v_types
 
 def clockwiseangle_and_distance(point, org):
@@ -443,7 +438,7 @@ def extract_body_part_face_indices(obj, grp_mark):
         
     return face_types
 
-def find_mirror_vertices(obj, group_name):
+def find_mirror_vertices(obj, group_name, error_threshold = 1e-3):
     mesh = obj.data
     my_verts = []
     my_verts_idxs = []
@@ -462,6 +457,9 @@ def find_mirror_vertices(obj, group_name):
         mirror_co.x = -mirror_co.x
         dsts = np.array([(mirror_co-ov.co).length for ov in mesh.vertices])
         idx = np.argmin(dsts)
+        found_co = mesh.vertices[idx].co
+        error = (found_co - mirror_co).length
+        assert error < error_threshold, 'distance to found symmetric vertex is large'
         mirror_idxs.append(idx)
 
     assert len(my_verts_idxs) == len(mirror_idxs)
@@ -510,15 +508,16 @@ height_locs = extract_vertices(scene.objects['HeightSegment'])
 
 mirror_pairs = find_mirror_vertices(bpy.data.objects['ControlMesh'], 'LBody')
 
+vic_mirror_pairs = find_mirror_vertices(bpy.data.objects['VictoriaMesh'], 'LBody')
 
-filepath = os.path.join(OUT_DIR, 'vic_data_uniform.pkl')
+filepath = os.path.join(OUT_DIR, 'vic_data.pkl')
 with open(filepath, 'wb') as f:
     data = {}
     data['slice_locs'] = slc_id_locs
     data['slice_vert_idxs'] = slc_vert_idxs
     data['arm_bone_locs'] = arm_bone_locs
 
-    data['mirror_pairs'] = mirror_pairs
+    data['control_mesh_symmetric_vert_pairs'] = mirror_pairs
     
     data['control_mesh'] = ctl_obj_tri_mesh
     data['control_mesh_face_body_parts'] = ctl_f_body_parts
@@ -527,6 +526,7 @@ with open(filepath, 'wb') as f:
     data['template_mesh'] = vic_obj_mesh
     data['template_height'] = np.linalg.norm(height_locs)
     data['template_vert_body_parts'] = vic_v_body_parts
+    data['template_symmetric_vert_pairs'] = vic_mirror_pairs
     data['body_part_dict'] = {v:k for k,v in body_part_dict().items()}
     pickle.dump(data, f)
 
