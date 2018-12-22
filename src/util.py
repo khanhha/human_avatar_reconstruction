@@ -49,15 +49,6 @@ def dst_point_line(point, line_p, line_dir):
     n = np.array([-line_dir[1], line_dir[0]])
     return np.dot(v, n)
 
-def calc_triangle_local_basis(verts, tris):
-    basis = np.zeros((len(tris),4, 3), dtype=np.float32)
-    for i, t in enumerate(tris):
-        basis[i, 0, :] = verts[t[0]]
-        basis[i, 1, :] = verts[t[1]] - verts[t[0]]
-        basis[i, 2, :] = verts[t[2]] - verts[t[0]]
-        basis[i, 3, :] = normalize(np.cross(basis[i, 1, :], basis[i, 2, :]))
-    return basis
-
 from scipy.ndimage import filters
 def smooth_contour(X, Y, sigma=3):
     X_1 = filters.gaussian_filter1d(X, sigma=sigma)

@@ -1,32 +1,11 @@
 import numpy as np
-import argparse
 from collections import defaultdict
-import os
-from pathlib import Path
-import pickle
-from copy import deepcopy
 from src.util import  normalize
-import matplotlib.pyplot as plt
-import src.util as util
-from shapely.geometry import Polygon, Point
 import multiprocessing
 from functools import partial
-from scipy import stats
-
-from enum import Enum
-class BDPart(Enum):
-    Part_Head = 1
-    Part_LArm = 2
-    Part_RArm = 3
-    Part_LLeg = 4
-    Part_RLeg = 5
-    Part_Torso = 6
-
-def dst_point_plane(point, plane_point, plane_norm):
-    return np.dot(plane_norm, point - plane_point)
+import sys
 
 def parameterize(verts, vert_effect_idxs, basis):
-    print('parameterize')
     P = []
     T = np.zeros((3,3),np.float32)
     for i in range(verts.shape[0]):
@@ -38,24 +17,31 @@ def parameterize(verts, vert_effect_idxs, basis):
             T[:,0] = basis[ctl_tri_idx, 1, :]
             T[:,1] = basis[ctl_tri_idx, 2, :]
             T[:,2] = basis[ctl_tri_idx, 3, :]
-            local_co = np.linalg.solve(T, d)
-            v_uvw.append(local_co)
+            try:
+                local_co = np.linalg.solve(T, d)
+                v_uvw.append(local_co)
+            except Exception as exp:
+                print(f'exception: {exp}', file=sys.stderr)
+                print(f'linear system A = {T}')
+                print(f'right hand side = {d}')
+                exit()
         P.append(v_uvw)
-        if i % 500 == 0:
-            print(i,'/',verts.shape[0])
+
+        #if i % 500 == 0:
+        #    print(i,'/',verts.shape[0])
 
     return P
 
-def vert_tri_weight(v, t_v0, t_v1, t_v2):
-    beta = 1.5
-    center = (t_v0+t_v1+t_v2)/3.0
-    d = np.linalg.norm(v-center)
-    l = (np.linalg.norm(t_v0-center) + np.linalg.norm(t_v1-center) + np.linalg.norm(t_v2-center))/3.0
-    ratio = d/l
-    if ratio < beta:
-        return 1.0-ratio/beta
-    else:
-        return 0.0
+#section 3.1, "t-FFD: Free-Form Deformation by using Triangular Mesh"
+def calc_triangle_local_basis(verts, tris):
+    basis = np.zeros((len(tris),4, 3), dtype=np.float32)
+    for i, t in enumerate(tris):
+        assert len(t) == 3, f'len(tris)={len(t)} is incorrect'
+        basis[i, 0, :] = verts[t[0]]
+        basis[i, 1, :] = verts[t[1]] - verts[t[0]]
+        basis[i, 2, :] = verts[t[2]] - verts[t[0]]
+        basis[i, 3, :] = normalize(np.cross(basis[i, 1, :], basis[i, 2, :]))
+    return basis
 
 def average_circumscribed_radius_tris(verts, tris, tris_idxs):
     rads = np.zeros(len(tris_idxs), dtype=np.float32)
@@ -168,7 +154,7 @@ def calc_vertex_weigth_control_mesh_local(verts_tpl, verts_ctl, tris_ctl, tpl_v_
 
     return effect_idxs, effect_weights
 
-def vertex_process_global(v, tris_ref, tri_centers, tri_radius, effective_range_factor):
+def calc_vertex_weight_global(v, tris_ref, tri_centers, tri_radius, effective_range_factor):
     idxs = []
     weights = []
     for j, t in enumerate(tris_ref):
@@ -185,8 +171,8 @@ def vertex_process_global(v, tris_ref, tri_centers, tri_radius, effective_range_
 
     return (idxs, weights)
 
-def calc_vertex_weigth_control_mesh_global(verts, verts_ref, tris_ref, effective_range_factor = 4):
-    print('calc_vertex_weigth_control_mesh')
+#section 3.2, "t-FFD: Free-Form Deformation by using Triangular Mesh"
+def calc_vertex_weigth_control_mesh_global(verts, verts_ref, tris_ref, effective_range_factor = 4, n_process = 12):
     effect_idxs = []
     effect_weights = []
 
@@ -198,44 +184,40 @@ def calc_vertex_weigth_control_mesh_global(verts, verts_ref, tris_ref, effective
         tri_centers[j, :] = center
         tri_radius[j] = (np.linalg.norm(v0-center) + np.linalg.norm(v1-center) + np.linalg.norm(v2-center))/3.0
 
-    nprocess = 12
+    nprocess = n_process
     pool = multiprocessing.Pool(nprocess)
-    results = pool.map(func=partial(vertex_process_global, tris_ref=tris_ref, tri_centers=tri_centers, tri_radius =tri_radius, effective_range_factor=effective_range_factor),
+    results = pool.map(func=partial(calc_vertex_weight_global, tris_ref=tris_ref, tri_centers=tri_centers, tri_radius =tri_radius, effective_range_factor=effective_range_factor),
                        iterable=verts, chunksize=128)
 
-    # for i in range(verts.shape[0]):
-    #     v = verts[i,:]
-    #     idxs = []
-    #     weights = []
-    #
-    #     for j,t in enumerate(tris_ref):
-    #         #w = vert_tri_weight(v, verts_ref[t[0]], verts_ref[t[1]], verts_ref[t[2]])
-    #         d = np.linalg.norm(v-tri_centers[j,:])
-    #         ratio = d/tri_radius[j]
-    #         if ratio < effective_range_factor:
-    #             #w = 1.0 - ratio / effective_range_factor
-    #             w = ratio/effective_range_factor
-    #             w = np.exp(-6.0*w*w)
-    #             idxs.append(j)
-    #             weights.append(w)
-    #
-    #     if i % 500 == 0:
-    #         print(i,'/',verts.shape[0])
-    #     effect_idxs.append(idxs)
-    #     effect_weights.append(weights)
-    #     effect_idxs.append([d_min_idx])
-    #     effect_weights.append([w_min])
     for pair in results:
         effect_idxs.append(pair[0])
         effect_weights.append(pair[1])
 
-    lens = np.array([len(idxs) for idxs in effect_idxs])
-    stat = stats.describe(lens)
-    print(f'finish calculating weights')
-    print(f'\tneighbor size statistics:')
-    print(f'\t{stat}')
-
     return effect_idxs, effect_weights
+
+#section 3.4 Mapping, "t-FFD: Free-Form Deformation by using Triangular Mesh"
+def deform_template_mesh(df_verts, effect_vert_tri_idxs, vert_weights, vert_UVWs, ctl_df_basis, deform_vert_idxs = None):
+    nv = len(df_verts)
+
+    #apply all or just a subset of vertices
+    if deform_vert_idxs == None:
+        deform_vert_idxs = range(nv)
+
+    for i in deform_vert_idxs:
+        df_co = np.zeros(3, np.float32)
+        W = 0.0
+        for idx, ev_idx in enumerate(effect_vert_tri_idxs[i]):
+            df_basis = ctl_df_basis[ev_idx,:,:]
+            uvw = vert_UVWs[i][idx]
+            co = df_basis[0,:] + uvw[0]*df_basis[1,:]+ uvw[1]*df_basis[2,:]+ uvw[2]*df_basis[3,:]
+            w_tri = vert_weights[i][idx]
+            df_co += w_tri * co
+            W += w_tri
+        if W > 0:
+            df_co /= W
+            df_verts[i,:] = df_co
+
+    return df_verts
 
 def rect_plane(rect):
     n = np.cross(rect[2]-rect[0], rect[1]-rect[0])
@@ -243,50 +225,4 @@ def rect_plane(rect):
     p = np.mean(rect, axis=0)
     return p,n
 
-if __name__ == '__main__':
-    ap = argparse.ArgumentParser()
-    ap.add_argument("-vic", "--victoria", required=True, help="victoria pkl file")
-    ap.add_argument("-o", "--out_dir", required=True, help="directory for expxorting control mesh slices")
-    ap.add_argument("-g", "--global", required=True, help="global weight")
-    args = vars(ap.parse_args())
-
-    vic_path = args['victoria']
-    out_path = args['out_dir']
-    is_global = int(args['global']) > 0
-
-    with open(vic_path, 'rb') as f:
-        data = pickle.load(f)
-        slc_id_locs = data['slice_locs']
-        arm_bone_locs = data['arm_bone_locs']
-        slice_id_vert_idxs = data['slice_vert_idxs']
-
-        ctl_mesh = data['control_mesh']
-        ctl_mesh_quad_dom = data['control_mesh_quad_dom']
-
-        tpl_mesh = data['template_mesh']
-
-    print('control  mesh: nverts = {0}, nfaces = {1}'.format(ctl_mesh['verts'].shape[0], len(ctl_mesh['faces'])))
-    print('victoria mesh: nverts = {0}, nfaces = {1}'.format(tpl_mesh['verts'].shape[0], len(tpl_mesh['faces'])))
-
-    print('calculating weight')
-    ctl_tri_bs = util.calc_triangle_local_basis(ctl_mesh['verts'], ctl_mesh['faces'])
-
-    if is_global:
-        vert_effect_idxs, vert_weights = calc_vertex_weigth_control_mesh_global(tpl_mesh['verts'], ctl_mesh['verts'], ctl_mesh['faces'], effective_range_factor=2)
-    else:
-        ctl_f_body_parts = data['control_mesh_face_body_parts']
-        tpl_v_body_parts = data['template_vert_body_parts']
-        body_part_dict = data['body_part_dict']
-        vert_effect_idxs, vert_weights = calc_vertex_weigth_control_mesh_local(tpl_mesh['verts'], ctl_mesh['verts'], ctl_mesh['faces'], tpl_v_body_parts, ctl_f_body_parts)
-
-    vert_UVW = parameterize(tpl_mesh['verts'], vert_effect_idxs, ctl_tri_bs)
-
-    w_data = {}
-    w_data['template_vert_UVW'] = vert_UVW
-    w_data['template_vert_weight'] = vert_weights
-    w_data['template_vert_effect_idxs'] = vert_effect_idxs
-    w_data['control_mesh_tri_basis'] = ctl_tri_bs
-
-    with open(out_path, 'wb') as f:
-        pickle.dump(w_data, f)
 

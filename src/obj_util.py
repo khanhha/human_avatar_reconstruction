@@ -20,6 +20,27 @@ def export_mesh(fpath, verts, faces, add_one = True):
                 f.write(" %d" % (v_idx))
             f.write("\n")
 
+def import_mesh(fpath):
+    coords = []
+    faces =  []
+    with open(fpath, 'r') as obj:
+        file = obj.read()
+        lines = file.splitlines()
+        for line in lines:
+            elem = line.split()
+            if elem:
+                if elem[0] == 'v':
+                    coords.append((float(elem[1]), float(elem[2]), float(elem[3])))
+                elif elem[0] == 'vt' or elem[0] == 'vn' or elem[0] == 'vp':
+                    raise Exception('un-supported texture, normal...')
+                elif elem[0] == 'f':
+                    f = []
+                    for v_idx in elem[1:]:
+                        f.append(int(v_idx)-1)
+                    faces.append(f)
+
+    return np.array(coords), faces
+
 def load_vertices(fpath):
     coords = []
     with open(fpath, 'r') as obj:

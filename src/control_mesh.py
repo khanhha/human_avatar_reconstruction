@@ -12,6 +12,8 @@ from src.caesar_rbf_net import RBFNet
 import matplotlib.pyplot as plt
 from scipy.spatial import cKDTree, KDTree
 from copy import copy
+import src.ffdt_deformation_lib as df
+from copy import deepcopy
 
 def slice_id_3d_2d_mappings():
     mappings = {}
@@ -81,23 +83,38 @@ def scale_tpl_armature(arm_3d, arm_2d, ratio):
     blengths = bone_lengths(arm_2d, ratio)
     arm_3d['LKnee'] = arm_3d['LAnkle'] + blengths['Shin']*util.normalize(arm_3d['LKnee'] - arm_3d['LAnkle'])
     arm_3d['LHip']  = arm_3d['LKnee']  + blengths['Thigh']*util.normalize(arm_3d['LHip'] - arm_3d['LKnee'])
-    arm_3d['RKnee'] = arm_3d['RAnkle'] + blengths['Shin']*util.normalize(arm_3d['RKnee'] - arm_3d['RAnkle'])
-    arm_3d['RHip']  = arm_3d['RKnee']  + blengths['Thigh']*util.normalize(arm_3d['RHip'] - arm_3d['RKnee'])
 
     midhip = 0.5*(arm_3d['LHip'] + arm_3d['RHip'])
     arm_3d['Neck'] = midhip + blengths['Torso']*util.normalize(arm_3d['Neck'] - midhip)
     #TODO: Crotch, Spine, Chest
 
     arm_3d['LShoulder'] = arm_3d['Neck'] + blengths['Shoulder']*util.normalize(arm_3d['LShoulder'] - arm_3d['Neck'])
-    arm_3d['RShoulder'] = arm_3d['Neck'] + blengths['Shoulder']*util.normalize(arm_3d['RShoulder'] - arm_3d['Neck'])
 
     arm_3d['LElbow'] = arm_3d['LShoulder'] + blengths['UpperArm']*util.normalize(arm_3d['LElbow'] - arm_3d['LShoulder'])
-    arm_3d['RElbow'] = arm_3d['RShoulder'] + blengths['UpperArm']*util.normalize(arm_3d['RElbow'] - arm_3d['RShoulder'])
 
     arm_3d['LWrist'] = arm_3d['LElbow'] + blengths['ForeArm']*util.normalize(arm_3d['LWrist'] - arm_3d['LElbow'])
-    arm_3d['RWrist'] = arm_3d['RElbow'] + blengths['ForeArm']*util.normalize(arm_3d['RWrist'] - arm_3d['RElbow'])
 
     return arm_3d
+
+def infer_arm_slice_locations(shoulder_slc_loc, neck_shoulder_len, armature, upper_arm_len, under_arm_len):
+    neck_shoulder_dir = util.normalize(armature['LShoulder'] - armature['LNeck'] )
+    shoulder = shoulder_slc_loc + neck_shoulder_len * neck_shoulder_dir
+
+    upper_arm_dir = util.normalize(armature['LElbow'] - armature['LShoulder'])
+    under_arm_dir = util.normalize(armature['LWrist'] - armature['LElbow'])
+
+    elbow = shoulder + upper_arm_dir * upper_arm_len
+    wrist = elbow + under_arm_dir * under_arm_len
+    locs = {}
+    locs['LAux_Shoulder_Elbow_0'] = shoulder + 0.5 * (elbow-shoulder)
+    locs['LElbow'] = elbow
+    locs['LAux_Elbow_Wrist_0'] = elbow + 0.5 * (wrist - elbow)
+    locs['LWrist'] = wrist
+    return locs
+
+def calc_arm_slice_locations(tpl_3d_armature, target_2d_armature, ratio):
+    shoulder_len = norm(target_2d_armature['Neck'] - target_2d_armature['LShoulder'])
+    shoulder_len = ratio * shoulder_len
 
 def subdivide_catmull_temp(mesh):
     verts = mesh['verts']
@@ -246,30 +263,6 @@ def scale_vertical_slice(slice, w_ratio, d_ratio, scale_center = None):
     nslice = nslice + scale_center
     return nslice
 
-from copy import deepcopy
-def deform_template_mesh(org_mesh, effect_vert_tri_idxs, vert_weights, vert_UVWs, ctl_df_basis, deform_vert_idxs = None):
-    df_mesh  = deepcopy(org_mesh)
-    df_verts = df_mesh['verts']
-    nv = len(df_verts)
-
-    if deform_vert_idxs == None:
-        deform_vert_idxs = range(nv)
-
-    for i in deform_vert_idxs:
-        df_co = np.zeros(3, np.float32)
-        W = 0.0
-        for idx, ev_idx in enumerate(effect_vert_tri_idxs[i]):
-            df_basis = ctl_df_basis[ev_idx,:,:]
-            uvw = vert_UVWs[i][idx]
-            co = df_basis[0,:] + uvw[0]*df_basis[1,:]+ uvw[1]*df_basis[2,:]+ uvw[2]*df_basis[3,:]
-            w_tri = vert_weights[i][idx]
-            df_co += w_tri * co
-            W += w_tri
-        if W > 0:
-            df_co /= W
-            df_verts[i,:] = df_co
-    return df_mesh
-
 def transform_arm_slices(mesh, slc_id_locs, slc_id_vert_idxs, arm_3d):
     slc_org = slc_id_locs['Slice_LElbow']
     slc_idxs = slc_id_vert_idxs['Slice_LElbow']
@@ -283,39 +276,12 @@ def transform_arm_slices(mesh, slc_id_locs, slc_id_vert_idxs, arm_3d):
     wrist_radius = h_ratio * 0.5 * 0.8 * seg_dst_f['Elbow']
     mesh['verts'][slc_idxs, :] = transform_non_vertical_slice(slice, slc_org, arm_3d['LWrist'], wrist_radius)
 
-    slc_org = slc_id_locs['Slice_RElbow']
-    slc_idxs = slc_id_vert_idxs['Slice_RElbow']
-    slice = ctl_mesh['verts'][slc_idxs]
-    radius = h_ratio * 0.5 * seg_dst_f['Elbow']
-    mesh['verts'][slc_idxs, :] = transform_non_vertical_slice(slice, slc_org, arm_3d['RElbow'], radius)
-
-    slc_org = slc_id_locs['Slice_LWrist']
-    slc_idxs = slc_id_vert_idxs['Slice_LWrist']
-    slice = ctl_mesh['verts'][slc_idxs]
-    wrist_radius = h_ratio * 0.5 * 0.8 * seg_dst_f['Elbow']
-    mesh['verts'][slc_idxs, :] = transform_non_vertical_slice(slice, slc_org, arm_3d['LWrist'], wrist_radius)
-
     lhand_idxs = []
     for id, idxs in slc_id_vert_idxs.items():
         if 'LHand' in id:
             lhand_idxs.append(idxs[:])
     displacement = arm_3d['LWrist'] - slc_id_locs['Slice_LWrist']
     mesh['verts'][lhand_idxs, :] += displacement
-
-    rhand_idxs = []
-    for id, idxs in slc_id_vert_idxs.items():
-         if 'RHand' in id:
-             rhand_idxs.append(idxs[:])
-    displacement = arm_3d['RWrist'] - slc_id_locs['Slice_RWrist']
-    mesh['verts'][rhand_idxs, :] += displacement
-
-def is_breast_segment(id_seg_2d):
-    if id_seg_2d == 'Aux_UnderBust_Bust_0' or \
-        id_seg_2d == 'Bust' or \
-        id_seg_2d == 'Aux_Bust_Armscye_0':
-        return True
-    else:
-        return False
 
 #note: this function just works for breast slice
 def scale_breast_height(brst_slc, slc_height):
@@ -432,12 +398,13 @@ if __name__ == '__main__':
         #hack: the background z value extracted from image is not exact. therefore, we consider ankle z as the z starting point
         tpl_ankle_hor = slc_id_locs['LAnkle'][1]
         tpl_ankle_ver = slc_id_locs['LAnkle'][2]
+
+        #left shoulder location
+        neck = arm_2d_f['Neck']
+        lshoulder = arm_2d_f['LShoulder']
+
         #slice location in relative to ankle location in side image
         for id_3d, id_2d in id_mappings.items():
-            #debug
-            #if id_3d not in ['L0_RAnkle', 'L0_LAnkle']:
-            #    continue
-
             #ignore the right body part
             if id_3d[0] == 'R':
                 continue
@@ -445,7 +412,7 @@ if __name__ == '__main__':
             if id_3d == 'Shoulder':
                 debug = True
 
-            if id_3d  not in slc_id_vert_idxs:
+            if id_3d not in slc_id_vert_idxs:
                 print(f'indices of {id_3d} are not available', file=sys.stderr)
                 continue
 
@@ -552,12 +519,17 @@ if __name__ == '__main__':
             mirror_co[0] = -mirror_co[0]
             verts[pair[1]] = mirror_co
 
+        out_path = f'{OUT_DIR}{mdata_path.stem}ctl_quad.obj'
         ctl_mesh_quad_dom_new = deepcopy(ctl_mesh_quad_dom)
         ctl_mesh_quad_dom_new['verts'] = deepcopy(ctl_new_mesh['verts'])
-
-        out_path = f'{OUT_DIR}{mdata_path.stem}_ctl.obj'
-        print(f'\toutput control mesh: {out_path}')
+        print(f'\toutput control mesh, quad version: {out_path}')
         export_mesh(out_path, ctl_mesh_quad_dom_new['verts'], ctl_mesh_quad_dom_new['faces'])
+
+        out_path = f'{OUT_DIR}{mdata_path.stem}ctl_tri.obj'
+        ctl_mesh_tri_new = deepcopy(ctl_mesh)
+        ctl_mesh_tri_new['verts'] = deepcopy(ctl_new_mesh['verts'])
+        print(f'\toutput control mesh, triangle version: {out_path}')
+        export_mesh(out_path, ctl_mesh_tri_new['verts'], ctl_mesh_tri_new['faces'])
 
         ctl_new_mesh_1 = subdivide_catmull_temp(ctl_mesh_quad_dom_new)
         out_path = f'{OUT_DIR}{mdata_path.stem}_ctl_subdivided.obj'
@@ -572,8 +544,10 @@ if __name__ == '__main__':
                 vert_weights = data['template_vert_weight']
                 vert_effect_idxs = data['template_vert_effect_idxs']
 
-            ctl_df_basis = util.calc_triangle_local_basis(ctl_new_mesh['verts'], ctl_new_mesh['faces'])
-            tpl_df_mesh = deform_template_mesh(tpl_mesh, vert_effect_idxs, vert_weights, vert_UVWs, ctl_df_basis, deform_vert_idxs=None)
+            ctl_df_basis = df.calc_triangle_local_basis(ctl_new_mesh['verts'], ctl_new_mesh['faces'])
+
+            tpl_df_mesh = deepcopy(tpl_mesh)
+            df.deform_template_mesh(tpl_df_mesh['verts'], vert_effect_idxs, vert_weights, vert_UVWs, ctl_df_basis)
 
             out_path = f'{OUT_DIR}{mdata_path.stem}_deform.obj'
             print(f'\toutput deformed mesh to {out_path}')

@@ -22,7 +22,6 @@ from xgboost import XGBRegressor
 from dtreeviz.trees import *
 
 import src.util as util
-from  src.error_files import mpii_error_slices, ucsc_error_slices
 
 
 def kmeans(X, k):

@@ -29,17 +29,19 @@ def copy_obj(obj, new_name, location):
     select_single_obj(new_object)
     return new_object
 
-def write_vertices_to_obj(path, mesh):
-    with open(path, 'w') as f:
-        for i,v in enumerate(mesh.vertices):
-            f.write("v %.4f %.4f %.4f \n" % v.co[:])
-        
-def write_slices_to_obj(dir, obj, plane_z):
-    mesh = obj.data
-    print(plane_z)
-    filepath = os.path.join(dir, obj.name+'.obj')
-    write_vertices_to_obj(filepath, mesh)
-            
+def export_mesh_to_obj(fpath, verts, faces, add_one = True):
+    with open(fpath, 'w') as f:
+        for i in range(verts.shape[0]):
+            co = tuple(verts[i, :])
+            f.write("v %.8f %.8f %.8f \n" % co)
+
+        for i in range(len(faces)):
+            f.write("f")
+            for v_idx in faces[i]:
+                if add_one == True:
+                    v_idx += 1
+                f.write(" %d" % (v_idx))
+            f.write("\n")
 
 def extract_vertices(obj):
     nverts = len(obj.data.vertices)
@@ -488,7 +490,7 @@ arm_bone_locs = extract_armature_bone_locations(bpy.data.objects["Armature"])
 
 slc_vert_idxs = extract_slice_vert_indices(bpy.context.scene.objects["ControlMesh"])
 
-slc_id_locs = calc_slice_location(bpy.data.objects["Armature"], bpy.data.objects["ControlMesh_Tri"], slc_vert_idxs)
+slc_id_locs = calc_slice_location(bpy.data.objects["Armature"], bpy.data.objects["ControlMesh"], slc_vert_idxs)
         
 ctl_obj_tri = scene.objects['ControlMesh_Tri']
 ctl_obj_tri_mesh = mesh_to_numpy(ctl_obj_tri.data)
@@ -511,6 +513,7 @@ mirror_pairs = find_mirror_vertices(bpy.data.objects['ControlMesh'], 'LBody')
 vic_mirror_pairs = find_mirror_vertices(bpy.data.objects['VictoriaMesh'], 'LBody')
 
 filepath = os.path.join(OUT_DIR, 'vic_data.pkl')
+print('output all data to file ', filepath)
 with open(filepath, 'wb') as f:
     data = {}
     data['slice_locs'] = slc_id_locs
@@ -530,13 +533,11 @@ with open(filepath, 'wb') as f:
     data['body_part_dict'] = {v:k for k,v in body_part_dict().items()}
     pickle.dump(data, f)
 
+#output the two meshes for the sake of debugging
+filepath = os.path.join(OUT_DIR, 'origin_control_mesh_tri.obj')
+print('output triangulated control mesh to ', filepath)
+export_mesh_to_obj(filepath, ctl_obj_tri_mesh['verts'], ctl_obj_tri_mesh['faces'])
 
-victoria = scene.objects['VictoriaMesh']    
-for obj in scene.objects:
-    n_parts = len(obj.name.split('_'))
-    #if obj.name.split('_')[0][0] == 'L' and obj.name.split('_')[0][1].isdigit():  
-        #plane_z = obj.data.vertices[0].co[2]
-        #select_single_obj(obj)
-        #isect(obj, victoria) 
-        #write_slices_to_obj(OUT_DIR, obj, plane_z)
-        #print(obj.name)3   
+filepath = os.path.join(OUT_DIR, 'origin_template_mesh.obj')
+print('output triangulated control mesh to ', filepath)
+export_mesh_to_obj(filepath, vic_obj_mesh['verts'], vic_obj_mesh['faces'])
