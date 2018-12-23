@@ -1,8 +1,8 @@
 # How to run deformation algorithm
-    # Install libraries
+    ## Install libraries
         conda install numpy scipy
 
-    # How to run all in one
+    ## How to run all in one
         1. run on a simple test case of sphere mesh
             cd to human_estimation folder
             sh df_sphere_run.sh
@@ -11,7 +11,7 @@
             cd to human_estimation folder
             sh df_body_run.sh
 
-    # How to run step by step
+    ## How to run step by step
         1. cd to the human_estimation folder
 
         2. calculate parameterization of the template mesh (victoria) with respect to the original control mesh
