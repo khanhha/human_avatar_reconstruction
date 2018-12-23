@@ -14,6 +14,15 @@ import src.util as util
 from numpy.linalg import norm
 from copy import copy
 
+def closest_point_points(point, points):
+    g0 = Point(point)
+    if len(points) > 1:
+        g1 = MultiPoint(points)
+        closest = ops.nearest_points(g0, g1)[1]
+        return np.array([closest.x, closest.y])
+    else:
+        return np.array([g0.x, g0.y])
+
 def roll_contour(contour, shift):
     X =  np.roll(contour[:,0], shift)
     Y =  np.roll(contour[:,1], shift)
@@ -391,7 +400,7 @@ def fix_bust_height(bust_contour, sup_points, ld_points, armscye_contour, debug_
     #we can't take the under bust contour as the bust base line because some people have big belly, which means their udner bust contour is even larger than their bust contour.
     armscye_contour_str = LineString([armscye_contour[i,:] for i in range(armscye_contour.shape[0])])
     bust_base_target = LineString([mid_bust-10*ver_ax, mid_bust + 10*ver_ax]).intersection(armscye_contour_str)
-    bust_base_target = util.closest_point_points(mid_bust, bust_base_target)
+    bust_base_target = closest_point_points(mid_bust, bust_base_target)
 
     left_side_ids = []
     for idx in range(0, n_bust_contour):

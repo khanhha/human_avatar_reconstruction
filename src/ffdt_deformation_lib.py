@@ -1,10 +1,11 @@
 import numpy as np
 from collections import defaultdict
-from src.util import  normalize
+from util_math import normalize
 import multiprocessing
 from functools import partial
 import sys
 
+#section 3.1, "t-FFD: Free-Form Deformation by using Triangular Mesh"
 def parameterize(verts, vert_effect_idxs, basis):
     P = []
     T = np.zeros((3,3),np.float32)

@@ -1,9 +1,9 @@
 import argparse
 import pickle
-import src.ffdt_deformation_lib as df
+import ffdt_deformation_lib as df
 import numpy as np
 import scipy.stats as stats
-from src.obj_util import import_mesh
+from obj_util import import_mesh
 
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
@@ -42,12 +42,12 @@ if __name__ == '__main__':
         print(f'\tneighbor size statistics: mean number of neighbor, variance number of neighbor')
         print(f'\t{stat}')
     else:
-        assert False, 'not support yet'
+        print('not support local parameterization currently')
+        exit()
         #ctl_f_body_parts = data['control_mesh_face_body_parts']
         #tpl_v_body_parts = data['template_vert_body_parts']
         #body_part_dict = data['body_part_dict']
         #vert_effect_idxs, vert_weights = df.calc_vertex_weigth_control_mesh_local(tpl_mesh['verts'], ctl_mesh['verts'], ctl_mesh['faces'], tpl_v_body_parts, ctl_f_body_parts)
-        pass
 
     print(f'\nstart calculating relative coordinates of template mesh vertices with respect to basis of neighbour control mesh triangle')
     vert_UVW = df.parameterize(tpl_verts, vert_effect_idxs, ctl_tri_bs)
@@ -59,8 +59,8 @@ if __name__ == '__main__':
     w_data['template_vert_effect_idxs'] = vert_effect_idxs
     w_data['control_mesh_tri_basis'] = ctl_tri_bs
 
-    print(f'\noutput parameterization to file {out_path}')
     with open(out_path, 'wb') as f:
         pickle.dump(w_data, f)
+    print(f'\noutput parameterization to file {out_path}')
 
 
