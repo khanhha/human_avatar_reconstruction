@@ -173,7 +173,7 @@ def calc_vertex_weight_global(v, tris_ref, tri_centers, tri_radius, effective_ra
     return (idxs, weights)
 
 #section 3.2, "t-FFD: Free-Form Deformation by using Triangular Mesh"
-def calc_vertex_weigth_control_mesh_global(verts, verts_ref, tris_ref, effective_range_factor = 4, n_process = 12):
+def calc_vertex_weigth_control_mesh_global(verts, verts_ref, tris_ref, effective_range_factor = 4, use_mean_tri_radius = False, n_process = 12):
     effect_idxs = []
     effect_weights = []
 
@@ -184,6 +184,10 @@ def calc_vertex_weigth_control_mesh_global(verts, verts_ref, tris_ref, effective
         center = (v0+v1+v2)/3.0
         tri_centers[j, :] = center
         tri_radius[j] = (np.linalg.norm(v0-center) + np.linalg.norm(v1-center) + np.linalg.norm(v2-center))/3.0
+
+    if use_mean_tri_radius:
+        avg_rad = np.mean(tri_radius)
+        tri_radius[:] = avg_rad
 
     nprocess = n_process
     pool = multiprocessing.Pool(nprocess)

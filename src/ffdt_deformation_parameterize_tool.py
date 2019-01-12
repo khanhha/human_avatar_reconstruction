@@ -11,6 +11,8 @@ if __name__ == '__main__':
     ap.add_argument("-tpl", "--template_mesh_path", required=True, help="template mesh path")
     ap.add_argument("-o", "--out_path", required=True, help="data output path")
     ap.add_argument("-g", "--global", required=True, help="global weight")
+    ap.add_argument("-e", "--effective_range", required=False, default=3)
+    ap.add_argument("-use_mean_rad", "--use_mean_radius", required=False, default=0)
 
     args = vars(ap.parse_args())
 
@@ -18,7 +20,8 @@ if __name__ == '__main__':
     tpl_out_path = args['template_mesh_path']
     out_path = args['out_path']
     is_global = int(args['global']) > 0
-
+    effecttive_range = float(args['effective_range'])
+    use_mean_rad = int(args['use_mean_radius']) > 0
 
     ctl_verts, ctl_faces = import_mesh(ctl_out_path)
     for idx, tri in enumerate(ctl_faces):
@@ -35,14 +38,15 @@ if __name__ == '__main__':
 
     if is_global:
         print(f'\nstart calculating weights')
-        vert_effect_idxs, vert_weights = df.calc_vertex_weigth_control_mesh_global(tpl_verts, ctl_verts, ctl_faces, effective_range_factor=3)
+        print(f'\n\teffective range = {effecttive_range}, use_mean_radius = {use_mean_rad}')
+        vert_effect_idxs, vert_weights = df.calc_vertex_weigth_control_mesh_global(tpl_verts, ctl_verts, ctl_faces, effective_range_factor=effecttive_range, use_mean_tri_radius=use_mean_rad)
         lens = np.array([len(idxs) for idxs in vert_effect_idxs])
         stat = stats.describe(lens)
         print(f'\tfinish weight calculation')
         print(f'\tneighbor size statistics: mean number of neighbor, variance number of neighbor')
         print(f'\t{stat}')
     else:
-        print('not support local parameterization currently')
+        print('not support local parameterizati on currently')
         exit()
         #ctl_f_body_parts = data['control_mesh_face_body_parts']
         #tpl_v_body_parts = data['template_vert_body_parts']
@@ -59,8 +63,9 @@ if __name__ == '__main__':
     w_data['template_vert_effect_idxs'] = vert_effect_idxs
     w_data['control_mesh_tri_basis'] = ctl_tri_bs
 
+    print(f'\nsaving data')
     with open(out_path, 'wb') as f:
         pickle.dump(w_data, f)
-    print(f'\noutput parameterization to file {out_path}')
+    print(f'\n\toutput parameterization to file {out_path}')
 
 
