@@ -4,7 +4,7 @@ import ffdt_deformation_lib as df
 import numpy as np
 from obj_util import import_mesh, export_mesh
 from copy import deepcopy
-
+import os
 def merge_two_mesh(verts_0, tris_0, verts_1, tris_1):
     nverts_0 = verts_0.shape[0]
     verts = np.concatenate([verts_0, verts_1], axis=0)
@@ -32,6 +32,8 @@ if __name__ == '__main__':
     pnt_mesh_path = args['pointer_mesh']
     ndir = args['neighbor_dir']
 
+    os.makedirs(ndir, exist_ok=True)
+
     with open(param_path, 'rb') as file:
         param_data = pickle.load(file=file)
         vert_effect_idxs = param_data['template_vert_effect_idxs']
@@ -41,7 +43,7 @@ if __name__ == '__main__':
     pnt_mesh_verts, pnt_mesh_tris = import_mesh(pnt_mesh_path)
 
 
-    v_idxs = [2945, 4373, 14, 69, 7322, 7993, 6941, 7946, 7750, 6445, 8321, 7634, 6145, 1042, 140]
+    v_idxs = [2945, 4373, 14, 69, 7322, 7993, 6941, 7946, 7750, 6445, 8321, 7634, 6145, 1042, 140, 2965, 4419, 3980, 5606, 6017]
     for v_idx in v_idxs:
         #pick effect triangles
         neighbor_tris = [ctl_mesh_tris[t_idx] for t_idx in vert_effect_idxs[v_idx ]]

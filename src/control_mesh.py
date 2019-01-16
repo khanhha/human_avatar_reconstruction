@@ -56,6 +56,7 @@ def slice_id_3d_2d_mappings():
     mappings['Shoulder'] = 'Shoulder'
     mappings['Collar'] = 'Collar'
     mappings['Neck'] = 'Neck'
+
     return mappings
 
 def breast_part_slice_id_3d_2d_mappings():
@@ -322,6 +323,130 @@ def fix_crotch_hip_cleavage(slice, depth):
     slice[clv_idx, 1] = slice[clv_idx, 1] - delta
     return slice
 
+class ControlMeshPredictor():
+
+    def __init__(self, MODEL_DIR):
+        self.models = {}
+        for path in Path(MODEL_DIR).glob('*.pkl'):
+            self.models[path.stem] = RBFNet.load_from_path(path)
+        print('ControlMeshPredictor: load models: ', self.models.keys())
+
+    def set_control_mesh(self, ctl_mesh, slc_id_vert_idxs, slc_id_locs, ctl_sym_vert_pairs, arm_3d_tpl):
+        self.ctl_mesh = ctl_mesh
+        self.slc_id_vert_idxs = slc_id_vert_idxs
+        self.slc_id_locs = slc_id_locs
+        self.arm_3d_tpl = arm_3d_tpl
+
+        self.ctl_sym_vert_pairs = ctl_sym_vert_pairs #symmetry information. for leg and arm slices, we just predict the left side
+
+        print('control  mesh: nverts = {0}, ntris = {1}'.format(self.ctl_mesh['verts'].shape[0],
+                                                                len(self.ctl_mesh['faces'])))
+
+    def set_template_mesh(self, tpl_mesh, tpl_height):
+        self.tpl_mesh = tpl_mesh
+        self.tpl_height = tpl_height
+        print('victoria mesh: nverts = {0}, ntris = {1}'.format(self.tpl_mesh['verts'].shape[0],
+                                                                len(self.tpl_mesh['faces'])))
+
+    def predict(self, seg_dst_f, seg_dst_s, seg_locations, height):
+        id_mappings = slice_id_3d_2d_mappings()
+
+        ctl_new_mesh = deepcopy(self.ctl_mesh)
+
+        #hack: the background z value extracted from image is not exact. therefore, we consider ankle z as the z starting point
+        tpl_ankle_hor = self.slc_id_locs['LAnkle'][1]
+        tpl_ankle_ver = self.slc_id_locs['LAnkle'][2]
+
+        h_ratio = self.tpl_height / height
+
+        #slice location in relative to ankle location in side image
+        for id_3d, id_2d in id_mappings.items():
+            #ignore the right body part
+            if id_3d[0] == 'R':
+                continue
+
+            if id_3d not in self.slc_id_vert_idxs:
+                print(f'indices of {id_3d} are not available', file=sys.stderr)
+                continue
+
+            slc_idxs = self.slc_id_vert_idxs[id_3d]
+            slice = self.ctl_mesh['verts'][slc_idxs]
+
+            if id_2d not in seg_dst_f:
+                print(f'measurement of {id_2d} is not available', file=sys.stderr)
+                continue
+
+            if id_2d not in seg_locations:
+                print(f'location of {id_2d} is not available. ignore this slice', file=sys.stderr)
+                continue
+
+            #slice width
+            w = seg_dst_f[id_2d]
+            #slice height
+            d = seg_dst_s[id_2d]
+            #slice location, which is the back point of the slice (point on the back slice), relative to ankle in the side image.
+            slc_loc = seg_locations[id_2d]
+            slc_loc_hor = slc_loc[0]
+            slc_loc_ver = np.abs(slc_loc[1])
+
+            #transform to victoria's scale. why?
+            w = w*h_ratio
+            d = d*h_ratio
+            slc_loc_ver = slc_loc_ver * h_ratio
+            slc_loc_hor = slc_loc_hor * h_ratio
+
+            slice_out = copy(slice)
+
+            if id_2d in self.models:
+                print('\t applied ', id_2d)
+                model = self.models[id_2d]
+                ratio = w/d
+                pred = model.predict(np.reshape(ratio, (1,1)))[0, :]
+                res_contour = util.reconstruct_contour_fourier(pred)
+
+                slice_out[:,0] =  res_contour[1,:]
+                slice_out[:,1] =  res_contour[0,:]
+
+                #the slice prediction is centered at zero. here we shift the zero-centered prediction slice to the corresponding slice center of Victoria
+                if util.is_leg_contour(id_2d):
+                    slice_out += np.mean(slice, axis=0)
+
+            #we apply x,y scaling to make sure that our the final slice match width/height measurement
+            dim_range = np.max(slice_out, axis=0) - np.min(slice_out, axis=0)
+            w_ratio = w / dim_range[0]
+            d_ratio = d / dim_range[1]
+            slice_out = scale_vertical_slice(slice_out, w_ratio, d_ratio)
+
+            #hack. the slices from hip to crothc is a bit flat along cleavage. we push the cleavage vertices a bit inside
+            if util.is_torso_contour(id_2d):
+                if id_2d == 'Hip' or 'Crotch' in id_2d:
+                    slice_out = fix_crotch_hip_cleavage(slice_out, d)
+
+            #align slice in vertical direction
+            slice_out[:, 2] = slc_loc_ver + tpl_ankle_ver
+
+            #align slice in horizontal direction
+            #Warning: need to be careful here. we assume that the maximum point on hor dir is on the back side of Victoria's mesh
+            #TODO => how to make horizontal direction consistent, when the back-to-front direction in image is opposite to back-to-front of Victoria?
+            slice_hor_anchor = np.max(slice_out[:,1])
+            slice_out[:, 1] += (slc_loc_hor - slice_hor_anchor + tpl_ankle_hor)
+
+            ctl_new_mesh['verts'][slc_idxs, :] = slice_out
+
+        #for the right vertices (right leg, right arm), mirror the left vertices
+        verts = ctl_new_mesh['verts']
+        for pair in self.ctl_sym_vert_pairs:
+            mirror_co = deepcopy(verts[pair[0]])
+            mirror_co[0] = -mirror_co[0]
+            verts[pair[1]] = mirror_co
+
+        #we create two versions of the control mesh
+        #the triangle version is used for deformation algorithm
+        ctl_mesh_tri_new = deepcopy(self.ctl_mesh)
+        ctl_mesh_tri_new['verts'] = deepcopy(ctl_new_mesh['verts'])
+
+        return ctl_mesh_tri_new
+
 import sys
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
@@ -368,13 +493,6 @@ if __name__ == '__main__':
     print('control  mesh: nverts = {0}, ntris = {1}'.format(ctl_mesh['verts'].shape[0], len(ctl_mesh['faces'])))
     print('victoria mesh: nverts = {0}, ntris = {1}'.format(tpl_mesh['verts'].shape[0], len(tpl_mesh['faces'])))
 
-    out_path = f'{OUT_DIR}victoria_ctl.obj'
-    export_mesh(out_path, ctl_mesh['verts'], ctl_mesh['faces'])
-
-    out_path = f'{OUT_DIR}victoria_tpl.obj'
-    export_mesh(out_path, tpl_mesh['verts'], tpl_mesh['faces'])
-
-
     for mdata_path in Path(M_DIR).glob('*.npy'):
         print(mdata_path)
 
@@ -391,17 +509,12 @@ if __name__ == '__main__':
         arm_3d = scale_tpl_armature(arm_3d_tpl, arm_2d_f, h_ratio)
 
         id_mappings = slice_id_3d_2d_mappings()
-        ct_mesh_slices = {}
 
         ctl_new_mesh = deepcopy(ctl_mesh)
 
         #hack: the background z value extracted from image is not exact. therefore, we consider ankle z as the z starting point
         tpl_ankle_hor = slc_id_locs['LAnkle'][1]
         tpl_ankle_ver = slc_id_locs['LAnkle'][2]
-
-        #left shoulder location
-        neck = arm_2d_f['Neck']
-        lshoulder = arm_2d_f['LShoulder']
 
         #slice location in relative to ankle location in side image
         for id_3d, id_2d in id_mappings.items():
@@ -467,11 +580,6 @@ if __name__ == '__main__':
                 slice_out[:,0] =  res_contour[1,:]
                 slice_out[:,1] =  res_contour[0,:]
 
-                #right side
-                if id_3d[0] == 'R':
-                    #mirror through X
-                    slice_out[:,0] = -slice_out[:,0]
-
                 if util.is_leg_contour(id_2d):
                     slice_out += np.mean(slice, axis=0)
 
@@ -484,22 +592,22 @@ if __name__ == '__main__':
                 if id_2d == 'Hip' or 'Crotch' in id_2d:
                     slice_out = fix_crotch_hip_cleavage(slice_out, d)
 
-            if id_2d == 'UnderCrotch':
-                plt.clf()
-                plt.axes().set_aspect(1.0)
-                plt.plot(res_contour[1, :], res_contour[0, :], '-r')
-                plt.plot(res_contour[1, 0], res_contour[0, 0], '+r', ms=20)
-                plt.plot(res_contour[1, 2], res_contour[0, 2], '+g', ms=20)
-
-                plt.plot(slice_out[:, 0], slice_out[:, 1], '-b')
-                plt.plot(slice_out[0, 0], slice_out[0, 1], '+r', ms=20)
-                plt.plot(slice_out[2, 0], slice_out[2, 1], '+g', ms=20)
-
-                plt.plot(slice[:, 0], slice[:, 1], '-y')
-                plt.plot(slice[0, 0], slice[0, 1], '+r', ms=20)
-                plt.plot(slice[2, 0], slice[2, 1], '+g', ms=20)
-                #plt.savefig(f'{OUTPUT_DEBUG_DIR_TEST}{idx}.png')
-                #plt.show()
+            # if id_2d == 'UnderCrotch':
+            #     plt.clf()
+            #     plt.axes().set_aspect(1.0)
+            #     plt.plot(res_contour[1, :], res_contour[0, :], '-r')
+            #     plt.plot(res_contour[1, 0], res_contour[0, 0], '+r', ms=20)
+            #     plt.plot(res_contour[1, 2], res_contour[0, 2], '+g', ms=20)
+            #
+            #     plt.plot(slice_out[:, 0], slice_out[:, 1], '-b')
+            #     plt.plot(slice_out[0, 0], slice_out[0, 1], '+r', ms=20)
+            #     plt.plot(slice_out[2, 0], slice_out[2, 1], '+g', ms=20)
+            #
+            #     plt.plot(slice[:, 0], slice[:, 1], '-y')
+            #     plt.plot(slice[0, 0], slice[0, 1], '+r', ms=20)
+            #     plt.plot(slice[2, 0], slice[2, 1], '+g', ms=20)
+            #     plt.savefig(f'{OUTPUT_DEBUG_DIR_TEST}{idx}.png')
+            #     plt.show()
 
             #align slice in vertical direction
             slice_out[:, 2] = slc_loc_ver + tpl_ankle_ver

@@ -4,6 +4,9 @@ from util_math import normalize
 import multiprocessing
 from functools import partial
 import sys
+from obj_util import import_mesh
+from copy import deepcopy
+from scipy import stats
 
 #section 3.1, "t-FFD: Free-Form Deformation by using Triangular Mesh"
 def parameterize(verts, vert_effect_idxs, basis):
@@ -37,7 +40,8 @@ def parameterize(verts, vert_effect_idxs, basis):
 def calc_triangle_local_basis(verts, tris):
     basis = np.zeros((len(tris),4, 3), dtype=np.float32)
     for i, t in enumerate(tris):
-        assert len(t) == 3, f'len(tris)={len(t)} is incorrect'
+        if len(t) != 3:
+            raise Exception(f' face {i} is not a triangle. unable to calculate triangle bases')
         basis[i, 0, :] = verts[t[0]]
         basis[i, 1, :] = verts[t[1]] - verts[t[0]]
         basis[i, 2, :] = verts[t[2]] - verts[t[0]]
@@ -224,10 +228,51 @@ def deform_template_mesh(df_verts, effect_vert_tri_idxs, vert_weights, vert_UVWs
 
     return df_verts
 
-def rect_plane(rect):
-    n = np.cross(rect[2]-rect[0], rect[1]-rect[0])
-    n = n / np.linalg.norm(n)
-    p = np.mean(rect, axis=0)
-    return p,n
+class TemplateMeshDeform():
 
+    def __init__(self, effective_range, use_mean_rad):
+        self.effective_range = effective_range
+        self.use_mean_rad = use_mean_rad
 
+    def set_meshes(self, ctl_verts, ctl_tris, tpl_verts, tpl_faces):
+        self.tpl_verts = tpl_verts
+        self.tpl_faces = tpl_faces
+        self.ctl_verts = ctl_verts
+        self.ctl_tris  = ctl_tris
+        for tri in self.ctl_tris:
+            if len(tri) != 3:
+                raise Exception('Non-triangle control mesh')
+
+    def set_parameterization(self, ctl_tri_basis, vert_UVWs, vert_weights, vert_effect_idxs):
+        self.ctl_tri_basis = ctl_tri_basis
+        self.vert_UVWs = vert_UVWs
+        self.vert_weights = vert_weights
+        self.vert_effect_idxs = vert_effect_idxs
+
+    def calculate_parameterization(self):
+        print(f'\nstart calculating local basis (U,V,W) for each control mesh triangle \m')
+        self.ctl_tri_bs =  calc_triangle_local_basis(self.ctl_verts, self.ctl_tris)
+        print(f'\tfinish local basis calculation')
+
+        print(f'\nstart calculating weights')
+        print(f'\n\teffective range = {self.effective_range}, use_mean_radius = {self.use_mean_rad}')
+        self.vert_effect_idxs, self.vert_weights = calc_vertex_weigth_control_mesh_global(self.tpl_verts, self.ctl_verts, self.ctl_tris,
+                                                                                   effective_range_factor = self.effective_range,
+                                                                                   use_mean_tri_radius = self.use_mean_rad)
+        lens = np.array([len(idxs) for idxs in self.vert_effect_idxs])
+        stat = stats.describe(lens)
+        print(f'\tfinish weight calculation')
+        print(f'\tneighbor size statistics: mean number of neighbor, variance number of neighbor')
+        print(f'\t{stat}')
+
+    def deform(self, new_ctl_vert):
+        if new_ctl_vert.shape[0] != self.ctl_verts.shape[0]:
+            raise RuntimeError('invalid input control vertex array')
+
+        ctl_new_basis = calc_triangle_local_basis(new_ctl_vert, self.ctl_tris)
+
+        tpl_new_verts = deepcopy(self.tpl_verts)
+        tpl_new_faces = deepcopy(self.tpl_faces)
+        deform_template_mesh(tpl_new_verts, self.vert_effect_idxs, self.vert_weights, self.vert_UVWs, ctl_new_basis)
+
+        return tpl_new_verts, tpl_new_faces
