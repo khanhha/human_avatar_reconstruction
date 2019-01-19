@@ -5,6 +5,7 @@ from sklearn.ensemble import ExtraTreesRegressor, RandomForestRegressor
 from sklearn.multioutput import MultiOutputRegressor
 from sklearn.model_selection import GridSearchCV
 from dtreeviz.trees import *
+import sys
 
 class RBFNet():
     def __init__(self, slc_id, n_cluster = 0, n_output = 0, no_regress_at_outputs= [], debug_mode = False):
@@ -38,7 +39,7 @@ class RBFNet():
 
         nan_mask = np.isnan(X_1)
         nan_mask = np.sum(nan_mask, axis=1) > 0
-        print(f'transformed_data: nan count: {np.sum(nan_mask[:])}')
+        print(f'\ttransformed_data: nan count: {np.sum(nan_mask[:])}')
         if np.sum(nan_mask[:]) > 0:
             X_1 = X_1[~nan_mask, :]
             Y   = Y[~nan_mask, :]
@@ -69,9 +70,9 @@ class RBFNet():
 
         #self.regressor = XGBRegressor().fit(X_train, Y_train)
         #self.regressor =  GradientBoostingRegressor(**params).fit(X_train, Y_train)
-        print('regression score on train set:  ', self.regressor.score(X_train, Y_train))
-        print('regression score on test set: ', self.regressor.score(X_test, Y_test))
-        print('regression score on test mse loss: ', self.loss(X_test, Y_test))
+        print('\tregression score on train set:  ', self.regressor.score(X_train, Y_train))
+        print('\tregression score on test set: ', self.regressor.score(X_test, Y_test))
+        print('\tregression score on test mse loss: ', self.loss(X_test, Y_test))
 
         # calc median of the first and last curvature for each cluster
         n_ouput = Y.shape[1]

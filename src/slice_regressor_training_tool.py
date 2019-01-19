@@ -41,7 +41,7 @@ def load_bad_slice_names(DIR, slc_id):
             break
 
     if txt_path is None:
-        print(f'missing bad slice path of slice {slc_id}', file=sys.stderr)
+        print(f'\tno bad slice path of slice {slc_id}')
         return ()
     else:
         names = set()
@@ -111,7 +111,7 @@ def load_slice_data(SLC_CODE_DIR, bad_slc_names):
             X.append(w / d)
             Y.append(feature)
 
-    print_statistic(X, Y)
+    #print_statistic(X, Y)
 
     return np.array(X), np.array(Y), W, D, slc_names
 
@@ -215,7 +215,7 @@ if __name__ == '__main__':
     do_train_infer = int(args['train_inference']) > 0
 
     all_slc_ids = [path.stem for path in Path(ALL_SLC_DIR).glob('./*')]
-    if slc_ids == 'all':
+    if slc_ids == 'all' or slc_ids == 'All':
         slc_ids = all_slc_ids
     else:
         slc_ids = slc_ids.split(',')
@@ -233,12 +233,16 @@ if __name__ == '__main__':
     for SLC_DIR in Path(ALL_SLC_DIR).glob('*'):
         slc_id = SLC_DIR.stem
         if slc_id in slc_ids:
+
+            print(f'\nslice: {slc_id}')
+
             model_config = model_configs[slc_id]
             K = model_config['n_cluster'] if 'n_cluster' in model_config else 12
 
             slc_id = SLC_DIR.stem
             bad_slc_names = load_bad_slice_names(BAD_SLICE_DIR, slc_id)
 
+            print('\tstart loading data')
             SLC_CODE_DIR = f'{CODE_DIR}/{slc_id}/'
             X, Y, W, D, slc_idx_names = load_slice_data(SLC_CODE_DIR, bad_slc_names)
             X = np.reshape(X, (-1, 1))
@@ -252,12 +256,13 @@ if __name__ == '__main__':
                 n_output = model_config['n_output'] if 'n_output' in model_config else 10
                 no_regress_at_outputs = model_config['no_regress_at_outputs'] if 'no_regress_at_outputs' in model_config else [0, 7]
 
-            print('start training slice mode: ', slc_id)
+            print('\tstart training')
             net = RBFNet(slc_id=slc_id, n_cluster=K, n_output=n_output, no_regress_at_outputs=no_regress_at_outputs, debug_mode=True)
             net.fit(X, Y)
 
             MODEL_PATH = f'{MODEL_DIR}/{SLC_DIR.stem}.pkl'
             net.save_to_path(MODEL_PATH)
+            print(f'\tsaved model to file {MODEL_PATH}')
             net_1 = RBFNet.load_from_path(MODEL_PATH)
 
             if do_test_infer:
