@@ -1,0 +1,1 @@
+python ../../src/fftdt_deformation_reconstruct_tool.py -t ./victoria_tpl_uniform.obj -d IMG_1928_front_ctl_tri.obj -p ./global_parameterization.pkl -o ./output_deformed_mesh.obj
