@@ -68,19 +68,20 @@ if __name__ == '__main__':
 
         seg_dst_f = mdata['landmark_segment_dst_f']
         seg_dst_s = mdata['landmark_segment_dst_s']
-        seg_locs = mdata['landmark_segment_location_s']
+        seg_locs_s = mdata['landmark_segment_location_s']
+        seg_locs_f = mdata['landmark_segment_location_f']
         measurements = mdata['measurement']
         height = measurements['Height']
 
-        ctl_tri_mesh = predictor.predict(seg_dst_f, seg_dst_s, seg_locs, height)
+        ctl_tri_mesh = predictor.predict(seg_dst_f, seg_dst_s, seg_locs_s, seg_locs_f, height)
 
-        tpl_new_verts, tpl_faces = deform.deform(ctl_tri_mesh['verts'])
 
         #out_path = f'{OUT_DIR}{mdata_path.stem}_ctl_tri.obj'
         #export_mesh(out_path, verts=ctl_tri_mesh['verts'], faces=ctl_tri_mesh['faces'])
         out_path = f'{OUT_DIR}{mdata_path.stem}_ctl_quad.obj'
         export_mesh(out_path, verts=ctl_tri_mesh['verts'], faces=ctl_mesh_quad_dom['faces'])
 
+        tpl_new_verts, tpl_faces = deform.deform(ctl_tri_mesh['verts'])
         out_path = f'{OUT_DIR}{mdata_path.stem}_tpl_deformed.obj'
         export_mesh(out_path, verts=tpl_new_verts, faces=tpl_faces)
 
