@@ -38,20 +38,24 @@
         -ids Hip
         -test_infer 1 
         -train_infer 0
+        
+    4. @Jason. if you want to create a neural network model, you might want to modify the file slice_regressor_nn.py
+    and create another training file like slice_regressor_training_tool.py for your models
+    
     
 # How to run shape-key analysis
-1. set up enviroment 
-	conda create --name human_estimation
-	conda install -n human_estimation -c conda-forge opencv 
-	conda install -n human_estimation scipy numpy matplotlib
-	conda activate human_estimation
+    1. set up enviroment 
+        conda create --name human_estimation
+        conda install -n human_estimation -c conda-forge opencv 
+        conda install -n human_estimation scipy numpy matplotlib
+	    conda activate human_estimation
 
-2. what does shape_key_analyze do?
-    this code preprocesses silhouette projections from Blender
-    and compare silhouettes of each shape-key at values of 0 and 1
+    2. what does shape_key_analyze do?
+        this code preprocesses silhouette projections from Blender
+        and compare silhouettes of each shape-key at values of 0 and 1
     
-3. instruction to analysize silhouete from blender's silhouette projections	
-	- download blender projects: victoria_silhouette_projection.zip
-    	- run two blender projects to project 3D models to front and side silhouettes (update the output directories)
-    	- update directories in the file shape_key_analyze.py to point to blender silhouette directories
-    	- run shape_key_analyze.py
+    3. instruction to analysize silhouete from blender's silhouette projections	
+        - download blender projects: victoria_silhouette_projection.zip
+            - run two blender projects to project 3D models to front and side silhouettes (update the output directories)
+            - update directories in the file shape_key_analyze.py to point to blender silhouette directories
+            - run shape_key_analyze.py
