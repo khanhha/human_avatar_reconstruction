@@ -195,14 +195,14 @@ def plot_all_contour_correlation():
 
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
-    ap.add_argument("-i", "--input", required=True, help="input meta data file")
-    ap.add_argument("-c", "--code", required=True, help="contour code")
-    ap.add_argument("-d", "--debug", required=True, help="input meta data file")
-    ap.add_argument("-m", "--model", required=True, help="input meta data file")
-    ap.add_argument("-b", "--bad_slice_dir", required=True, help="input meta data file")
-    ap.add_argument("-ids", "--slc_ids", required=True, help="input meta data file")
-    ap.add_argument("-test_infer", "--test_inference", required=True, help="input meta data file")
-    ap.add_argument("-train_infer", "--train_inference", required=True, help="input meta data file")
+    ap.add_argument("-i", "--input", required=True, help="root directory contains all slice directory")
+    ap.add_argument("-c", "--code", required=True, help="root directory contains all slice code directory")
+    ap.add_argument("-d", "--debug", required=True, help="debug directory to output inference result")
+    ap.add_argument("-m", "--model", required=True, help="output directory to save model")
+    ap.add_argument("-b", "--bad_slice_dir", required=True, help="folder that contains text files storing bad slice name for each slice type")
+    ap.add_argument("-ids", "--slc_ids", required=True, help="slice ids for training. refering to the folder name under root slice directory")
+    ap.add_argument("-test_infer", "--test_inference", required=True, help="do inference on the test data using the trained model?")
+    ap.add_argument("-train_infer", "--train_inference", required=True, help="do inference on the training data using the trained model?")
 
     args = vars(ap.parse_args())
     ALL_SLC_DIR  = args['input']
