@@ -26,8 +26,19 @@
         conda install -c conda-forge shapely 
         conda install -c anaconda tensorflow-gpu keras
         pip install dtreeviz
-    2. download dataset
-    3. run slice_regressor_training_tool.py
+        
+    2. download dataset, denote the path to the dataset is DATA_SET_DIR
+    
+    3. run slice_regressor_training_tool.py 
+        -i DATA_SET_DIR/female_slice/ 
+        -c DATA_SET_DIR/slice_code/fourier/ 
+        -b DATA_SET_DIR/bad_slices/ 
+        -d OUTPUT_DEBUG_DIR 
+        -m OUPUT_MODEL_DIR
+        -ids Hip
+        -test_infer 1 
+        -train_infer 0
+    
 # How to run shape-key analysis
 1. set up enviroment 
 	conda create --name human_estimation
