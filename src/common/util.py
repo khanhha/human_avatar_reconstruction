@@ -116,7 +116,7 @@ def reconstruct_contour_fourier(fourier, use_radal = False):
         for i in range(0, n, 2):
             angle = fourier[i]
             value =  fourier[i+1]
-            cpl   = value * np.exp(np.complex(real=0.0, imag=angle))
+            cpl   = value * np.exp(np.complex(re=0.0, im=angle))
             fouriers.append(cpl)
     else:
         for i in range(0, n, 2):
@@ -128,6 +128,42 @@ def reconstruct_contour_fourier(fourier, use_radal = False):
     X = np.real(cpl_contour)
     Y = np.imag(cpl_contour)
     return np.concatenate([X.reshape(1, -1), Y.reshape(1, -1)], axis=0)
+
+#this function is just for the debugging about the behavior of fourier descriptor
+def reconstruct_contour_fourier_zero_padding(fourier, use_radal=False):
+    n = len(fourier)
+    fouriers = []
+    fouriers.append(np.complex(0.0, 0.0))
+    if use_radal:
+        for i in range(0, n, 2):
+            angle = fourier[i]
+            value = fourier[i + 1]
+            cpl = value * np.exp(np.complex(real=0.0, imag=angle))
+            fouriers.append(cpl)
+    else:
+        for i in range(0, n, 2):
+            real = fourier[i]
+            img = fourier[i + 1]
+            fouriers.append(np.complex(real, img))
+
+    cpl_contour = ifft(fouriers)
+    X = np.real(cpl_contour)
+    Y = np.imag(cpl_contour)
+
+    fouriers_1 = fouriers[:8] + 12*[np.complex(0, 0)] + fouriers[8:] + 12*[np.complex(0, 0)]
+    cpl_contour1 = ifft(fouriers_1)
+    X1 = np.real(cpl_contour1)
+    Y1 = np.imag(cpl_contour1)
+
+    plt.axes().set_aspect(1.0)
+    plt.plot(X, Y, 'r')
+    plt.plot(X, Y, '+r')
+    plt.plot(X1, Y1, 'b')
+    plt.plot(X1, Y1, '+b')
+    plt.show()
+
+    return np.concatenate([X.reshape(1, -1), Y.reshape(1, -1)], axis=0)
+
 
 def reconstruct_leg_slice_contour(feature, D, W):
     p0 = np.array([D*feature[-2]*feature[-1], 0])
