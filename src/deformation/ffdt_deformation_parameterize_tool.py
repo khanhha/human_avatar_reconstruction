@@ -1,6 +1,6 @@
 import argparse
 import pickle
-import ffdt_deformation_lib as df
+from deformation import ffdt_deformation_lib as df
 import numpy as np
 import scipy.stats as stats
 from obj_util import import_mesh

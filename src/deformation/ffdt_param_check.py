@@ -1,6 +1,5 @@
 import argparse
 import pickle
-import ffdt_deformation_lib as df
 import numpy as np
 from obj_util import import_mesh, export_mesh
 from copy import deepcopy

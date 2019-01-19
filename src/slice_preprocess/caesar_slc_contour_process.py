@@ -3,21 +3,15 @@ import pickle
 import argparse
 import os
 import matplotlib.pyplot as plt
-from shapely.geometry import LinearRing, LineString, Point, Polygon
-import shapely.affinity as affinity
+from shapely.geometry import LinearRing, LineString
 from numpy.linalg import norm
 from pathlib import Path
-import math
 import src.util as util
-from src.caesar_slc_fix_bust import \
+from slice_preprocess.slice_preprocess import \
     remove_arm_from_bust_slice, remove_arm_from_under_bust_slice, remove_arm_from_armscye_slice, fix_bust_height, preprocess_contour
 import multiprocessing
 import sys
-from scipy.spatial import ConvexHull
-import scipy.ndimage as ndimage
 import shutil
-from scipy.interpolate import splev, splrep, splprep, splev
-import cv2 as cv
 
 G_cur_file_path = Path()
 IN_DIR = ''
