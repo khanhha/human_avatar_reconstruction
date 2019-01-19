@@ -1,12 +1,11 @@
 import os
 from pathlib import Path
-import numpy as np
 import argparse
 import multiprocessing
 import pickle
 from functools import partial
 import shutil
-import src.util as util
+import common.util as util
 
 G_DEBUG_ROOT_DIR = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/debug/'
 G_DEBUG_SLC_DIR = ''

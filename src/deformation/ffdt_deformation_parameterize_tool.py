@@ -3,7 +3,7 @@ import pickle
 from deformation import ffdt_deformation_lib as df
 import numpy as np
 import scipy.stats as stats
-from obj_util import import_mesh
+from common.obj_util import import_mesh
 
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()

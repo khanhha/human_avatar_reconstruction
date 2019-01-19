@@ -1,7 +1,6 @@
 from control_mesh import  ControlMeshPredictor
 from deformation.ffdt_deformation_lib import TemplateMeshDeform
-from obj_util import export_mesh
-from slice_regressor import RBFNet
+from common.obj_util import export_mesh
 import numpy as np
 from pathlib import Path
 import argparse

@@ -4,7 +4,7 @@ import argparse
 import os
 import matplotlib.pyplot as plt
 from pathlib import Path
-from src.obj_util import load_vertices, export_vertices
+from common.obj_util import load_vertices, export_vertices
 from tsp_solver.greedy import solve_tsp
 import pickle
 

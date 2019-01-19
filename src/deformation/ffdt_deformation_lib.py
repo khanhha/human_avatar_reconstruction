@@ -1,10 +1,9 @@
 import numpy as np
 from collections import defaultdict
-from util_math import normalize
+from common.util_math import normalize
 import multiprocessing
 from functools import partial
 import sys
-from obj_util import import_mesh
 from copy import deepcopy
 from scipy import stats
 

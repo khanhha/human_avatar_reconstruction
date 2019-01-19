@@ -4,7 +4,7 @@ import os
 import sys
 import numpy as np
 from pathlib import Path
-from src.obj_util import export_mesh, export_vertices
+from common.obj_util import export_mesh, export_vertices
 
 def extract_landmark_coords(points, ld_idxs):
     points_out = []

@@ -4,13 +4,10 @@ from pathlib import Path
 import pickle
 import argparse
 import os
-import sys
 from shapely.geometry import LinearRing, LineString, Point, MultiPoint
-import shapely.geometry as geo
 import shapely.ops as ops
-import math
 import shutil
-import src.util as util
+import common.util as util
 from numpy.linalg import norm
 from copy import copy
 
@@ -479,7 +476,7 @@ def fix_bust_height(bust_contour, sup_points, ld_points, armscye_contour, debug_
 
             final_contour = np.concatenate([half_contour, other_half_contour[::-1,:]])
 
-        final_contour[:,0], final_contour[:,1] = util.smooth_contour(final_contour[:,0], final_contour[:,1], sigma=2)
+        final_contour[:,0], final_contour[:,1] = util.smooth_contour(final_contour[:, 0], final_contour[:, 1], sigma=2)
         final_contour += mirror_centroid
 
         if debug_path is not None:

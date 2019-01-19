@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 from shapely.geometry import LinearRing, LineString
 from numpy.linalg import norm
 from pathlib import Path
-import src.util as util
+import common.util as util
 from slice_preprocess.slice_preprocess import \
     remove_arm_from_bust_slice, remove_arm_from_under_bust_slice, remove_arm_from_armscye_slice, fix_bust_height, preprocess_contour
 import multiprocessing

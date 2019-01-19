@@ -1,10 +1,10 @@
 import numpy as np
 from pathlib import Path
 from numpy.linalg import norm
-import src.util as util
+import common.util as util
 import shapely.geometry as geo
 from shapely.ops import nearest_points
-from src.slice_regressor import RBFNet
+from src.slice_regressor_dtree import RBFNet
 from scipy.spatial import KDTree
 from copy import copy
 from copy import deepcopy
@@ -77,23 +77,23 @@ def bone_lengths(arm_2d, ratio):
 def scale_tpl_armature(arm_3d, arm_2d, ratio):
     #leg
     blengths = bone_lengths(arm_2d, ratio)
-    arm_3d['LKnee'] = arm_3d['LAnkle'] + blengths['Shin']*util.normalize(arm_3d['LKnee'] - arm_3d['LAnkle'])
-    arm_3d['LHip']  = arm_3d['LKnee']  + blengths['Thigh']*util.normalize(arm_3d['LHip'] - arm_3d['LKnee'])
+    arm_3d['LKnee'] = arm_3d['LAnkle'] + blengths['Shin'] * util.normalize(arm_3d['LKnee'] - arm_3d['LAnkle'])
+    arm_3d['LHip']  = arm_3d['LKnee'] + blengths['Thigh'] * util.normalize(arm_3d['LHip'] - arm_3d['LKnee'])
 
     midhip = 0.5*(arm_3d['LHip'] + arm_3d['RHip'])
-    arm_3d['Neck'] = midhip + blengths['Torso']*util.normalize(arm_3d['Neck'] - midhip)
+    arm_3d['Neck'] = midhip + blengths['Torso'] * util.normalize(arm_3d['Neck'] - midhip)
     #TODO: Crotch, Spine, Chest
 
-    arm_3d['LShoulder'] = arm_3d['Neck'] + blengths['Shoulder']*util.normalize(arm_3d['LShoulder'] - arm_3d['Neck'])
+    arm_3d['LShoulder'] = arm_3d['Neck'] + blengths['Shoulder'] * util.normalize(arm_3d['LShoulder'] - arm_3d['Neck'])
 
-    arm_3d['LElbow'] = arm_3d['LShoulder'] + blengths['UpperArm']*util.normalize(arm_3d['LElbow'] - arm_3d['LShoulder'])
+    arm_3d['LElbow'] = arm_3d['LShoulder'] + blengths['UpperArm'] * util.normalize(arm_3d['LElbow'] - arm_3d['LShoulder'])
 
-    arm_3d['LWrist'] = arm_3d['LElbow'] + blengths['ForeArm']*util.normalize(arm_3d['LWrist'] - arm_3d['LElbow'])
+    arm_3d['LWrist'] = arm_3d['LElbow'] + blengths['ForeArm'] * util.normalize(arm_3d['LWrist'] - arm_3d['LElbow'])
 
     return arm_3d
 
 def infer_arm_slice_locations(shoulder_slc_loc, neck_shoulder_len, armature, upper_arm_len, under_arm_len):
-    neck_shoulder_dir = util.normalize(armature['LShoulder'] - armature['LNeck'] )
+    neck_shoulder_dir = util.normalize(armature['LShoulder'] - armature['LNeck'])
     shoulder = shoulder_slc_loc + neck_shoulder_len * neck_shoulder_dir
 
     upper_arm_dir = util.normalize(armature['LElbow'] - armature['LShoulder'])
@@ -229,7 +229,7 @@ def projec_mesh_onto_mesh(mesh_0, mesh_0_vert_idxs, mesh_1):
         for f_idx in idxs:
             f = faces_1[f_idx]
             assert len(f) == 4
-            on_quad_p = util.closest_on_quad_to_point_v3(v_co, verts_1[f[0],:], verts_1[f[1],:], verts_1[f[2],:], verts_1[f[3],:])
+            on_quad_p = util.closest_on_quad_to_point_v3(v_co, verts_1[f[0], :], verts_1[f[1], :], verts_1[f[2], :], verts_1[f[3], :])
             dst = norm(on_quad_p - v_co)
             if dst < cls_dst:
                 cls_dst = dst

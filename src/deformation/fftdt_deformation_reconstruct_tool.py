@@ -1,7 +1,7 @@
 import argparse
 import pickle
 from deformation import ffdt_deformation_lib as df
-from obj_util import import_mesh, export_mesh
+from common.obj_util import import_mesh, export_mesh
 from copy import deepcopy
 
 if __name__ == '__main__':

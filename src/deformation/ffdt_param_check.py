@@ -1,7 +1,7 @@
 import argparse
 import pickle
 import numpy as np
-from obj_util import import_mesh, export_mesh
+from common.obj_util import import_mesh, export_mesh
 from copy import deepcopy
 import os
 def merge_two_mesh(verts_0, tris_0, verts_1, tris_1):
