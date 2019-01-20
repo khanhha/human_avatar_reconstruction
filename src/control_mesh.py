@@ -332,6 +332,18 @@ class ControlMeshPredictor():
         self.slc_id_locs = slc_id_locs
         self.arm_3d_tpl = arm_3d_tpl
 
+        #make leg slices zero-centered
+        for id, slc_idxs in self.slc_id_vert_idxs.items():
+            if id[0] == 'L' or id[0] == 'R':
+                pure_id = id[1:]
+                is_leg = util.is_leg_contour(pure_id)
+                if is_leg:
+                    slice = self.ctl_mesh['verts'][slc_idxs]
+                    #loc = self.slc_id_locs[id]
+                    x_mid = 0.5*(np.min(slice[:,0]) + np.max(slice[:,0]))
+                    slice[:,0] = slice[:,0] - x_mid
+                    self.ctl_mesh['verts'][slc_idxs] = slice
+
         self.ctl_sym_vert_pairs = ctl_sym_vert_pairs #symmetry information. for leg and arm slices, we just predict the left side
 
         print('control  mesh: nverts = {0}, ntris = {1}'.format(self.ctl_mesh['verts'].shape[0],
@@ -349,8 +361,6 @@ class ControlMeshPredictor():
         ctl_new_mesh = deepcopy(self.ctl_mesh)
 
         #hack: the background z value extracted from image is not exact. therefore, we consider ankle z as the z starting point
-        #tpl_ankle_hor = self.slc_id_locs['LAnkle'][1]
-        #tpl_ankle_ver = self.slc_id_locs['LAnkle'][2]
         ctl_ankle_loc = self.slc_id_locs['LAnkle']
 
         h_ratio = self.tpl_height / height
@@ -410,10 +420,6 @@ class ControlMeshPredictor():
                 slice_out[:,0] =  res_contour[1,:]
                 slice_out[:,1] =  res_contour[0,:]
 
-                #the slice prediction is centered at zero. here we shift the zero-centered prediction slice to the corresponding slice center of Victoria
-                if util.is_leg_contour(id_2d):
-                    slice_out += np.mean(slice, axis=0)
-
             #we apply x,y scaling to make sure that our the final slice match width/height measurement
             dim_range = np.max(slice_out, axis=0) - np.min(slice_out, axis=0)
             w_ratio = w / dim_range[0]
@@ -436,8 +442,7 @@ class ControlMeshPredictor():
 
             #arrange leg slice
             if util.is_leg_contour(id_2d):
-                slice_x_anchor = np.max(slice_out[:, 0])
-                slice_out[:, 0] += (slc_loc_x - slice_x_anchor + ctl_ankle_loc[0])
+                slice_out[:, 0] += slc_loc_x
 
             ctl_new_mesh['verts'][slc_idxs, :] = slice_out
 
@@ -454,231 +459,4 @@ class ControlMeshPredictor():
         ctl_mesh_tri_new['verts'] = deepcopy(ctl_new_mesh['verts'])
 
         return ctl_mesh_tri_new
-
-# if __name__ == '__main__':
-#     ap = argparse.ArgumentParser()
-#     ap.add_argument("-i", "--input", required=True, help="input meta data file")
-#     ap.add_argument("-m", "--measure_dir", required=True, help="measurement 2d data directory")
-#     ap.add_argument("-o", "--out_dir", required=True, help="directory for expxorting control mesh slices")
-#     ap.add_argument("-w", "--weight", required=True, help="deform based on weight")
-#     ap.add_argument("-mo", "--model_dir", required=True, help="deform based on weight")
-#
-#     args = vars(ap.parse_args())
-#
-#     in_path = args['input']
-#     M_DIR = args['measure_dir']
-#     OUT_DIR = args['out_dir'] + '/'
-#
-#     weight_path = args['weight']
-#
-#     MODEL_DIR = args['model_dir']
-#     models = {}
-#     for path in Path(MODEL_DIR).glob('*.pkl'):
-#         models[path.stem] = RBFNet.load_from_path(path)
-#     print('load models: ', models.keys())
-#
-#     for fpath in Path(OUT_DIR).glob('*.*'):
-#         os.remove(str(fpath))
-#
-#     with open(in_path, 'rb') as f:
-#         data = pickle.load(f)
-#         ctl_mesh = data['control_mesh']
-#         ctl_mesh_quad_dom = data['control_mesh_quad_dom']
-#         slc_id_vert_idxs = data['slice_vert_idxs']
-#         slc_id_locs = data['slice_locs']
-#         arm_3d_tpl = data['arm_bone_locs']
-#
-#         ctl_sym_vert_pairs = data['control_mesh_symmetric_vert_pairs']
-#
-#         tpl_sym_vert_pairs = data['template_symmetric_vert_pairs']
-#         tpl_lbody_vert_idxs = [pair[0] for pair in tpl_sym_vert_pairs]
-#         tpl_rbody_vert_idxs = [pair[1] for pair in tpl_sym_vert_pairs]
-#
-#         tpl_mesh = data['template_mesh']
-#         tpl_height = data['template_height']
-#
-#     print('control  mesh: nverts = {0}, ntris = {1}'.format(ctl_mesh['verts'].shape[0], len(ctl_mesh['faces'])))
-#     print('victoria mesh: nverts = {0}, ntris = {1}'.format(tpl_mesh['verts'].shape[0], len(tpl_mesh['faces'])))
-#
-#     for mdata_path in Path(M_DIR).glob('*.npy'):
-#         print(mdata_path)
-#
-#         # load 2d measurements
-#         mdata = np.load(mdata_path )
-#         seg_dst_f = mdata.item().get('landmark_segment_dst_f')
-#         seg_dst_s = mdata.item().get('landmark_segment_dst_s')
-#         seg_location = mdata.item().get('landmark_segment_location_s')
-#         measurements = mdata.item().get('measurement')
-#         height = measurements['Height']
-#
-#         arm_2d_f = mdata.item().get('armature_f')
-#         h_ratio = tpl_height / height
-#         arm_3d = scale_tpl_armature(arm_3d_tpl, arm_2d_f, h_ratio)
-#
-#         id_mappings = slice_id_3d_2d_mappings()
-#
-#         ctl_new_mesh = deepcopy(ctl_mesh)
-#
-#         #hack: the background z value extracted from image is not exact. therefore, we consider ankle z as the z starting point
-#         tpl_ankle_hor = slc_id_locs['LAnkle'][1]
-#         tpl_ankle_ver = slc_id_locs['LAnkle'][2]
-#
-#         #slice location in relative to ankle location in side image
-#         for id_3d, id_2d in id_mappings.items():
-#             #ignore the right body part
-#             if id_3d[0] == 'R':
-#                 continue
-#
-#             if id_3d == 'Shoulder':
-#                 debug = True
-#
-#             if id_3d not in slc_id_vert_idxs:
-#                 print(f'indices of {id_3d} are not available', file=sys.stderr)
-#                 continue
-#
-#             slc_idxs = slc_id_vert_idxs[id_3d]
-#             slice = ctl_mesh['verts'][slc_idxs]
-#
-#             if id_2d not in seg_dst_f:
-#                 print(f'measurement of {id_2d} is not available', file=sys.stderr)
-#                 continue
-#
-#             if id_2d not in seg_location:
-#                 print(f'location of {id_2d} is not available. ignore this slice', file=sys.stderr)
-#                 continue
-#
-#             seg_log = seg_location[id_2d]
-#
-#             w = seg_dst_f[id_2d]
-#
-#             d = w
-#             if id_2d in seg_dst_s:
-#                 d = seg_dst_s[id_2d]
-#
-#             slc_loc_hor = seg_log[0]
-#             slc_loc_ver = np.abs(seg_log[1])
-#
-#             #transform to victoria's scale
-#             w = w*h_ratio
-#             d = d*h_ratio
-#             slc_loc_ver = slc_loc_ver * h_ratio
-#             slc_loc_hor = slc_loc_hor * h_ratio
-#
-#             #slc_org = slc_id_locs[id_3d]
-#
-#             slice_out = copy(slice)
-#             #TEST
-#             if id_2d in models:
-#                 if id_2d == 'Shoulder':
-#                     debug = True
-#                 print('\t applied ', id_2d)
-#                 model = models[id_2d]
-#                 ratio = w/d
-#                 pred = model.predict(np.reshape(ratio, (1,1)))[0, :]
-#                 fourier = True
-#                 if fourier:
-#                     res_contour = util.reconstruct_contour_fourier(pred)
-#                 else:
-#                     if util.is_leg_contour(id_2d):
-#                         res_contour = util.reconstruct_leg_slice_contour(pred, d, w)
-#                     else:
-#                         res_contour = util.reconstruct_torso_slice_contour(pred, d, w, mirror=True)
-#
-#                 slice_out[:,0] =  res_contour[1,:]
-#                 slice_out[:,1] =  res_contour[0,:]
-#
-#                 if util.is_leg_contour(id_2d):
-#                     slice_out += np.mean(slice, axis=0)
-#
-#             dim_range = np.max(slice_out, axis=0) - np.min(slice_out, axis=0)
-#             w_ratio = w / dim_range[0]
-#             d_ratio = d / dim_range[1]
-#             slice_out = scale_vertical_slice(slice_out, w_ratio, d_ratio)
-#
-#             if util.is_torso_contour(id_2d):
-#                 if id_2d == 'Hip' or 'Crotch' in id_2d:
-#                     slice_out = fix_crotch_hip_cleavage(slice_out, d)
-#
-#             # if id_2d == 'UnderCrotch':
-#             #     plt.clf()
-#             #     plt.axes().set_aspect(1.0)
-#             #     plt.plot(res_contour[1, :], res_contour[0, :], '-r')
-#             #     plt.plot(res_contour[1, 0], res_contour[0, 0], '+r', ms=20)
-#             #     plt.plot(res_contour[1, 2], res_contour[0, 2], '+g', ms=20)
-#             #
-#             #     plt.plot(slice_out[:, 0], slice_out[:, 1], '-b')
-#             #     plt.plot(slice_out[0, 0], slice_out[0, 1], '+r', ms=20)
-#             #     plt.plot(slice_out[2, 0], slice_out[2, 1], '+g', ms=20)
-#             #
-#             #     plt.plot(slice[:, 0], slice[:, 1], '-y')
-#             #     plt.plot(slice[0, 0], slice[0, 1], '+r', ms=20)
-#             #     plt.plot(slice[2, 0], slice[2, 1], '+g', ms=20)
-#             #     plt.savefig(f'{OUTPUT_DEBUG_DIR_TEST}{idx}.png')
-#             #     plt.show()
-#
-#             #align slice in vertical direction
-#             slice_out[:, 2] = slc_loc_ver + tpl_ankle_ver
-#
-#             #align slice in horizontal direction
-#             #Warning: need to be careful here. we assume that the maximum point on hor dir is on the back side of Victoria's mesh
-#             slice_hor_anchor = np.max(slice_out[:,1])
-#             slice_out[:, 1] += (-slice_hor_anchor + tpl_ankle_hor + slc_loc_hor)
-#
-#             ctl_new_mesh['verts'][slc_idxs, :] = slice_out
-#
-#         #transform_arm_slices(ctl_new_mesh, slc_id_locs, slc_id_vert_idxs, arm_3d)
-#
-#         verts = ctl_new_mesh['verts']
-#         for pair in ctl_sym_vert_pairs:
-#             mirror_co = deepcopy(verts[pair[0]])
-#             mirror_co[0] = -mirror_co[0]
-#             verts[pair[1]] = mirror_co
-#
-#         out_path = f'{OUT_DIR}{mdata_path.stem}ctl_quad.obj'
-#         ctl_mesh_quad_dom_new = deepcopy(ctl_mesh_quad_dom)
-#         ctl_mesh_quad_dom_new['verts'] = deepcopy(ctl_new_mesh['verts'])
-#         print(f'\toutput control mesh, quad version: {out_path}')
-#         export_mesh(out_path, ctl_mesh_quad_dom_new['verts'], ctl_mesh_quad_dom_new['faces'])
-#
-#         out_path = f'{OUT_DIR}{mdata_path.stem}ctl_tri.obj'
-#         ctl_mesh_tri_new = deepcopy(ctl_mesh)
-#         ctl_mesh_tri_new['verts'] = deepcopy(ctl_new_mesh['verts'])
-#         print(f'\toutput control mesh, triangle version: {out_path}')
-#         export_mesh(out_path, ctl_mesh_tri_new['verts'], ctl_mesh_tri_new['faces'])
-#
-#         ctl_new_mesh_1 = subdivide_catmull_temp(ctl_mesh_quad_dom_new)
-#         out_path = f'{OUT_DIR}{mdata_path.stem}_ctl_subdivided.obj'
-#         print(f'\toutput subdivided control mesh: {out_path}')
-#         export_mesh(out_path, ctl_new_mesh_1['verts'], ctl_new_mesh_1['faces'])
-#
-#         if Path(weight_path).is_file():
-#             with open(weight_path, 'rb') as f:
-#                 data = pickle.load(f)
-#                 ctl_tri_bs = data['control_mesh_tri_basis']
-#                 vert_UVWs = data['template_vert_UVW']
-#                 vert_weights = data['template_vert_weight']
-#                 vert_effect_idxs = data['template_vert_effect_idxs']
-#
-#             ctl_df_basis = df.calc_triangle_local_basis(ctl_new_mesh['verts'], ctl_new_mesh['faces'])
-#
-#             tpl_df_mesh = deepcopy(tpl_mesh)
-#             df.deform_template_mesh(tpl_df_mesh['verts'], vert_effect_idxs, vert_weights, vert_UVWs, ctl_df_basis)
-#
-#             out_path = f'{OUT_DIR}{mdata_path.stem}_deform.obj'
-#             print(f'\toutput deformed mesh to {out_path}')
-#             export_mesh(out_path, tpl_df_mesh['verts'], tpl_df_mesh['faces'])
-#
-#             projec_mesh_onto_mesh(tpl_df_mesh, tpl_lbody_vert_idxs, ctl_new_mesh_1)
-#
-#             #mirror
-#             verts = tpl_df_mesh['verts']
-#             for pair in tpl_sym_vert_pairs:
-#                 mirror_co = deepcopy(verts[pair[0]])
-#                 mirror_co[0] = -mirror_co[0]
-#                 verts[pair[1]] = mirror_co
-#
-#             out_path = f'{OUT_DIR}{mdata_path.stem}_deform_projected.obj'
-#             print(f'\toutput deformed mesh to {out_path}')
-#             export_mesh(out_path, tpl_df_mesh['verts'], tpl_df_mesh['faces'])
-
 

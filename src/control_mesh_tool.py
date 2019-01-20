@@ -60,6 +60,8 @@ if __name__ == '__main__':
         deform.set_parameterization(ctl_tri_basis=ctl_tri_bs, vert_UVWs=vert_UVWs, vert_weights=vert_weights, vert_effect_idxs=vert_effect_idxs)
 
     for i, mdata_path in enumerate(Path(M_DIR).glob('*.npy')):
+        # if 'CSR2776A' not in mdata_path.name:
+        #     continue
         print(mdata_path)
 
         # load 2d measurements
@@ -80,9 +82,9 @@ if __name__ == '__main__':
         out_path = f'{OUT_DIR}{mdata_path.stem}_ctl_quad.obj'
         export_mesh(out_path, verts=ctl_tri_mesh['verts'], faces=ctl_mesh_quad_dom['faces'])
 
-        tpl_new_verts, tpl_faces = deform.deform(ctl_tri_mesh['verts'])
-        out_path = f'{OUT_DIR}{mdata_path.stem}_tpl_deformed.obj'
-        export_mesh(out_path, verts=tpl_new_verts, faces=tpl_faces)
+        # tpl_new_verts, tpl_faces = deform.deform(ctl_tri_mesh['verts'])
+        # out_path = f'{OUT_DIR}{mdata_path.stem}_tpl_deformed.obj'
+        # export_mesh(out_path, verts=tpl_new_verts, faces=tpl_faces)
 
         if i > 10:
             break
