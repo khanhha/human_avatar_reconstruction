@@ -48,11 +48,15 @@
         -ids Hip
         -test_infer 1 
         -train_infer 0
-
-	the parameter ids tell the tool whicd slice type it should train. The slice id is corresponding to sub folder names under DATA_SET_DIR/female_slice
-        
-    4. @Jason. if you want to create a neural network model, you might want to modify the file slice_regressor_nn.py
-    and create another training file like slice_regressor_training_tool.py for your models
+    
+	the parameter "ids" tell the tool which slice type it should train. The slice id is corresponding to sub folder names under DATA_SET_DIR/female_slice
+    
+    the parameter "test_infer" tells the tool to use the model to infer the slice contour from the trained models and output result visualiazation to the folder OUTPUT_DEBUG_DIR
+     
+    4. code guildelines
+        - to understand about training data, please refer to the function "load_slice_data" in slice_regressor_training_tool
+        - to understand about k-means clustering, model training, please refer to the model definition inside slice_regressor_detree.py
+   
     
     
 # How to run shape-key analysis
