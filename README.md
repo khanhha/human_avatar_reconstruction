@@ -20,6 +20,13 @@
         - reconstruct a new template mesh based on the deformed control mesh
             python ./src/fftdt_deformation_reconstruct_tool.py -t ./data/meta_data/origin_template_mesh.obj -d ./data/ctr_mesh/IMG_1928_front_ctl_tri.obj -p ./data/meta_data/global_parameterization.pkl -o ./data/meta_data/output_deformed_mesh.obj
 
+# Pipeline
+  ![Alt text](./data/diagrams/slice_extraction.png)
+  
+  ![Alt text](./data/diagrams/slice_model_training.png)
+  
+  ![Alt text](./data/diagrams/slice_prediction.png)
+  
 # How to train slice models
     1. install libraries
         conda install numpy scipy matplotlib scikit-learn
