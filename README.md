@@ -28,11 +28,11 @@
         pip install dtreeviz
         
     2. download dataset, denote the path to the dataset is DATA_SET_DIR
-    	DATA_SET_DIR/female_slice contains slice contours of caesar females. Each contour consist of (x,y) coordinates. These contours are just for the purpose of visualization. 
+    	- DATA_SET_DIR/female_slice contains slice contours of caesar females. Each contour consist of (x,y) coordinates. These contours are just for the purpose of visualization. 
 	
-	DATA_SET_DIR/slice_code/fourier contains the actual training data. It consists of width, depth and fourier code of each contour. Note that fourier code is already scaled and normalized. To understand more about the data structure, please check the function load_slice_data in file slice_regressor_training_tool.py
+	- DATA_SET_DIR/slice_code/fourier contains the actual training data. It consists of width, depth and fourier code of each contour. Note that fourier code is already scaled and normalized. To understand more about the data structure, please check the function load_slice_data in file slice_regressor_training_tool.py
 	
-	DATA_SET_DIR/bad_slices contrains a text file which list bad, irregular file names for each type of slice
+	- DATA_SET_DIR/bad_slices contrains a text file which list bad, irregular file names for each type of slice
 	
     3. run slice_regressor_training_tool.py 
         -i DATA_SET_DIR/female_slice/ 
