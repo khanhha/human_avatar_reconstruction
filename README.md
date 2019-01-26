@@ -23,7 +23,7 @@
 # Pipeline
   ![Alt text](./data/diagrams/slice_extraction.png)
   
-  ![Alt text](./data/diagrams/slice_model_training.png)
+  ![Alt text](./data/diagrams/slice_training_model.png)
   
   ![Alt text](./data/diagrams/slice_prediction.png)
   
