@@ -363,7 +363,8 @@ class ControlMeshPredictor():
         #hack: the background z value extracted from image is not exact. therefore, we consider ankle z as the z starting point
         ctl_ankle_loc = self.slc_id_locs['LAnkle']
 
-        h_ratio = self.tpl_height / height
+        # h_ratio = self.tpl_height / height
+        h_ratio = 1.0
 
         #slice location in relative to ankle location in side image
         for id_3d, id_2d in id_mappings.items():
@@ -411,7 +412,7 @@ class ControlMeshPredictor():
             slice_out = copy(slice)
 
             if id_2d in self.models:
-                print('\t applied ', id_2d)
+                #print('\t applied ', id_2d)
                 model = self.models[id_2d]
                 ratio = w/d
                 pred = model.predict(np.reshape(ratio, (1,1)))[0, :]
@@ -419,6 +420,13 @@ class ControlMeshPredictor():
 
                 slice_out[:,0] =  res_contour[1,:]
                 slice_out[:,1] =  res_contour[0,:]
+
+                if id_2d == 'Bust':
+                    import matplotlib.pyplot as plt
+                    plt.plot(slice_out[:,0], slice_out[:,1], '-b')
+                    plt.plot(slice_out[:,0], slice_out[:,1], '+r')
+                    plt.show()
+
 
             #we apply x,y scaling to make sure that our the final slice match width/height measurement
             dim_range = np.max(slice_out, axis=0) - np.min(slice_out, axis=0)

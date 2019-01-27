@@ -7,6 +7,42 @@ import argparse
 import pickle
 import shutil
 import os
+from tqdm import *
+import multiprocessing
+from functools import partial
+import gc
+
+def util_reconstruct_single_mesh(record, OUT_DIR, predictor, deformer):
+    idx = record[0]
+    mdata_path = record[1]
+
+    if 'CSR0095A' not in mdata_path.name:
+         return
+
+    if idx % 20 == 0:
+        print(f'{idx} - {mdata_path.name}')
+
+    # load 2d measurements
+    mdata = np.load(mdata_path).item()
+
+    seg_dst_f = mdata['landmark_segment_dst_f']
+    seg_dst_s = mdata['landmark_segment_dst_s']
+    seg_locs_s = mdata['landmark_segment_location_s']
+    seg_locs_f = mdata['landmark_segment_location_f']
+    measurements = mdata['measurement']
+    height = measurements['Height']
+
+    ctl_tri_mesh = predictor.predict(seg_dst_f, seg_dst_s, seg_locs_s, seg_locs_f, height)
+
+    # out_path = f'{OUT_DIR}{mdata_path.stem}_ctl_tri.obj'
+    # export_mesh(out_path, verts=ctl_tri_mesh['verts'], faces=ctl_tri_mesh['faces'])
+    out_path = f'{OUT_DIR}{mdata_path.stem}_ctl_quad.obj'
+    export_mesh(out_path, verts=ctl_tri_mesh['verts'], faces=ctl_mesh_quad_dom['faces'])
+
+    # tpl_new_verts, tpl_faces = deform.deform(ctl_tri_mesh['verts'])
+    # out_path = f'{OUT_DIR}{mdata_path.stem}_tpl_deformed.obj'
+    # export_mesh(out_path, verts=tpl_new_verts, faces=tpl_faces)
+    gc.collect()
 
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
@@ -15,6 +51,7 @@ if __name__ == '__main__':
     ap.add_argument("-o", "--out_dir", required=True, help="directory for expxorting control mesh slices")
     ap.add_argument("-w", "--weight", required=True, help="deform based on weight")
     ap.add_argument("-mo", "--model_dir", required=True, help="deform based on weight")
+    ap.add_argument("-np", type=int, default = 1, help='')
 
     args = vars(ap.parse_args())
 
@@ -23,9 +60,10 @@ if __name__ == '__main__':
     M_DIR = args['measure_dir']
     MODEL_DIR = args['model_dir']
     OUT_DIR = args['out_dir'] + '/'
+    n_process = args.get('np')
 
-    shutil.rmtree(OUT_DIR, ignore_errors=True)
-    os.makedirs(OUT_DIR)
+    # shutil.rmtree(OUT_DIR, ignore_errors=True)
+    # os.makedirs(OUT_DIR)
 
     with open(in_path, 'rb') as f:
         data = pickle.load(f)
@@ -59,35 +97,42 @@ if __name__ == '__main__':
         deform.set_meshes(ctl_verts=ctl_mesh['verts'], ctl_tris=ctl_mesh['faces'], tpl_verts=tpl_mesh['verts'], tpl_faces=tpl_mesh['faces'])
         deform.set_parameterization(ctl_tri_basis=ctl_tri_bs, vert_UVWs=vert_UVWs, vert_weights=vert_weights, vert_effect_idxs=vert_effect_idxs)
 
-    for i, mdata_path in enumerate(Path(M_DIR).glob('*.npy')):
-        # if 'CSR2776A' not in mdata_path.name:
-        #     continue
-        print(mdata_path)
+    mpaths = [(i, path)for i, path in enumerate(Path(M_DIR).glob('*.npy'))]
+    n_files = len(mpaths)
+    print(f'total files: {len(mpaths)}')
+    pool = multiprocessing.Pool(processes=n_process)
+    pool.map(partial(util_reconstruct_single_mesh, OUT_DIR=OUT_DIR, predictor=predictor, deformer=deform), mpaths)
+    print('done')
 
-        # load 2d measurements
-        mdata = np.load(mdata_path).item()
-
-        seg_dst_f = mdata['landmark_segment_dst_f']
-        seg_dst_s = mdata['landmark_segment_dst_s']
-        seg_locs_s = mdata['landmark_segment_location_s']
-        seg_locs_f = mdata['landmark_segment_location_f']
-        measurements = mdata['measurement']
-        height = measurements['Height']
-
-        ctl_tri_mesh = predictor.predict(seg_dst_f, seg_dst_s, seg_locs_s, seg_locs_f, height)
-
-
-        #out_path = f'{OUT_DIR}{mdata_path.stem}_ctl_tri.obj'
-        #export_mesh(out_path, verts=ctl_tri_mesh['verts'], faces=ctl_tri_mesh['faces'])
-        out_path = f'{OUT_DIR}{mdata_path.stem}_ctl_quad.obj'
-        export_mesh(out_path, verts=ctl_tri_mesh['verts'], faces=ctl_mesh_quad_dom['faces'])
-
-        # tpl_new_verts, tpl_faces = deform.deform(ctl_tri_mesh['verts'])
-        # out_path = f'{OUT_DIR}{mdata_path.stem}_tpl_deformed.obj'
-        # export_mesh(out_path, verts=tpl_new_verts, faces=tpl_faces)
-
-        if i > 10:
-            break
+    # for i, mdata_path in enumerate(Path(M_DIR).glob('*.npy')):
+    #     # if 'CSR2776A' not in mdata_path.name:
+    #     #     continue
+    #     print(mdata_path)
+    #
+    #     # load 2d measurements
+    #     mdata = np.load(mdata_path).item()
+    #
+    #     seg_dst_f = mdata['landmark_segment_dst_f']
+    #     seg_dst_s = mdata['landmark_segment_dst_s']
+    #     seg_locs_s = mdata['landmark_segment_location_s']
+    #     seg_locs_f = mdata['landmark_segment_location_f']
+    #     measurements = mdata['measurement']
+    #     height = measurements['Height']
+    #
+    #     ctl_tri_mesh = predictor.predict(seg_dst_f, seg_dst_s, seg_locs_s, seg_locs_f, height)
+    #
+    #
+    #     #out_path = f'{OUT_DIR}{mdata_path.stem}_ctl_tri.obj'
+    #     #export_mesh(out_path, verts=ctl_tri_mesh['verts'], faces=ctl_tri_mesh['faces'])
+    #     out_path = f'{OUT_DIR}{mdata_path.stem}_ctl_quad.obj'
+    #     export_mesh(out_path, verts=ctl_tri_mesh['verts'], faces=ctl_mesh_quad_dom['faces'])
+    #
+    #     # tpl_new_verts, tpl_faces = deform.deform(ctl_tri_mesh['verts'])
+    #     # out_path = f'{OUT_DIR}{mdata_path.stem}_tpl_deformed.obj'
+    #     # export_mesh(out_path, verts=tpl_new_verts, faces=tpl_faces)
+    #
+    #     if i > 10:
+    #         break
 
 
 #caecar params
