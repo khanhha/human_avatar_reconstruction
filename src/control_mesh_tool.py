@@ -16,7 +16,7 @@ def util_reconstruct_single_mesh(record, OUT_DIR, predictor, deformer):
     idx = record[0]
     mdata_path = record[1]
 
-    if 'CSR0095A' not in mdata_path.name:
+    if 'CSR0309A' not in mdata_path.name:
          return
 
     if idx % 20 == 0:

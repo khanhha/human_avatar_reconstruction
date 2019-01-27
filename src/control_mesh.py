@@ -421,11 +421,11 @@ class ControlMeshPredictor():
                 slice_out[:,0] =  res_contour[1,:]
                 slice_out[:,1] =  res_contour[0,:]
 
-                if id_2d == 'Bust':
-                    import matplotlib.pyplot as plt
-                    plt.plot(slice_out[:,0], slice_out[:,1], '-b')
-                    plt.plot(slice_out[:,0], slice_out[:,1], '+r')
-                    plt.show()
+                # if id_2d == 'Bust':
+                #     import matplotlib.pyplot as plt
+                #     plt.plot(slice_out[:,0], slice_out[:,1], '-b')
+                #     plt.plot(slice_out[:,0], slice_out[:,1], '+r')
+                #     plt.show()
 
 
             #we apply x,y scaling to make sure that our the final slice match width/height measurement

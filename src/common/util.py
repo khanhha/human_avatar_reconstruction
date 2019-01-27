@@ -78,13 +78,11 @@ def calc_fourier_descriptor(X, Y, resolution, use_radial = False, path_debug = N
         plt.plot(X, Y, '-b')
         plt.plot(X[:2], Y[:2], '+b')
         plt.plot(res_contour[:,0], res_contour[:,1], '-r')
-        plt.plot(res_contour[:,0], res_contour[:,1], '+r', ms=5)
-        plt.plot(res_contour[0,1], res_contour[0,1], '+r', ms=10)
-        plt.plot(res_contour[1,1], res_contour[1,1], '+g', ms=10)
-        for i in range(res_contour.shape[0]):
-            p = res_contour[i,:]
-            plt.plot([0, p[0]], [0, p[1]], '-r', ms=10)
+        plt.plot(res_contour[:,0], res_contour[:,1], '+r', ms=7)
+        plt.plot(res_contour[0,0], res_contour[0,1], '+r', ms=10)
+        plt.plot(res_contour[1,0], res_contour[1,1], '+g', ms=10)
         plt.savefig(path_debug)
+        # plt.show()
         pass
 
     #normalize
