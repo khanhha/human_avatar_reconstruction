@@ -21,11 +21,11 @@ def fourier(item, n, G_DEBUG_DIR):
 
 def fourier_resolution(slc_id):
     if util.is_leg_contour(slc_id):
-        return 9
+        return 11
     elif slc_id in ['Shoulder', 'Aux_Armscye_Shoulder_0']:
-        return 20
+        return 24
     else:
-        return 16
+        return 20
 
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()

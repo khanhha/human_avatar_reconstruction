@@ -348,6 +348,7 @@ def sort_torso_slice_vertices(slc_vert_idxs, mesh_verts, title=''):
     assert (len(X_0) > 0 and len(Y_0) > 0)
     points_0 = np.concatenate([X_0[:, np.newaxis], Y_0[:, np.newaxis]], axis=1)
     arg_points_0 = arg_sort_points_cw(points_0)
+    print("\t\tpart one: ", arg_points_0)
     points_0 = np.array(points_0[arg_points_0, :])
 
     # find the first point of the contour
@@ -369,19 +370,27 @@ def sort_torso_slice_vertices(slc_vert_idxs, mesh_verts, title=''):
     assert (len(X_1) > 0 and len(Y_1) > 0)
     points_1 = np.concatenate([X_1[:, np.newaxis], Y_1[:, np.newaxis]], axis=1)
     arg_points_1 = arg_sort_points_cw(points_1)
+    print("\t\tpart two: ", arg_points_1)
     points_1 = np.array(points_1[arg_points_1, :])
 
     # concatenate two sorted part.
     sorted_points = np.concatenate([points_0, points_1], axis=0)
-
+    #print("sorted points")
+    #print(sorted_points)
+    #print("org points")
+    #print(org_points)
+    #print("slc_vert_idxs")
+    #print(slc_vert_idxs)
     # map indices
     slc_sorted_vert_idxs = []
+    #print("mapping points")
     for i in range(sorted_points.shape[0]):
         p = sorted_points[i, :]
         dsts = np.sum(np.square(org_points - p), axis=1)
         closest_idx = np.argmin(dsts)
-        assert closest_idx not in slc_sorted_vert_idxs
-        slc_sorted_vert_idxs.append(slc_vert_idxs[closest_idx])
+        found_idx = slc_vert_idxs[closest_idx]
+        assert found_idx not in slc_sorted_vert_idxs
+        slc_sorted_vert_idxs.append(found_idx)
 
     # sorted_X =  mesh_verts[slc_sorted_vert_idxs][:,0]
     # sorted_Y =  mesh_verts[slc_sorted_vert_idxs][:,1]
@@ -559,7 +568,7 @@ with open(filepath, 'wb') as f:
     data['template_symmetric_vert_pairs'] = vic_mirror_pairs
     data['body_part_dict'] = {v: k for k, v in body_part_dict().items()}
     pickle.dump(data, f)
-
+3
 # output the two meshes for the sake of debugging
 filepath = os.path.join(OUT_DIR, 'origin_control_mesh_tri.obj')
 print('output triangulated control mesh to ', filepath)

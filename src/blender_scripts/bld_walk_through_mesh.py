@@ -160,7 +160,9 @@ def load_objects(name_id, my_tool):
         if name_id in name:
             ctl_path = t.dir_ctl_mesh + '/' + name + '.obj'
             if Path(ctl_path).exists():
-                ctlobj = import_obj(ctl_path, 'ctl_mesh_')
+                ctlobj = import_obj(ctl_path, 'ctl_mesh_'+name)
+                ctlobj.show_wire = True
+                ctlobj.show_all_edges = True
                 select_single_obj(ctlobj)
                 
                 s = 1.1
@@ -181,12 +183,15 @@ def load_objects(name_id, my_tool):
         if name_id in name:
             df_path = t.dir_df_mesh + '/' + name + '.obj'              
             if Path(df_path).exists(): 
-                dfobj = import_obj(df_path, 'df_mesh_')
+                dfobj = import_obj(df_path, 'df_mesh_'+name)
                 print('loaded df mesh: ', name)
                 ok = True
             break
     if ok == False:
         print('cannot find deform mesh with prefix name: ', name_id)
+    
+    if caeobj is not None:
+        select_single_obj(caeobj)
     
 class InitData(bpy.types.Operator):
     bl_idname = "wm.init_data"
@@ -234,13 +239,35 @@ class InitData(bpy.types.Operator):
         
 class NextObjectOperator(bpy.types.Operator):
     bl_idname = "wm.next_object"
-    bl_label = "next object"
+    bl_label = "next"
 
     def execute(self, context):
         scene = context.scene
         t = scene.my_tool
               
         t.current_idx += 1
+        t.current_idx = min(t.current_idx, len(t.caesar_names))
+        print(t.ld_idxs)
+        if len(t.caesar_names) == 0:
+            print("empty caesar file names")
+            return {'FINISHED'}
+        
+        cur_name = t.caesar_names[t.current_idx]
+        t.current_name = cur_name
+        load_objects(cur_name, t)        
+        return {'FINISHED'}
+
+        
+class PrevObjectOperator(bpy.types.Operator):
+    bl_idname = "wm.prev_object"
+    bl_label = "prev"
+
+    def execute(self, context):
+        scene = context.scene
+        t = scene.my_tool
+              
+        t.current_idx -= 1
+        t.current_idx = max(t.current_idx, 0)
         print(t.ld_idxs)
         if len(t.caesar_names) == 0:
             print("empty caesar file names")
@@ -289,7 +316,9 @@ class OBJECT_PT_MY_PANNEL(Panel):
         layout.operator("wm.init_data")
         layout.prop(mytool, "current_idx")
         layout.prop(mytool, "current_name")
-        layout.operator("wm.next_object")
+        row = layout.row()
+        row.operator("wm.prev_object")
+        row.operator("wm.next_object")
         layout.prop(mytool, "request_name")
         layout.operator("wm.load_object_by_name")
 
