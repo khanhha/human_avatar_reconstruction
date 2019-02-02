@@ -320,8 +320,10 @@ def sort_leg_slice_vertices(slc_vert_idxs, mesh_verts):
         p = sorted_points[i, :]
         dsts = np.sum(np.square(org_points - p), axis=1)
         closest_idx = np.argmin(dsts)
-        assert closest_idx not in slc_sorted_vert_idxs
-        slc_sorted_vert_idxs.append(slc_vert_idxs[closest_idx])
+        found_idx = slc_vert_idxs[closest_idx]
+        #make sure that we don't have duplicate
+        assert found_idx not in slc_sorted_vert_idxs
+        slc_sorted_vert_idxs.append(found_idx)
 
     # sorted_X =  mesh_verts[slc_sorted_vert_idxs][:,0]
     # sorted_Y =  mesh_verts[slc_sorted_vert_idxs][:,1]
