@@ -214,6 +214,11 @@ if __name__ == '__main__':
     bust_ratios, bust_contours  = load_slc_w_d_ratio(IN_DIR, 'Bust', names)
     waist_ratios, waist_contours = load_slc_w_d_ratio(IN_DIR, 'Waist', names)
     hip_ratios, hip_contours  = load_slc_w_d_ratio(IN_DIR, 'Hip', names)
+
+
+    ratios   = {'Bust': bust_ratios, 'Hip':hip_ratios, 'Waist': waist_ratios}
+    contours = {'Bust': bust_contours, 'Hip':hip_contours, 'Waist': waist_contours}
+
     X = np.concatenate([bust_ratios, waist_ratios, hip_ratios], axis=1)
     print(X.shape)
 
@@ -224,15 +229,14 @@ if __name__ == '__main__':
         mean_var = plot_cluster_contour(labels, names, slc_rad_contours[slc_id], f'{DEBUG_DIR}/triple/{slc_id}')
         print(f'\ttripple model. radius var = {mean_var}')
 
-        labels_1 = apply_clustering(bust_ratios, K=K)
+        labels_1 = apply_clustering(ratios[slc_id], K=K)
         mean_var = plot_cluster_contour(labels_1, names, slc_rad_contours[slc_id], f'{DEBUG_DIR}/single/{slc_id}')
         print(f'\tsingle model. radius var = {mean_var}')
 
-        hip_Fs = convert_contour_fourier_code(hip_contours, N=8)
-        #hip_Fs = TSNE(n_components=3).fit_transform(hip_Fs)
-        labels_2 = apply_clustering(hip_Fs, K=K)
-        mean_var =plot_cluster_contour(labels_2, names, slc_rad_contours[slc_id], f'{DEBUG_DIR}/F_code/{slc_id}')
-        print(f'\tfourier model. radius var = {mean_var}')
+        #Fs = convert_contour_fourier_code(contours[slc_id], N=8)
+        #labels_2 = apply_clustering(Fs, K=K)
+        #mean_var =plot_cluster_contour(labels_2, names, slc_rad_contours[slc_id], f'{DEBUG_DIR}/F_code/{slc_id}')
+        #print(f'\tfourier model. radius var = {mean_var}')
 
     # plt.clf()
     # fig = plt.figure()
