@@ -7,6 +7,7 @@ from shapely.geometry import LinearRing, LineString
 from numpy.linalg import norm
 from pathlib import Path
 import common.util as util
+from common.util import sample_contour_radial
 from slice_preprocess.slice_preprocess import \
     remove_arm_from_bust_slice, remove_arm_from_under_bust_slice, remove_arm_from_armscye_slice, fix_bust_height, preprocess_contour
 import multiprocessing
@@ -93,29 +94,7 @@ def load_contour(type, path):
         contour = contour[:, :2]
         return contour
 
-def sample_contour_radial(X, Y, center, n_sample):
-    contour = LinearRing([(x,y) for x, y in zip(X,Y)])
-    range_x =  np.max(X) - np.min(X)
-    range_y =  np.max(Y) - np.min(Y)
-    extend_len = max(range_x, range_y)
-    angle_step = (2.0*np.pi)/float(n_sample)
-    points = []
-    for i in range(n_sample):
-        x = np.cos(i*angle_step)
-        y = np.sin(i*angle_step)
-        p = center + extend_len * np.array([x,y])
-        isect_ret = LineString([(center[0], center[1]), (p[0],p[1])]).intersection(contour)
-        if isect_ret.geom_type == 'Point':
-            isect_p = np.array(isect_ret.coords[:]).flatten()
-        elif isect_ret.geom_type == 'MultiPoint':
-            isect_p = np.array(isect_ret[0].coords[:]).flatten()
-        else:
-            #assert False, 'unsupported intersection type'
-            raise Exception('sample_contour_radial: no intersection found')
-        isect_p = isect_p - center
-        points.append(isect_p)
 
-    return points
 
 def radial_code(points, D, half = True):
     n_points = points.shape[0]

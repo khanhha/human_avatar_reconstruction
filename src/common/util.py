@@ -1,11 +1,11 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from shapely.geometry import Point, Polygon, MultiPoint
+from shapely.geometry import Point, Polygon, MultiPoint, LinearRing, LineString
 from shapely.ops import nearest_points
 import shapely.affinity as affinity
 import math
 from numpy.linalg import norm
-
+from pathlib import Path
 
 from scipy.ndimage import filters
 def smooth_contour(X, Y, sigma=3):
@@ -43,6 +43,31 @@ def resample_contour(X, Y, n_point):
     u_1 = np.linspace(0.0, 1.0, n_point)
     X, Y = splev(u_1, tck)
     return X, Y
+
+def sample_contour_radial(X, Y, center, n_sample):
+    contour = LinearRing([(x,y) for x, y in zip(X,Y)])
+    range_x =  np.max(X) - np.min(X)
+    range_y =  np.max(Y) - np.min(Y)
+    extend_len = 2.0*max(range_x, range_y)
+    angle_step = (2.0*np.pi)/float(n_sample)
+    points = []
+    for i in range(n_sample):
+        x = np.cos(i*angle_step)
+        y = np.sin(i*angle_step)
+        p = center + extend_len * np.array([x,y])
+
+        isect_ret = LineString([(center[0], center[1]), (p[0],p[1])]).intersection(contour)
+        if isect_ret.geom_type == 'Point':
+            isect_p = np.array(isect_ret.coords[:]).flatten()
+        #elif isect_ret.geom_type == 'MultiPoint':
+        #    isect_p = np.array(isect_ret[0].coords[:]).flatten()
+        else:
+            #assert False, 'unsupported intersection type'
+            raise Exception(f'unsupported intersection type {isect_ret.geom_type}')
+        isect_p = isect_p - center
+        points.append(isect_p)
+
+    return points
 
 from scipy.fftpack import fft2, ifft2, fft, ifft, dct, idct
 def calc_fourier_descriptor(X, Y, resolution, use_radial = False, path_debug = None):
@@ -309,3 +334,23 @@ def align_torso_contour(X, Y, anchor_pos_x = True, debug_path = None):
         #plt.show()
 
     return np.array(X_algn), np.array(Y_algn)
+
+
+
+def load_bad_slice_names(DIR, slc_id):
+    txt_path = None
+    for path in Path(DIR).glob('*.*'):
+        if slc_id == path.stem:
+            txt_path = path
+            break
+
+    if txt_path is None:
+        print(f'\tno bad slice path of slice {slc_id}')
+        return ()
+    else:
+        names = set()
+        with open(str(txt_path), 'r') as file:
+            for name in file.readlines():
+                name = name.replace('\n','')
+                names.add(name)
+        return names
