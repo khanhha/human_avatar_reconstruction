@@ -40,9 +40,11 @@ def slice_id_3d_2d_mappings():
 
     mappings['Hip'] = 'Hip'
     mappings['Aux_Hip_Waist_0'] = 'Aux_Hip_Waist_0'
+    mappings['Aux_Hip_Waist_1'] = 'Aux_Hip_Waist_1'
     mappings['Waist'] = 'Waist'
     mappings['Aux_Waist_UnderBust_0'] = 'Aux_Waist_UnderBust_0'
     mappings['Aux_Waist_UnderBust_1'] = 'Aux_Waist_UnderBust_1'
+    mappings['Aux_Waist_UnderBust_2'] = 'Aux_Waist_UnderBust_2'
     mappings['UnderBust'] = 'UnderBust'
     mappings['Aux_UnderBust_Bust_0'] = 'Aux_UnderBust_Bust_0'
     mappings['Bust'] = 'Bust'
@@ -324,6 +326,7 @@ class ControlMeshPredictor():
         self.models = {}
         for path in Path(MODEL_DIR).glob('*.pkl'):
             self.models[path.stem] = RBFNet.load_from_path(path)
+            self.models[path.stem].clear_debug_data()
         print('ControlMeshPredictor: load models: ', self.models.keys())
 
     def set_control_mesh(self, ctl_mesh, slc_id_vert_idxs, slc_id_locs, ctl_sym_vert_pairs, arm_3d_tpl):

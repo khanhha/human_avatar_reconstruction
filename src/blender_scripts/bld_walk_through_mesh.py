@@ -155,6 +155,7 @@ def load_objects(name_id, my_tool):
             else:
                 print('path ' + caesar_path + ' does not exist');
     
+    scale = 1.1
     ok = False
     for name in t.ctl_names:
         if name_id in name:
@@ -163,27 +164,36 @@ def load_objects(name_id, my_tool):
                 ctlobj = import_obj(ctl_path, 'ctl_mesh_'+name)
                 ctlobj.show_wire = True
                 ctlobj.show_all_edges = True
+
                 select_single_obj(ctlobj)
-                
-                s = 1.1
-                bpy.ops.transform.resize(value=(s,s,s))
+
+                bpy.ops.transform.resize(value=(scale,scale,scale))
                 bpy.ops.object.transform_apply(location=True, scale=True, rotation=True)
-    
+
                 bpy.ops.transform.translate(value = Vector((8.0, 0.0, 0.0)))
                 bpy.ops.object.transform_apply(location=True, scale=True, rotation=True)
-                
+
                 print('loaded ctl mesh: ', name)
-                ok = True    
+                ok = True
             break
     if ok == False:
         print('cannot find ctl mesh with prefix name: ', name_id)
-        
+
     ok = False
     for name in t.df_names:
         if name_id in name:
             df_path = t.dir_df_mesh + '/' + name + '.obj'              
             if Path(df_path).exists(): 
                 dfobj = import_obj(df_path, 'df_mesh_'+name)
+                
+                select_single_obj(dfobj)
+                
+                bpy.ops.transform.resize(value=(scale,scale,scale))
+                bpy.ops.object.transform_apply(location=True, scale=True, rotation=True)
+    
+                bpy.ops.transform.translate(value = Vector((-8.0, 0.0, 0.0)))
+                bpy.ops.object.transform_apply(location=True, scale=True, rotation=True)
+                
                 print('loaded df mesh: ', name)
                 ok = True
             break

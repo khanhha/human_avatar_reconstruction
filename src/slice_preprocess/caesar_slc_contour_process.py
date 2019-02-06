@@ -3,12 +3,11 @@ import pickle
 import argparse
 import os
 import matplotlib.pyplot as plt
-from shapely.geometry import LinearRing, LineString
 from numpy.linalg import norm
 from pathlib import Path
 import common.util as util
 from common.util import sample_contour_radial
-from slice_preprocess.slice_preprocess import \
+from src.slice_preprocess.caesar_slc_fix_bust import \
     remove_arm_from_bust_slice, remove_arm_from_under_bust_slice, remove_arm_from_armscye_slice, fix_bust_height, preprocess_contour
 import multiprocessing
 import sys
@@ -120,6 +119,18 @@ def radial_code(points, D, half = True):
 
     return feature
 
+def torso_contour_w_d(X, Y):
+    idx_ymax, idx_ymin = np.argmax(Y), np.argmin(Y)
+    idx_xmax, idx_xmin = np.argmax(X), np.argmin(X)
+    center_y = 0.5 * (Y[idx_ymax] + Y[idx_ymin])
+    center_x = 0.5 * (X[idx_ymin] + X[idx_ymax])
+    center = np.array([center_x, center_y])
+
+    W = Y[idx_ymax] - Y[idx_ymin]
+    D = X[idx_xmax] - X[idx_xmin]
+
+    return W, D
+
 def convert_torso_contour_to_radial_code(X, Y, n_sample, path_out = None):
     idx_ymax, idx_ymin = np.argmax(Y), np.argmin(Y)
     idx_xmax, idx_xmin = np.argmax(X), np.argmin(X)
@@ -167,6 +178,15 @@ def convert_torso_contour_to_radial_code(X, Y, n_sample, path_out = None):
         #plt.show()
 
     return np.array(feature), W, D
+
+def leg_contour_w_d(X, Y):
+    idx_ymax, idx_ymin = np.argmax(Y), np.argmin(Y)
+    idx_xmax, idx_xmin = np.argmax(X), np.argmin(X)
+
+    W = Y[idx_ymax] - Y[idx_ymin]
+    D = X[idx_xmax] - X[idx_xmin]
+
+    return W, D
 
 def convert_leg_contour_to_radial_code(X, Y, n_sample, path_out = None):
     idx_ymax, idx_ymin = np.argmax(Y), np.argmin(Y)
@@ -254,10 +274,9 @@ def process_leg_contour(path, contour, sup_points, ld_points):
 
     X, Y = resample_contour(X, Y)
 
-    debug_path_out = f'{DEBUG_RADIAL_DIR}/{path.stem}.png'
-    feature, W, D = convert_leg_contour_to_radial_code(X, Y, 9, path_out=debug_path_out)
+    W, D = leg_contour_w_d(X, Y)
 
-    return X, Y, W, D, feature
+    return X, Y, W, D
 
 def process_torso_contour(path, contour, sup_points, ld_points):
     # torso contour
@@ -324,13 +343,9 @@ def process_torso_contour(path, contour, sup_points, ld_points):
     X, Y = resample_contour(X, Y)
     #X, Y = util.smooth_contour(X, Y, sigma=2.0)
 
-    n_sample = 16
-    if slc_id == 'Shoulder' or slc_id == 'Aux_Armscye_Shoulder_0':
-        n_sample = 20
-    debug_path_out = f'{DEBUG_RADIAL_DIR}/{path.stem}.png'
-    feature, W, D = convert_torso_contour_to_radial_code(X, Y, n_sample, path_out=debug_path_out)
+    W, D = torso_contour_w_d(X, Y)
 
-    return X, Y, W, D, feature
+    return X, Y, W, D
 
 
 import warnings
@@ -364,13 +379,13 @@ def run_process_slice_contours(process_id, slc_id, paths, shared_data):
 
         if util.is_leg_contour(slc_id):
             try:
-                X, Y, W, D, radial_code = process_leg_contour(path, contour, sup_points=sup_points, ld_points=ld_points)
+                X, Y, W, D = process_leg_contour(path, contour, sup_points=sup_points, ld_points=ld_points)
             except Exception as exp:
                 print(path.stem, exp, file=sys.stderr)
                 continue
         else:
             try:
-                X, Y, W, D, radial_code = process_torso_contour(path, contour, sup_points=sup_points, ld_points=ld_points)
+                X, Y, W, D = process_torso_contour(path, contour, sup_points=sup_points, ld_points=ld_points)
             except Exception as exp:
                 print(path.stem, f'khanh exp: {exp}', file=sys.stderr)
                 continue
@@ -381,11 +396,10 @@ def run_process_slice_contours(process_id, slc_id, paths, shared_data):
         #acculumate one more slice record
         Ws.append(W)
         Ds.append(D)
-        Fs.append(radial_code)
         Cs.append(np.vstack([X,Y]))
         Ns.append(path.stem)
 
-    shared_data[process_id] = {'Ws':Ws, 'Ds':Ds, 'Fs':Fs, 'Cs':Cs, 'Ns':Ns}
+    shared_data[process_id] = {'Ws':Ws, 'Ds':Ds, 'Cs':Cs, 'Ns':Ns}
 
     print(f'process {process_id} finished. len(Ws)={len(Ws)}')
 
@@ -472,11 +486,7 @@ if __name__  == '__main__':
         for process in processes:
             process.join()
 
-        Ws = []
-        Ds = []
-        Fs = []
-        Cs = []
-        Ns = []
+        Ws, Ds, Cs, Ns = [], [], [], []
         print('syncronizing data across processes')
         for id, data in shared_data.items():
             n_Ws = len(data['Ws'])
@@ -485,25 +495,20 @@ if __name__  == '__main__':
             assert len(data['Ds']) > 0
             Ws.extend(data['Ws'])
             Ds.extend(data['Ds'])
-            Fs.extend(data['Fs'])
             Cs.extend(data['Cs'])
             Ns.extend(data['Ns'])
 
         #dump all records of that slice
         n_contour = len(Ns)
-        Fs = np.array(Fs)
 
         feature_dir_out = f'{OUT_DIR}/{slc_id}/'
         os.makedirs(feature_dir_out, exist_ok=True)
 
         for i in range(n_contour):
-            W = Ws[i]
-            D = Ds[i]
-            F = Fs[i,:]
-            C = Cs[i]
+            W, D, C = Ws[i], Ds[i], Cs[i]
             name = Ns[i]
             with open(f'{feature_dir_out}{name}.pkl', 'wb') as file:
-                 pickle.dump({'W':W, 'D':D, 'feature':F, 'cnt':C}, file)
+                 pickle.dump({'W':W, 'D':D, 'cnt':C}, file)
 
     print('failed slice paths')
     print(failed_slice_paths)

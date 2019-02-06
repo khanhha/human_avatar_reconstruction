@@ -1,1 +1,0 @@
-python ../../src/ffdt_deformation_parameterize_tool.py -ctl ./victoria_ctl.obj -tpl ./victoria_tpl_uniform.obj -g 1 -o ./global_parameterization.pkl -use_mean_rad 0 -e 3

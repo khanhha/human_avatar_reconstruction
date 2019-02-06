@@ -636,8 +636,8 @@ if __name__ == '__main__':
     DEBUG_DIR = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_usce/debug/'
 
     DIR_NO_ARM_CUT_OFF = f'{DEBUG_DIR}/bust_arm_cut_off/'
-    shutil.rmtree(DIR_NO_ARM_CUT_OFF)
-    os.makedirs(DIR_NO_ARM_CUT_OFF)
+    #shutil.rmtree(DIR_NO_ARM_CUT_OFF)
+    os.makedirs(DIR_NO_ARM_CUT_OFF, exist_ok=True)
 
     os.makedirs(OUT_DIR, exist_ok=True)
 

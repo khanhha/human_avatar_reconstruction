@@ -7,7 +7,7 @@ from mathutils import Vector
 from bpy import context
 from collections import defaultdict
 from copy import deepcopy
-
+import mathutils
 
 def select_single_obj(obj):
     bpy.ops.object.select_all(action='DESELECT')
@@ -308,7 +308,7 @@ def sort_leg_slice_vertices(slc_vert_idxs, mesh_verts):
     # find the starting point of the leg contour
     # the contour must start at that point to match the order of the prediction contour
     # check the leg contour in the blender file for why it is this way
-    start_idx = np.argmin(points_0[:, 1]) + 2
+    start_idx = np.argmin(points_0[:, 1]) + 3
     points_0 = np.roll(points_0, axis=0, shift=-start_idx)
 
     # concatenate two sorted part.
@@ -408,8 +408,8 @@ def sort_torso_slice_vertices(slc_vert_idxs, mesh_verts, title=''):
 
 def is_torso_slice(id):
     torso_slc_ids = {'Crotch', 'Aux_Crotch_Hip_0', 'Aux_Crotch_Hip_1', 'Aux_Crotch_Hip_2', 'Hip', 'Waist', 'UnderBust',
-                     'Aux_Hip_Waist_0',
-                     'Aux_Waist_UnderBust_0', 'Aux_Waist_UnderBust_1',
+                     'Aux_Hip_Waist_0', 'Aux_Hip_Waist_1',
+                     'Aux_Waist_UnderBust_0', 'Aux_Waist_UnderBust_1','Aux_Waist_UnderBust_2',
                      'Aux_UnderBust_Bust_0', 'Bust', 'Armscye', 'Aux_Armscye_Shoulder_0', 'Shoulder'}
     if id in torso_slc_ids:
         return True
@@ -491,19 +491,26 @@ def find_mirror_vertices(obj, group_name, error_threshold=1e-3):
 
     assert len(my_verts) > 0
 
+    size = len(mesh.vertices)
+    kd = mathutils.kdtree.KDTree(size)
+    for i,v in enumerate(mesh.vertices):
+        kd.insert(v.co, i)
+    kd.balance()
+
     mirror_idxs = []
     for mv in my_verts:
         mirror_co = deepcopy(mv.co)
         mirror_co.x = -mirror_co.x
-        dsts = np.array([(mirror_co - ov.co).length for ov in mesh.vertices])
-        idx = np.argmin(dsts)
-        found_co = mesh.vertices[idx].co
-        error = (found_co - mirror_co).length
-        assert error < error_threshold, 'distance to found symmetric vertex is large'
-        mirror_idxs.append(idx)
+        #dsts = np.array([(mirror_co - ov.co).length for ov in mesh.vertices])
+        #idx = np.argmin(dsts)
+        #found_co = mesh.vertices[idx].co
+        #error = (found_co - mirror_co).length
+        found_co, index, dst = kd.find(mirror_co)
+        assert dst < error_threshold, 'distance to found symmetric vertex is large'
+        mirror_idxs.append(index)
 
-    assert len(my_verts_idxs) == len(mirror_idxs)
-
+    assert len(my_verts_idxs) == len(mirror_idxs), 'not find enough mirrored points'
+    print('found all mirrored vertices: ', len(mirror_idxs))
     pairs = [(idx_0, idx_1) for idx_0, idx_1 in zip(my_verts_idxs, mirror_idxs)]
 
     return pairs

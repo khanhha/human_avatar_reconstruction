@@ -33,6 +33,12 @@ class RBFNet():
         with open(path, 'wb') as file:
             pickle.dump(self, file)
 
+    def clear_debug_data(self):
+        self.X_train = None
+        self.Y_train = None
+        self.train_idxs = None
+        self.test_idxs = None
+
     def fit(self, X, Y):
         self.cluster_data(X)
         X_1 = self.transform_data(X)

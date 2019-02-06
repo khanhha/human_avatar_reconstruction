@@ -12,12 +12,13 @@ import multiprocessing
 from functools import partial
 import gc
 
-def util_reconstruct_single_mesh(record, OUT_DIR, predictor, deformer):
+
+def util_reconstruct_single_mesh(record, OUT_DIR_CTL, OUT_DIR_DF, predictor, deformer):
     idx = record[0]
     mdata_path = record[1]
-
-    if 'CSR0309A' not in mdata_path.name:
-         return
+    #print(mdata_path.name)
+    #if 'CSR0309A' not in mdata_path.name:
+    #     return
 
     if idx % 20 == 0:
         print(f'{idx} - {mdata_path.name}')
@@ -36,34 +37,41 @@ def util_reconstruct_single_mesh(record, OUT_DIR, predictor, deformer):
 
     # out_path = f'{OUT_DIR}{mdata_path.stem}_ctl_tri.obj'
     # export_mesh(out_path, verts=ctl_tri_mesh['verts'], faces=ctl_tri_mesh['faces'])
-    out_path = f'{OUT_DIR}{mdata_path.stem}_ctl_quad.obj'
+    out_path = f'{OUT_DIR_CTL}{mdata_path.stem}_ctl_quad.obj'
     export_mesh(out_path, verts=ctl_tri_mesh['verts'], faces=ctl_mesh_quad_dom['faces'])
 
-    # tpl_new_verts, tpl_faces = deform.deform(ctl_tri_mesh['verts'])
-    # out_path = f'{OUT_DIR}{mdata_path.stem}_tpl_deformed.obj'
-    # export_mesh(out_path, verts=tpl_new_verts, faces=tpl_faces)
+    if deformer is not None:
+        tpl_new_verts, tpl_faces = deform.deform(ctl_tri_mesh['verts'])
+        out_path = f'{OUT_DIR_DF}{mdata_path.stem}_tpl_deformed.obj'
+        export_mesh(out_path, verts=tpl_new_verts, faces=tpl_faces)
     gc.collect()
 
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
     ap.add_argument("-i", "--input", required=True, help="input meta data file")
     ap.add_argument("-m", "--measure_dir", required=True, help="measurement 2d data directory")
-    ap.add_argument("-o", "--out_dir", required=True, help="directory for expxorting control mesh slices")
+    ap.add_argument("-o", "--out_dir", required=True, help="directory for exporting control mesh slices")
     ap.add_argument("-w", "--weight", required=True, help="deform based on weight")
     ap.add_argument("-mo", "--model_dir", required=True, help="deform based on weight")
     ap.add_argument("-np", type=int, default = 1, help='')
+    ap.add_argument("--deform", action='store_true', default = False, help='deformation or not')
+    ap.add_argument("--nfiles", type=int, default = -1, help='just process this number of file')
 
-    args = vars(ap.parse_args())
+    args = ap.parse_args()
 
-    in_path = args['input']
-    weight_path = args['weight']
-    M_DIR = args['measure_dir']
-    MODEL_DIR = args['model_dir']
-    OUT_DIR = args['out_dir'] + '/'
-    n_process = args.get('np')
+    in_path = args.input
+    weight_path = args.weight
+    M_DIR = args.measure_dir
+    MODEL_DIR = args.model_dir
+    OUT_DIR = args.out_dir + '/'
+    OUT_DIR_CTL_MESH = f'{OUT_DIR}/caesar_mesh_control/'
+    OUT_DIR_DF_MESH = f'{OUT_DIR}/caesar_mesh_deform/'
+    os.makedirs(OUT_DIR_CTL_MESH, exist_ok=True)
+    os.makedirs(OUT_DIR_CTL_MESH, exist_ok=True)
+    n_process = args.np
 
-    # shutil.rmtree(OUT_DIR, ignore_errors=True)
-    # os.makedirs(OUT_DIR)
+    #shutil.rmtree(OUT_DIR, ignore_errors=True)
+    #os.makedirs(OUT_DIR)
 
     with open(in_path, 'rb') as f:
         data = pickle.load(f)
@@ -86,22 +94,33 @@ if __name__ == '__main__':
         predictor.set_template_mesh(tpl_mesh=tpl_mesh, tpl_height=tpl_height)
 
     #load deform
-    with open(weight_path, 'rb') as f:
-        data = pickle.load(f)
-        ctl_tri_bs = data['control_mesh_tri_basis']
-        vert_UVWs = data['template_vert_UVW']
-        vert_weights = data['template_vert_weight']
-        vert_effect_idxs = data['template_vert_effect_idxs']
+    if args.deform is True:
+        with open(weight_path, 'rb') as f:
+            data = pickle.load(f)
+            ctl_tri_bs = data['control_mesh_tri_basis']
+            vert_UVWs = data['template_vert_UVW']
+            vert_weights = data['template_vert_weight']
+            vert_effect_idxs = data['template_vert_effect_idxs']
 
-        deform = TemplateMeshDeform(effective_range=4, use_mean_rad=False)
-        deform.set_meshes(ctl_verts=ctl_mesh['verts'], ctl_tris=ctl_mesh['faces'], tpl_verts=tpl_mesh['verts'], tpl_faces=tpl_mesh['faces'])
-        deform.set_parameterization(ctl_tri_basis=ctl_tri_bs, vert_UVWs=vert_UVWs, vert_weights=vert_weights, vert_effect_idxs=vert_effect_idxs)
+            deform = TemplateMeshDeform(effective_range=4, use_mean_rad=False)
+            deform.set_meshes(ctl_verts=ctl_mesh['verts'], ctl_tris=ctl_mesh['faces'], tpl_verts=tpl_mesh['verts'], tpl_faces=tpl_mesh['faces'])
+            deform.set_parameterization(ctl_tri_basis=ctl_tri_bs, vert_UVWs=vert_UVWs, vert_weights=vert_weights, vert_effect_idxs=vert_effect_idxs)
+    else:
+        deform = None
+
+    gc.collect()
 
     mpaths = [(i, path)for i, path in enumerate(Path(M_DIR).glob('*.npy'))]
-    n_files = len(mpaths)
+    paths_names = [record[1].stem for record in mpaths]
+    sorted_idxs = sorted(range(len(paths_names)),key=paths_names.__getitem__)
+
+    nfiles = len(mpaths) if args.nfiles == -1 else args.nfiles
+    process_idxs = sorted_idxs[:nfiles]
+    mpaths = [mpaths[idx] for idx in process_idxs]
+
     print(f'total files: {len(mpaths)}')
     pool = multiprocessing.Pool(processes=n_process)
-    pool.map(partial(util_reconstruct_single_mesh, OUT_DIR=OUT_DIR, predictor=predictor, deformer=deform), mpaths)
+    pool.map(partial(util_reconstruct_single_mesh, OUT_DIR_CTL=OUT_DIR_CTL_MESH, OUT_DIR_DF = OUT_DIR_DF_MESH, predictor=predictor, deformer=deform), mpaths)
     print('done')
 
     # for i, mdata_path in enumerate(Path(M_DIR).glob('*.npy')):

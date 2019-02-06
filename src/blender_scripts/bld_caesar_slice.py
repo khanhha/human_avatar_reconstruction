@@ -62,7 +62,7 @@ def transform_obj_caesar(obj, ld_idxs):
     angle = x.dot(Vector((1.0, 0.0, 0.0)))
     #angle =  math.degrees(math.acos(angle))
     angle = math.acos(angle)
-    print('angle', angle)
+    #print('angle', angle)
     bpy.ops.transform.rotate(value=angle, axis=(0.0,0.0,1.0))
     
     select_single_obj(obj)
@@ -112,7 +112,6 @@ def set_plane_slice_loc(planes, name, loc):
         assert len(v.groups) <= 1
         for vgrp in v.groups:
             grp_name = planes.vertex_groups[vgrp.group].name
-            #print('group name', grp_name, name)
             if grp_name == name:
                 v.co[2] = loc[2]
                 found = True
@@ -155,7 +154,8 @@ def mpii_calc_slice_plane_locs(cae_obj, ld_idxs):
 
     waist = 0.5*(verts[ld_idxs[20-1]].co + verts[ld_idxs[22-1]].co)
     locs['Waist'] =  waist
-    locs['Aux_Hip_Waist_0'] =  0.5*(hip + waist)
+    locs['Aux_Hip_Waist_0'] =  hip + 1.0/3.0 * (waist-hip)
+    locs['Aux_Hip_Waist_1'] =  hip + 2.0/3.0 * (waist-hip)
 
     upper_bust = 0.5*(verts[ld_idxs[12]].co + verts[ld_idxs[13]].co)
     under_bust_ld = verts[ld_idxs[14]].co
@@ -165,8 +165,9 @@ def mpii_calc_slice_plane_locs(cae_obj, ld_idxs):
     under_bust = under_bust_ld + 0.6*(under_bust_ld - upper_bust)
     locs['UnderBust'] = under_bust
 
-    locs['Aux_Waist_UnderBust_0'] =  waist + 1.0/3.0*(under_bust - waist)
-    locs['Aux_Waist_UnderBust_1'] =  waist + 2.0/3.0*(under_bust - waist)
+    locs['Aux_Waist_UnderBust_0'] =  waist + 1.0/4.0*(under_bust - waist)
+    locs['Aux_Waist_UnderBust_1'] =  waist + 2.0/4.0*(under_bust - waist)
+    locs['Aux_Waist_UnderBust_2'] =  waist + 3.0/4.0*(under_bust - waist)
 
     armscye = upper_bust + 0.6*(upper_bust - under_bust_ld)
     locs['Armscye']  = armscye
@@ -371,7 +372,7 @@ def mpii_extract_all_ld_points(obj, ld_idxs):
     nverts = len(mesh.vertices)
     ld_points = []
     for idx in ld_idxs:
-        print(idx)
+        #print(idx)
         if idx >= 0 and idx < nverts:
             ld = mesh.vertices[idx].co[:]
             ld_points.append(ld)
@@ -380,7 +381,7 @@ def mpii_extract_all_ld_points(obj, ld_idxs):
 
     return np.array(ld_points)
 
-def mpii_process(DIR_IN_OBJ, DIR_OUT_SLICE, DIR_OUT_SUPPOINT, DIR_OUT_LD_POINT, slice_ids, debug_name = None):
+def mpii_process(DIR_IN_OBJ, DIR_OUT_SLICE, DIR_OUT_SUPPOINT, DIR_OUT_LD_POINT, slice_ids, debug_name = None, debug_slc = None):
     obj_planes_tpl = bpy.data.objects['Slice_planes_template']
     
     ld_path = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_meta/landmarksIdxs73.npy'
@@ -439,10 +440,16 @@ def mpii_process(DIR_IN_OBJ, DIR_OUT_SLICE, DIR_OUT_SUPPOINT, DIR_OUT_LD_POINT, 
             slc_locs = {id:loc for id, loc in slc_locs.items() if id in slice_ids}
             #print(slc_locs)
 
-            if debug_name is not None:
+            if debug_name is not None and debug_slc is not None:
                 obj_planes = copy_obj(obj_planes_tpl, path.stem+'_slice_planes', Vector((0.0, 0.0, 0.0)))
                 for id, loc in slc_locs.items():
-                    set_plane_slice_loc(obj_planes, id, loc)
+                    if id != debug_slc:
+                        continue
+                    for v in obj_planes.data.vertices:
+                        v.co[2] = loc[2]
+
+                #for id, loc in slc_locs.items():
+                #    set_plane_slice_loc(obj_planes, id, loc)
 
             slc_contours = isect_extract_slice_from_locs(slc_locs, obj_caesar)
             assert slc_contours is not None
@@ -599,10 +606,12 @@ def mpii_extract_slices():
     os.makedirs(DIR_OUT_LD, exist_ok=True)
     os.makedirs(DIR_OUT_SLICE, exist_ok=True)
     slice_ids = []
-    slice_ids = ['Aux_Crotch_Hip_0', 'Aux_Crotch_Hip_1', 'Aux_Crotch_Hip_2']
-    #debug_file = 'csr4149a.obj'
+    slice_ids = ['Aux_Hip_Waist_0', 'Aux_Hip_Waist_1' ,'Aux_Waist_UnderBust_0', 'Aux_Waist_UnderBust_1', 'Aux_Waist_UnderBust_2']
+    debug_file = 'csr4149a.obj'
+    debug_slc = 'Aux_Hip_Waist_0'
     debug_file = None
-    mpii_process(DIR_IN_OBJ, DIR_OUT_SLICE=DIR_OUT_SLICE, DIR_OUT_SUPPOINT=DIR_OUT_SUPPOINT, DIR_OUT_LD_POINT = DIR_OUT_LD, slice_ids=slice_ids, debug_name=debug_file)
+    debug_slc = None
+    mpii_process(DIR_IN_OBJ, DIR_OUT_SLICE=DIR_OUT_SLICE, DIR_OUT_SUPPOINT=DIR_OUT_SUPPOINT, DIR_OUT_LD_POINT = DIR_OUT_LD, slice_ids=slice_ids, debug_name=debug_file, debug_slc=debug_slc)
 
 if __name__ == '__main__':
     mpii_extract_slices()

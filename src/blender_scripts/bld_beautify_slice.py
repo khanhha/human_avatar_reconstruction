@@ -280,10 +280,14 @@ def extract_slice_vert_indices(ctl_obj):
             for i, idx in enumerate(slc_idxs_1):
                 co = slc_new_co[i,:]
                 mesh.vertices[idx].co[:] = co[:]
-
+    
+    mid_vert_idxs = slc_vert_idxs['MidVertices']
+    for idx in mid_vert_idxs:
+        mesh.vertices[idx].co.x = 0.0
+        
     return output
 
-
+#bpy.ops.object.vertex_group_remove_from(use_all_groups=True)
 print("hello khanh")
 ctl_obj = bpy.data.objects["ControlMesh"]
 extract_slice_vert_indices(ctl_obj)
