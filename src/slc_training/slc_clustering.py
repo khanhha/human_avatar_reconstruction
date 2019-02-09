@@ -14,32 +14,36 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 
 def find_minimum_good_slc_names(SLC_DIR, BAD_SLC_DIR, ids):
-    all_names = set()
     slc_names = []
+
+    bad_slc_names = set()
+    for id in ids:
+        bad_names = load_bad_slice_names(BAD_SLC_DIR, id)
+        bad_slc_names = bad_slc_names.union(bad_names)
+
     for id in ids:
         dir = f'{SLC_DIR}/{id}'
-        bad_slc_names = load_bad_slice_names(BAD_SLC_DIR, id)
-
         names = set()
         for slc_path in Path(dir).glob('*.*'):
             if slc_path.stem not in bad_slc_names:
                 names.add(slc_path.name)
-                all_names.add(slc_path.name)
-
         slc_names.append(names)
 
-    common_names = []
-    for name in all_names:
-        in_all = True
+    common_names = slc_names[0]
+    for i in range(1, len(slc_names)):
+        common_names = common_names.intersection(slc_names[i])
+
+    print(f'n slice contours')
+    for names in slc_names:
+        print(f'\t{len(names)}')
+    print(f'n common contour = {len(common_names)}')
+
+    for name in common_names:
+        assert name not in bad_slc_names
         for names in slc_names:
-            if name not in names:
-                in_all = False
-                break
+            assert name in names
 
-        if in_all == True:
-            common_names.append(name)
-
-    return common_names
+    return list(common_names)
 
 def load_slc_w_d_ratio(IN_DIR, slc_id, names):
     ratios = []
@@ -68,7 +72,7 @@ def convert_contour_fourier_code(contours, N):
     return Fs
 
 def apply_clustering(X, K):
-    cluster_model = KMeans(n_clusters=K, n_init=50)
+    cluster_model = KMeans(n_clusters=K, n_init=100)
     labels = cluster_model.fit_predict(X)
 
     #score = metrics.silhouette_score(X, labels, metric='euclidean')
@@ -97,6 +101,10 @@ def plot_cluster_contour(labels, all_names, all_contours, DIR_OUT):
         cluster_radius = []
 
         heat_map[:] = 0
+
+        cluster_names = [all_names[idx] for idx in idxs]
+        with open(f'{DIR_OUT}/cluster_{label}.txt', 'w') as file:
+            file.writelines(cluster_names)
 
         for idx in idxs:
             name = all_names[idx]
@@ -184,6 +192,7 @@ if __name__ == '__main__':
     ap.add_argument("-input", type=str)
     ap.add_argument("-bad_slc", type=str)
     ap.add_argument("-debug_dir", type=str)
+    ap.add_argument('-compute_radial', action='store_true', default=False)
 
     args = ap.parse_args()
     IN_DIR = args.input
@@ -192,11 +201,11 @@ if __name__ == '__main__':
 
     os.makedirs(DEBUG_DIR, exist_ok=True)
 
-    slc_ids = ['Bust', 'Waist', 'Hip']
+    slc_ids = ['Bust', 'Waist', 'Hip', 'UnderBust', 'Aux_Waist_UnderBust_0', 'Aux_Waist_UnderBust_1', 'Aux_Waist_UnderBust_2', 'Shoulder']
     names = find_minimum_good_slc_names(IN_DIR, BAD_SLC_DIR, slc_ids)
 
     tmp_path = f'{DEBUG_DIR}/contour_radial.pkl'
-    if not Path(tmp_path).exists():
+    if args.compute_radial:
         print('calculating radial contour representation')
         slc_rad_contours = {}
         for slc_id in slc_ids:
@@ -211,27 +220,28 @@ if __name__ == '__main__':
         with open(tmp_path, 'rb') as file:
             slc_rad_contours = pickle.load(file=file)
 
-    bust_ratios, bust_contours  = load_slc_w_d_ratio(IN_DIR, 'Bust', names)
-    waist_ratios, waist_contours = load_slc_w_d_ratio(IN_DIR, 'Waist', names)
-    hip_ratios, hip_contours  = load_slc_w_d_ratio(IN_DIR, 'Hip', names)
-    underbust_ratios, underbust_contours  = load_slc_w_d_ratio(IN_DIR, 'UnderBust', names)
+    slc_ratios = {}
+    slc_contours = {}
+    for id in slc_ids:
+        ratios, contours = load_slc_w_d_ratio(IN_DIR, id, names)
+        slc_ratios[id] = ratios
+        slc_contours[id] = contours
 
+    #slc_ratios   = {'Bust': bust_ratios, 'Hip':hip_ratios, 'Waist': waist_ratios, 'UnderBust' : underbust_ratios}
+    #slc_contours = {'Bust': bust_contours, 'Hip':hip_contours, 'Waist': waist_contours, 'UnderBust' : underbust_contours}
 
-    ratios   = {'Bust': bust_ratios, 'Hip':hip_ratios, 'Waist': waist_ratios, 'UnderBust':underbust_ratios}
-    contours = {'Bust': bust_contours, 'Hip':hip_contours, 'Waist': waist_contours,'UnderBust':underbust_contours}
-
-    X_global = np.concatenate([bust_ratios, waist_ratios, hip_ratios], axis=1)
+    X_global = np.concatenate([slc_ratios['Bust'], slc_ratios['Waist'], slc_ratios['Hip']], axis=1)
     print(X_global.shape)
 
-    K = 8
-    for slc_id in ['UnderBust']:
+    K = 10
+    for slc_id in ['UnderBust', 'Aux_Waist_UnderBust_1', 'Shoulder']:
         print(f'\nstart clustering slice : {slc_id}')
-        slc_X = ratios[slc_id]
+        slc_X = slc_ratios[slc_id]
         X = np.concatenate([X_global, slc_X], axis=1)
 
         labels = apply_clustering(X, K=K)
         mean_var = plot_cluster_contour(labels, names, slc_rad_contours[slc_id], f'{DEBUG_DIR}/global/{slc_id}')
-        print(f'\ttripple model. radius var = {mean_var}')
+        print(f'\tglobal model. radius var = {mean_var}')
 
         labels_1 = apply_clustering(slc_X, K=K)
         mean_var = plot_cluster_contour(labels_1, names, slc_rad_contours[slc_id], f'{DEBUG_DIR}/single/{slc_id}')
