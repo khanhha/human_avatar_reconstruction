@@ -82,7 +82,7 @@ def plot_cluster_contour(labels, all_names, all_contours, DIR_OUT):
         cluster_idxs = np.argwhere(labels == k)
         clusters[k] = cluster_idxs.flatten()
 
-    shutil.rmtree(DIR_OUT, ignore_errors=True)
+    #shutil.rmtree(DIR_OUT, ignore_errors=True)
     os.makedirs(DIR_OUT, exist_ok=True)
 
     img_shape = (900, 700)
@@ -214,22 +214,26 @@ if __name__ == '__main__':
     bust_ratios, bust_contours  = load_slc_w_d_ratio(IN_DIR, 'Bust', names)
     waist_ratios, waist_contours = load_slc_w_d_ratio(IN_DIR, 'Waist', names)
     hip_ratios, hip_contours  = load_slc_w_d_ratio(IN_DIR, 'Hip', names)
+    underbust_ratios, underbust_contours  = load_slc_w_d_ratio(IN_DIR, 'UnderBust', names)
 
 
-    ratios   = {'Bust': bust_ratios, 'Hip':hip_ratios, 'Waist': waist_ratios}
-    contours = {'Bust': bust_contours, 'Hip':hip_contours, 'Waist': waist_contours}
+    ratios   = {'Bust': bust_ratios, 'Hip':hip_ratios, 'Waist': waist_ratios, 'UnderBust':underbust_ratios}
+    contours = {'Bust': bust_contours, 'Hip':hip_contours, 'Waist': waist_contours,'UnderBust':underbust_contours}
 
-    X = np.concatenate([bust_ratios, waist_ratios, hip_ratios], axis=1)
-    print(X.shape)
+    X_global = np.concatenate([bust_ratios, waist_ratios, hip_ratios], axis=1)
+    print(X_global.shape)
 
     K = 8
-    for slc_id in ['Hip', 'Bust', 'Waist']:
+    for slc_id in ['UnderBust']:
         print(f'\nstart clustering slice : {slc_id}')
+        slc_X = ratios[slc_id]
+        X = np.concatenate([X_global, slc_X], axis=1)
+
         labels = apply_clustering(X, K=K)
-        mean_var = plot_cluster_contour(labels, names, slc_rad_contours[slc_id], f'{DEBUG_DIR}/triple/{slc_id}')
+        mean_var = plot_cluster_contour(labels, names, slc_rad_contours[slc_id], f'{DEBUG_DIR}/global/{slc_id}')
         print(f'\ttripple model. radius var = {mean_var}')
 
-        labels_1 = apply_clustering(ratios[slc_id], K=K)
+        labels_1 = apply_clustering(slc_X, K=K)
         mean_var = plot_cluster_contour(labels_1, names, slc_rad_contours[slc_id], f'{DEBUG_DIR}/single/{slc_id}')
         print(f'\tsingle model. radius var = {mean_var}')
 
@@ -238,9 +242,3 @@ if __name__ == '__main__':
         #mean_var =plot_cluster_contour(labels_2, names, slc_rad_contours[slc_id], f'{DEBUG_DIR}/F_code/{slc_id}')
         #print(f'\tfourier model. radius var = {mean_var}')
 
-    # plt.clf()
-    # fig = plt.figure()
-    # ax = fig.add_subplot(111, projection='3d')
-    # ax.scatter(X_embedded[:,0], X_embedded[:,1], X_embedded[:,2], marker='o')
-    # plt.show()
-    exit()

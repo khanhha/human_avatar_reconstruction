@@ -16,7 +16,7 @@ def fourier(item, n, G_DEBUG_DIR):
     X = contour[0,:]
     Y = contour[1,:]
     debug_path = f'{G_DEBUG_DIR}/{name}.png'
-    code = util.calc_fourier_descriptor(X, Y, resolution=n, path_debug=debug_path)
+    code = util.calc_fourier_descriptor(X, Y, resolution=n, path_debug=None)
     return code
 
 def fourier_resolution(slc_id):
@@ -54,8 +54,8 @@ if __name__ == '__main__':
         SLC_DIR = f'{IN_DIR}/{slc_id}/'
         G_DEBUG_SLC_DIR = f'{G_DEBUG_ROOT_DIR}/{slc_id}_fourier/'
 
-        shutil.rmtree(G_DEBUG_SLC_DIR, ignore_errors=True)
-        os.makedirs(G_DEBUG_SLC_DIR)
+        #shutil.rmtree(G_DEBUG_SLC_DIR, ignore_errors=True)
+        os.makedirs(G_DEBUG_SLC_DIR, exist_ok=True)
 
         paths = [path for path in Path(SLC_DIR).glob('*.pkl')]
         records = []
@@ -73,8 +73,8 @@ if __name__ == '__main__':
         codes = pool.map(func=partial(fourier, n=resolution, G_DEBUG_DIR = G_DEBUG_SLC_DIR), iterable=zip(names, records), chunksize=128)
 
         CODE_OUT_DIR = f'{OUT_DIR}/fourier/{slc_id}'
-        shutil.rmtree(CODE_OUT_DIR, ignore_errors=True)
-        os.makedirs(CODE_OUT_DIR)
+        #shutil.rmtree(CODE_OUT_DIR, ignore_errors=True)
+        os.makedirs(CODE_OUT_DIR, exist_ok=True)
 
         for path, record, code in zip(paths, records, codes):
             W = record['W']

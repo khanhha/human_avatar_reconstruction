@@ -8,6 +8,7 @@ from shapely.geometry import LinearRing, LineString, Point, MultiPoint
 import shapely.ops as ops
 import shutil
 import common.util as util
+import common.util_math as math_util
 from numpy.linalg import norm
 from copy import copy
 
@@ -94,7 +95,7 @@ def remove_arm_from_armscye_slice(contour, sup_points, debug_path = None):
         plt.plot(arm_pnt_posx[0], arm_pnt_posx[1], '+r')
         plt.plot([arm_pnt_negx[0], arm_pnt_posx[0]], [arm_pnt_negx[1], arm_pnt_posx[1]], '-r')
 
-    hor_ax  = util.normalize(arm_pnt_posx - arm_pnt_negx)
+    hor_ax  = math_util.normalize(arm_pnt_posx - arm_pnt_negx)
     angle = np.arccos(np.dot(hor_ax, np.array([1.0, 0.0])))
     if hor_ax[1] > 0.0:
         angle = -angle
@@ -365,7 +366,7 @@ def fix_bust_height(bust_contour, sup_points, ld_points, armscye_contour, debug_
         plt.axes().set_aspect(1)
 
     #align the input contours by rotating its arm-arm axis to match to x axis
-    hor_ax  = util.normalize(arm_pnt_posx - arm_pnt_negx)
+    hor_ax  = math_util.normalize(arm_pnt_posx - arm_pnt_negx)
     angle = np.arccos(np.dot(hor_ax, np.array([1.0, 0.0])))
     if hor_ax[1] > 0.0:
         angle = -angle
@@ -435,7 +436,7 @@ def fix_bust_height(bust_contour, sup_points, ld_points, armscye_contour, debug_
         side_mirror_points = []
         for idx in side_point_idxs:
             p = bust_contour[idx, :]
-            p_mirror = util.mirror_point_through_axis(side_bust_tip_point, ver_ax, p)
+            p_mirror = math_util.mirror_point_through_axis(side_bust_tip_point, ver_ax, p)
             side_mirror_points.append(p_mirror)
 
         #scale mirrored points

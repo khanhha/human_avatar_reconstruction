@@ -17,10 +17,10 @@ def util_reconstruct_single_mesh(record, OUT_DIR_CTL, OUT_DIR_DF, predictor, def
     idx = record[0]
     mdata_path = record[1]
     #print(mdata_path.name)
-    #if 'CSR0309A' not in mdata_path.name:
-    #     return
+    # if 'CSR0309A' not in mdata_path.name:
+    #      return
 
-    if idx % 20 == 0:
+    if idx % 50 == 0:
         print(f'{idx} - {mdata_path.name}')
 
     # load 2d measurements
@@ -67,11 +67,8 @@ if __name__ == '__main__':
     OUT_DIR_CTL_MESH = f'{OUT_DIR}/caesar_mesh_control/'
     OUT_DIR_DF_MESH = f'{OUT_DIR}/caesar_mesh_deform/'
     os.makedirs(OUT_DIR_CTL_MESH, exist_ok=True)
-    os.makedirs(OUT_DIR_CTL_MESH, exist_ok=True)
+    os.makedirs(OUT_DIR_DF_MESH, exist_ok=True)
     n_process = args.np
-
-    #shutil.rmtree(OUT_DIR, ignore_errors=True)
-    #os.makedirs(OUT_DIR)
 
     with open(in_path, 'rb') as f:
         data = pickle.load(f)
@@ -114,7 +111,7 @@ if __name__ == '__main__':
     paths_names = [record[1].stem for record in mpaths]
     sorted_idxs = sorted(range(len(paths_names)),key=paths_names.__getitem__)
 
-    nfiles = len(mpaths) if args.nfiles == -1 else args.nfiles
+    nfiles = len(mpaths) if args.nfiles <= 0 else args.nfiles
     process_idxs = sorted_idxs[:nfiles]
     mpaths = [mpaths[idx] for idx in process_idxs]
 
@@ -122,36 +119,6 @@ if __name__ == '__main__':
     pool = multiprocessing.Pool(processes=n_process)
     pool.map(partial(util_reconstruct_single_mesh, OUT_DIR_CTL=OUT_DIR_CTL_MESH, OUT_DIR_DF = OUT_DIR_DF_MESH, predictor=predictor, deformer=deform), mpaths)
     print('done')
-
-    # for i, mdata_path in enumerate(Path(M_DIR).glob('*.npy')):
-    #     # if 'CSR2776A' not in mdata_path.name:
-    #     #     continue
-    #     print(mdata_path)
-    #
-    #     # load 2d measurements
-    #     mdata = np.load(mdata_path).item()
-    #
-    #     seg_dst_f = mdata['landmark_segment_dst_f']
-    #     seg_dst_s = mdata['landmark_segment_dst_s']
-    #     seg_locs_s = mdata['landmark_segment_location_s']
-    #     seg_locs_f = mdata['landmark_segment_location_f']
-    #     measurements = mdata['measurement']
-    #     height = measurements['Height']
-    #
-    #     ctl_tri_mesh = predictor.predict(seg_dst_f, seg_dst_s, seg_locs_s, seg_locs_f, height)
-    #
-    #
-    #     #out_path = f'{OUT_DIR}{mdata_path.stem}_ctl_tri.obj'
-    #     #export_mesh(out_path, verts=ctl_tri_mesh['verts'], faces=ctl_tri_mesh['faces'])
-    #     out_path = f'{OUT_DIR}{mdata_path.stem}_ctl_quad.obj'
-    #     export_mesh(out_path, verts=ctl_tri_mesh['verts'], faces=ctl_mesh_quad_dom['faces'])
-    #
-    #     # tpl_new_verts, tpl_faces = deform.deform(ctl_tri_mesh['verts'])
-    #     # out_path = f'{OUT_DIR}{mdata_path.stem}_tpl_deformed.obj'
-    #     # export_mesh(out_path, verts=tpl_new_verts, faces=tpl_faces)
-    #
-    #     if i > 10:
-    #         break
 
 
 #caecar params

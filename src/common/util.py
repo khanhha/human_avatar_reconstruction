@@ -22,8 +22,8 @@ def is_leg_contour(name):
 
 def is_torso_contour(name):
     torso_slc_ids = {'Crotch', 'Aux_Crotch_Hip_0', 'Aux_Crotch_Hip_1', 'Aux_Crotch_Hip_2',
-                     'Hip', 'Aux_Hip_Waist_0', 'Waist',
-                     'Aux_Waist_UnderBust_0', 'Aux_Waist_UnderBust_1',
+                     'Hip', 'Aux_Hip_Waist_0', 'Aux_Hip_Waist_1' ,'Waist',
+                     'Aux_Waist_UnderBust_0', 'Aux_Waist_UnderBust_1', 'Aux_Waist_UnderBust_2'
                      'UnderBust',
                      'Aux_UnderBust_Bust_0', 'Bust', 'Armscye', 'Aux_Armscye_Shoulder_0', 'Shoulder'}
     if name in torso_slc_ids:

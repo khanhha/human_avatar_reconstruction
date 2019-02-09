@@ -95,9 +95,11 @@ def select_single_obj(obj):
     obj.select = True
     bpy.context.scene.objects.active = obj
     
-def transform_obj_caesar(obj, ld_idxs):
+def transform_obj_caesar(obj):
+    ld_idxs = np.array([[88], [966], [4183],[62], [1033],  [978],  [4244],  [4119],  [1174],  [724],  [58],  [4038],  [639],  [3856],  [43],  [578],  [481],  [3797],  [3698],  [2323],  [2279],  [5454],  [5419],  [1160],  [1135],  [2310],  [5436],  [1130],  [924],  [2583],  [2861],  [2621],  [2688],  [3247],  [2666],  [3246],  [-2147483648],  [-2147483648],  [2881],  [-2147483648],  [4141],  [3982],  [5977],  [5726],  [5813],  [5821],  [5796],  [5865],  [-2147483648],  [-2147483648],  [6011],  [-2147483648],  [1843],  [1833],  [1784],  [191],  [1366],  [1302],  [1294],  [115],  [1281],  [3303],  [4977],  [4965],  [4897],  [3407],  [4502],  [4436],  [4425],  [3337],  [4399],  [6422],  [1093]], dtype=np.int32)
+
     mesh = obj.data
-    
+
     s = 0.01
     bpy.ops.transform.resize(value=(s,s,s))
     bpy.ops.object.transform_apply(location=True, scale=True, rotation=True)
@@ -150,7 +152,7 @@ def load_objects(name_id, my_tool):
             caesar_path = t.dir_caesar_mesh + '/' + name + '.obj'
             if Path(caesar_path).exists():
                 caeobj = import_obj(caesar_path, 'caesar_mesh_'+name)
-                transform_obj_caesar(caeobj, t.ld_idxs[0])
+                transform_obj_caesar(caeobj)
                 print('loaded caesar mesh: ', name)
             else:
                 print('path ' + caesar_path + ' does not exist');
@@ -209,10 +211,6 @@ class InitData(bpy.types.Operator):
     
     def init_data(self, mytool):
         print('init_data')
-        ld_path = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_meta/landmarksIdxs73.npy'
-        ld_idxs = np.load(ld_path)
-        mytool.ld_idxs.clear()
-        mytool.ld_idxs.append(ld_idxs)
         
         names = load_obj_names(mytool.dir_caesar_mesh)
         mytool.caesar_names.clear()
@@ -288,6 +286,26 @@ class PrevObjectOperator(bpy.types.Operator):
         load_objects(cur_name, t)        
         return {'FINISHED'}
 
+
+import os
+class DetectPathsOperator(bpy.types.Operator):
+    bl_idname = "wm.detect_paths"
+    bl_label = "detect_paths"
+
+    def execute(self, context):
+        scene = context.scene
+        t = scene.my_tool
+        file_path = bpy.data.filepath
+        dir = os.path.dirname(file_path)
+        dir = os.path.join(dir, 'data')
+        ctr_dir = os.path.join(dir, 'ctr_mesh')
+        df_dir = os.path.join(dir, 'df_mesh')
+        caesar_dir = os.path.join(dir, 'caesar_mesh')
+        t.dir_caesar_mesh = caesar_dir
+        t.dir_ctl_mesh = ctr_dir
+        t.dir_df_mesh = df_dir
+        return {'FINISHED'}
+
 class LoadObjectByNameOperator(bpy.types.Operator):
     bl_idname = "wm.load_object_by_name"
     bl_label = "load object by name"
@@ -324,6 +342,7 @@ class OBJECT_PT_MY_PANNEL(Panel):
         layout.prop(mytool, "dir_ctl_mesh")
         layout.prop(mytool, "dir_df_mesh")
         layout.operator("wm.init_data")
+        layout.operator("wm.detect_paths")
         layout.prop(mytool, "current_idx")
         layout.prop(mytool, "current_name")
         row = layout.row()

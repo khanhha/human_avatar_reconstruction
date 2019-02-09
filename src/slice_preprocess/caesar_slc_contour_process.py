@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 from numpy.linalg import norm
 from pathlib import Path
 import common.util as util
+import common.util_math as util_math
 from common.util import sample_contour_radial
 from src.slice_preprocess.caesar_slc_fix_bust import \
     remove_arm_from_bust_slice, remove_arm_from_under_bust_slice, remove_arm_from_armscye_slice, fix_bust_height, preprocess_contour
@@ -238,7 +239,7 @@ def leg_hor_axis(ld_points):
 
     hor_dir = 0.5*(left_0+left_1) - 0.5*(right_0+right_1)
 
-    return util.normalize(hor_dir)
+    return util_math.normalize(hor_dir)
 
 def align_leg_contour(X, Y, ld_points):
     hor_ax = leg_hor_axis(ld_points)
