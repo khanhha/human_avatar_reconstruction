@@ -169,8 +169,8 @@ def load_objects(name_id, my_tool):
 
                 select_single_obj(ctlobj)
 
-                bpy.ops.transform.resize(value=(scale,scale,scale))
-                bpy.ops.object.transform_apply(location=True, scale=True, rotation=True)
+                #bpy.ops.transform.resize(value=(scale,scale,scale))
+                #bpy.ops.object.transform_apply(location=True, scale=True, rotation=True)
 
                 bpy.ops.transform.translate(value = Vector((8.0, 0.0, 0.0)))
                 bpy.ops.object.transform_apply(location=True, scale=True, rotation=True)
@@ -190,8 +190,8 @@ def load_objects(name_id, my_tool):
                 
                 select_single_obj(dfobj)
                 
-                bpy.ops.transform.resize(value=(scale,scale,scale))
-                bpy.ops.object.transform_apply(location=True, scale=True, rotation=True)
+                #bpy.ops.transform.resize(value=(scale,scale,scale))
+                #bpy.ops.object.transform_apply(location=True, scale=True, rotation=True)
     
                 bpy.ops.transform.translate(value = Vector((-8.0, 0.0, 0.0)))
                 bpy.ops.object.transform_apply(location=True, scale=True, rotation=True)

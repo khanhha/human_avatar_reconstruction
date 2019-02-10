@@ -9,8 +9,9 @@ if __name__ == '__main__':
     ap = argparse.ArgumentParser()
     ap.add_argument("-ctl", "--control_mesh_path", required=True, help="control mesh path")
     ap.add_argument("-tpl", "--template_mesh_path", required=True, help="template mesh path")
-    ap.add_argument("-o", "--out_path", required=True, help="data output path")
-    ap.add_argument("-g", "--global", required=True, help="global weight")
+    ap.add_argument("-o", "--out_dir", required=True, help="data output dir")
+    ap.add_argument("-mode", required=True, help="mode")
+    ap.add_argument("-cdd_tris", required=False, type=str, default='')
     ap.add_argument("-e", "--effective_range", required=False, default=3)
     ap.add_argument("-use_mean_rad", "--use_mean_radius", required=False, default=0)
 
@@ -18,8 +19,8 @@ if __name__ == '__main__':
 
     ctl_out_path = args['control_mesh_path']
     tpl_out_path = args['template_mesh_path']
-    out_path = args['out_path']
-    is_global = int(args['global']) > 0
+    OUT_DIR = args['out_dir']
+    mode = args['mode']
     effecttive_range = float(args['effective_range'])
     use_mean_rad = int(args['use_mean_radius']) > 0
 
@@ -36,8 +37,8 @@ if __name__ == '__main__':
     ctl_tri_bs = df.calc_triangle_local_basis(ctl_verts, ctl_faces)
     print(f'\tfinish local basis calculation')
 
-    if is_global:
-        print(f'\nstart calculating weights')
+    if mode == 'global':
+        print(f'\nstart calculating weights, mode = {mode}')
         print(f'\n\teffective range = {effecttive_range}, use_mean_radius = {use_mean_rad}')
         vert_effect_idxs, vert_weights = df.calc_vertex_weigth_control_mesh_global(tpl_verts, ctl_verts, ctl_faces, effective_range_factor=effecttive_range, use_mean_tri_radius=use_mean_rad)
         lens = np.array([len(idxs) for idxs in vert_effect_idxs])
@@ -45,6 +46,13 @@ if __name__ == '__main__':
         print(f'\tfinish weight calculation')
         print(f'\tneighbor size statistics: mean number of neighbor, variance number of neighbor')
         print(f'\t{stat}')
+    elif mode == 'fixed_range':
+        print(f'\nstart calculating weights, mode = {mode}')
+        cdd_tris_path = args['cdd_tris']
+        with open(cdd_tris_path, 'rb') as file:
+            vert_effect_cdd_idxs = pickle.load(file=file)
+        vert_effect_idxs, vert_weights = df.calc_vert_weight(tpl_verts, vert_effect_cdd_idxs, ctl_verts, ctl_faces, effecttive_range)
+        print(f'\tfinish weight calculation')
     else:
         print('not support local parameterizati on currently')
         exit()
@@ -64,8 +72,8 @@ if __name__ == '__main__':
     w_data['control_mesh_tri_basis'] = ctl_tri_bs
 
     print(f'\nsaving data')
-    with open(out_path, 'wb') as f:
+    with open(f'{OUT_DIR}/{mode}_parameterization.pkl', 'wb') as f:
         pickle.dump(w_data, f)
-    print(f'\n\toutput parameterization to file {out_path}')
+    print(f'\n\toutput parameterization to file {OUT_DIR}')
 
 

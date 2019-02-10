@@ -5,6 +5,7 @@ import numpy as  np
 import mathutils.geometry as geo
 from mathutils import Vector
 from bpy import context
+import bmesh
 from collections import defaultdict
 from copy import deepcopy
 import mathutils
@@ -309,7 +310,7 @@ def sort_leg_slice_vertices(slc_vert_idxs, mesh_verts):
     # the contour must start at that point to match the order of the prediction contour
     # check the leg contour in the blender file for why it is this way
     start_idx = np.argmin(points_0[:, 1]) + 3
-    points_0 = np.roll(points_0, axis=0, shift=-start_idx)
+    points_0 = np.roll(points_0, axis=0, shift=-int(start_idx))
 
     # concatenate two sorted part.
     sorted_points = points_0
@@ -425,7 +426,6 @@ def is_leg_slice(id):
     else:
         return False
 
-
 def extract_slice_vert_indices(ctl_obj):
     print(ctl_obj.name)
     mesh = ctl_obj.data
@@ -461,7 +461,6 @@ def extract_slice_vert_indices(ctl_obj):
 
 def extract_body_part_face_indices(obj, grp_mark):
     mesh = obj.data
-    n_faces = len(mesh.polygons)
 
     face_types = np.zeros(len(mesh.polygons), dtype=np.uint8)
     maps = body_part_dict()
@@ -476,7 +475,6 @@ def extract_body_part_face_indices(obj, grp_mark):
         face_types[pol.index] = maps[bd_part_name]
 
     return face_types
-
 
 def find_mirror_vertices(obj, group_name, error_threshold=1e-3):
     mesh = obj.data
@@ -515,6 +513,47 @@ def find_mirror_vertices(obj, group_name, error_threshold=1e-3):
 
     return pairs
 
+def find_effective_cdd_triangles(tpl_mesh, ctl_mesh):
+    print('start finding effective candidate control triangles for each vertex of Victoria')
+    ctl_bm = bmesh.new()
+    ctl_bm.from_mesh(ctl_mesh)
+
+    ctl_bm.faces.ensure_lookup_table()
+    ctl_bm.verts.ensure_lookup_table()
+
+    n_ring = 2
+    bvh = mathutils.bvhtree.BVHTree.FromBMesh(ctl_bm)
+
+    cdd_tris = []
+    for idx, v in enumerate(tpl_mesh.vertices):
+        ret = bvh.find_nearest(v.co)
+
+        f_idx = ret[2]
+        f = ctl_bm.faces[f_idx]
+
+        cur_faces = {f.index}
+        cur_verts = {v.index for v in f.verts}
+        outer_verts = {v.index for v in f.verts}
+
+        cnt = 0
+        while cnt < n_ring:
+            for v_idx in outer_verts:
+                v = ctl_bm.verts[v_idx]
+                for adj_f in v.link_faces:
+                    cur_faces.add(adj_f.index)
+
+            outer_verts = set()
+            for f_idx in cur_faces:
+                f = ctl_bm.faces[f_idx]
+                for v in f.verts:
+                    if v.index not in cur_verts:
+                        outer_verts.add(v.index)
+                        cur_verts.add(v.index)
+            cnt += 1
+        #print('found ', len(cur_faces), 'faces for vertex ', idx)
+        cdd_tris.append(list(cur_faces))
+    
+    return cdd_tris
 
 scene = bpy.context.scene
 
@@ -546,6 +585,8 @@ ctl_obj_quad_mesh = mesh_to_numpy(ctl_obj_quad.data)
 vic_obj = scene.objects['VictoriaMesh']
 vic_obj_mesh = mesh_to_numpy(vic_obj.data)
 
+cdd_tris = find_effective_cdd_triangles(vic_obj.data, ctl_obj_tri.data)
+
 vic_v_body_parts = extract_body_part_indices(vic_obj, grp_mark='Part_')
 ctl_f_body_parts = extract_body_part_face_indices(ctl_obj_tri, grp_mark='Part_')
 print('classified {0} faces of control mesh to body part'.format(ctl_f_body_parts.shape[0]))
@@ -559,12 +600,17 @@ vic_mirror_pairs = find_mirror_vertices(bpy.data.objects['VictoriaMesh'], 'LBody
 
 filepath = os.path.join(OUT_DIR, 'vic_data.pkl')
 print('output all data to file ', filepath)
+
+cdd_tris_path = os.path.join(OUT_DIR, 'tpl_ctl_effective_cdd_tris.pkl')
+with open(cdd_tris_path, 'wb') as f:
+    pickle.dump(cdd_tris, f)
+        
 with open(filepath, 'wb') as f:
     data = {}
     data['slice_locs'] = slc_id_locs
     data['slice_vert_idxs'] = slc_vert_idxs
     data['arm_bone_locs'] = arm_bone_locs
-
+    
     data['control_mesh_symmetric_vert_pairs'] = mirror_pairs
 
     data['control_mesh'] = ctl_obj_tri_mesh

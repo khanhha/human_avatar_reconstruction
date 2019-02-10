@@ -60,6 +60,6 @@ if __name__ == '__main__':
         pnt_verts = pnt_verts + v_co
 
         neighbor_verts, neighbor_tris = merge_two_mesh(ctl_mesh_verts, neighbor_tris, pnt_verts, pnt_mesh_tris)
-
+        print(f'exported neighbor mesh: {ndir}/neighbour_tri_of_{v_idx }.obj')
         export_mesh(f'{ndir}/neighbour_tri_of_{v_idx }.obj', verts=neighbor_verts, faces=neighbor_tris)
 

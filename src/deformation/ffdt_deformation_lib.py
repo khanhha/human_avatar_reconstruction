@@ -175,6 +175,35 @@ def calc_vertex_weight_global(v, tris_ref, tri_centers, tri_radius, effective_ra
 
     return (idxs, weights)
 
+def calc_vert_weight(tpl_verts, vert_effect_tri_idxs, ctl_verts, ctl_tris, effective_range_factor):
+
+    verts_weights = []
+    new_vert_effect_tri_idxs = []
+
+    for v_idx, tri_idxs in enumerate(vert_effect_tri_idxs):
+        v = tpl_verts[v_idx, :]
+        weights = []
+        new_tri_idxs = []
+        for t_idx in tri_idxs:
+            t = ctl_tris[t_idx]
+            v0, v1, v2 = ctl_verts[t[0]], ctl_verts[t[1]], ctl_verts[t[2]]
+            center = (v0 + v1 + v2) / 3.0
+            radius = (np.linalg.norm(v0-center) + np.linalg.norm(v1-center) + np.linalg.norm(v2-center))/3.0
+            d = np.linalg.norm(v - center)
+            ratio = d / radius
+            if ratio < effective_range_factor:
+                w = ratio/effective_range_factor
+                w = 1.0 - w
+                #w = np.exp(-w)
+                new_tri_idxs.append(t_idx)
+                weights.append(w)
+
+        new_vert_effect_tri_idxs.append(new_tri_idxs)
+        verts_weights.append(weights)
+
+    return new_vert_effect_tri_idxs, verts_weights
+
+
 #section 3.2, "t-FFD: Free-Form Deformation by using Triangular Mesh"
 def calc_vertex_weigth_control_mesh_global(verts, verts_ref, tris_ref, effective_range_factor = 4, use_mean_tri_radius = False, n_process = 12):
     effect_idxs = []
@@ -227,6 +256,7 @@ def deform_template_mesh(df_verts, effect_vert_tri_idxs, vert_weights, vert_UVWs
 
     return df_verts
 
+import pickle
 class TemplateMeshDeform():
 
     def __init__(self, effective_range, use_mean_rad):

@@ -17,10 +17,10 @@ def util_reconstruct_single_mesh(record, OUT_DIR_CTL, OUT_DIR_DF, predictor, def
     idx = record[0]
     mdata_path = record[1]
     #print(mdata_path.name)
-    # if 'CSR0309A' not in mdata_path.name:
-    #      return
+    if 'CSR0309A' not in mdata_path.name:
+          return
 
-    if idx % 50 == 0:
+    if idx % 1 == 0:
         print(f'{idx} - {mdata_path.name}')
 
     # load 2d measurements
@@ -44,6 +44,7 @@ def util_reconstruct_single_mesh(record, OUT_DIR_CTL, OUT_DIR_DF, predictor, def
         tpl_new_verts, tpl_faces = deform.deform(ctl_tri_mesh['verts'])
         out_path = f'{OUT_DIR_DF}{mdata_path.stem}_tpl_deformed.obj'
         export_mesh(out_path, verts=tpl_new_verts, faces=tpl_faces)
+
     gc.collect()
 
 if __name__ == '__main__':
@@ -99,8 +100,18 @@ if __name__ == '__main__':
             vert_weights = data['template_vert_weight']
             vert_effect_idxs = data['template_vert_effect_idxs']
 
+            debug_path = '/home/khanhhh/data_1/projects/Oh/codes/human_estimation/data/meta_data/victoria_limb_faces.pkl'
+            with open(debug_path, 'rb') as file:
+                tpl_limb_faces = pickle.load(file)
+                tpl_limb_faces = set(tpl_limb_faces)
+                tpl_faces_org = tpl_mesh['faces']
+                tpl_faces = []
+                for idx, face in enumerate(tpl_faces_org):
+                    if idx not in tpl_limb_faces:
+                        tpl_faces.append(face)
+
             deform = TemplateMeshDeform(effective_range=4, use_mean_rad=False)
-            deform.set_meshes(ctl_verts=ctl_mesh['verts'], ctl_tris=ctl_mesh['faces'], tpl_verts=tpl_mesh['verts'], tpl_faces=tpl_mesh['faces'])
+            deform.set_meshes(ctl_verts=ctl_mesh['verts'], ctl_tris=ctl_mesh['faces'], tpl_verts=tpl_mesh['verts'], tpl_faces=tpl_faces)
             deform.set_parameterization(ctl_tri_basis=ctl_tri_bs, vert_UVWs=vert_UVWs, vert_weights=vert_weights, vert_effect_idxs=vert_effect_idxs)
     else:
         deform = None

@@ -406,18 +406,18 @@ def run_process_slice_contours(process_id, slc_id, paths, shared_data):
 
 if __name__  == '__main__':
     ap = argparse.ArgumentParser()
-    ap.add_argument("-i", "--input", required=True, help="")
-    ap.add_argument("-o", "--output", required=True, help="")
-    ap.add_argument("-p", "--suppoint", required=True, help="")
-    ap.add_argument("-l", "--ldpoint", required=True, help="")
-    ap.add_argument("-ids", "--slc_ids", required=True, help="")
+    ap.add_argument("-i", "--input", type=str, required=True, help="")
+    ap.add_argument("-o", "--output", type=str, required=True, help="")
+    ap.add_argument("-p", "--suppoint", type=str, required=True, help="")
+    ap.add_argument("-l", "--ldpoint", type=str, required=True, help="")
+    ap.add_argument("-ids", "--slc_ids", type=str,  required=True, help="")
 
-    args = vars(ap.parse_args())
-    IN_DIR  = args['input']
-    OUT_DIR = args['output']
-    SUPPOINT_DIR   = args['suppoint']
-    LDPOINT_DIR   = args['ldpoint']
-    slc_ids = args['slc_ids']
+    args = ap.parse_args()
+    IN_DIR  = args.input
+    OUT_DIR = args.output
+    SUPPOINT_DIR   = args.suppoint
+    LDPOINT_DIR   = args.ldpoint
+    slc_ids = args.slc_ids
 
     DEBUG_DIR = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/debug/'
     os.makedirs(DEBUG_DIR, exist_ok=True)
