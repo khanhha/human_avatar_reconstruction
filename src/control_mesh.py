@@ -4,7 +4,7 @@ from numpy.linalg import norm
 import common.util as util
 import shapely.geometry as geo
 from shapely.ops import nearest_points
-from src.slice_regressor_dtree import RBFNet
+from slc_training.slice_regressor_dtree import RBFNet
 from scipy.spatial import KDTree
 from copy import copy
 from copy import deepcopy
@@ -424,11 +424,12 @@ class ControlMeshPredictor():
                 slice_out[:,0] =  res_contour[1,:]
                 slice_out[:,1] =  res_contour[0,:]
 
-                # if id_2d == 'Bust':
+                # if id_2d == 'Aux_Crotch_Hip_0' or id_2d == 'Crotch':
                 #     import matplotlib.pyplot as plt
+                #     plt.axes().set_aspect(1.0)
                 #     plt.plot(slice_out[:,0], slice_out[:,1], '-b')
                 #     plt.plot(slice_out[:,0], slice_out[:,1], '+r')
-                #     plt.show()
+                #     plt.title(id_2d)
 
 
             #we apply x,y scaling to make sure that our the final slice match width/height measurement
@@ -436,6 +437,12 @@ class ControlMeshPredictor():
             w_ratio = w / dim_range[0]
             d_ratio = d / dim_range[1]
             slice_out = scale_vertical_slice(slice_out, w_ratio, d_ratio)
+            # if id_2d == 'Aux_Crotch_Hip_0' or id_2d == 'Crotch':
+            #     import matplotlib.pyplot as plt
+            #     plt.axes().set_aspect(1.0)
+            #     plt.plot(slice_out[:, 0], slice_out[:, 1], '-r')
+            #     plt.plot(slice_out[:, 0], slice_out[:, 1], '+r')
+            #     plt.show()
 
             #hack. the slices from hip to crothc is a bit flat along cleavage. we push the cleavage vertices a bit inside
             if util.is_torso_contour(id_2d):

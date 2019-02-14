@@ -16,7 +16,7 @@ def fourier(item, n, G_DEBUG_DIR):
     X = contour[0,:]
     Y = contour[1,:]
     debug_path = f'{G_DEBUG_DIR}/{name}.png'
-    code = util.calc_fourier_descriptor(X, Y, resolution=n, path_debug=None)
+    code = util.calc_fourier_descriptor(X, Y, resolution=n, path_debug=debug_path)
     return code
 
 def fourier_resolution(slc_id):

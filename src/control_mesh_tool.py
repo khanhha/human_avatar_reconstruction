@@ -38,7 +38,7 @@ def util_reconstruct_single_mesh(record, OUT_DIR_CTL, OUT_DIR_DF, predictor, def
     # out_path = f'{OUT_DIR}{mdata_path.stem}_ctl_tri.obj'
     # export_mesh(out_path, verts=ctl_tri_mesh['verts'], faces=ctl_tri_mesh['faces'])
     out_path = f'{OUT_DIR_CTL}{mdata_path.stem}_ctl_quad.obj'
-    export_mesh(out_path, verts=ctl_tri_mesh['verts'], faces=ctl_mesh_quad_dom['faces'])
+    export_mesh(out_path, verts=ctl_tri_mesh['verts'], faces=ctl_tri_mesh['faces'])
 
     if deformer is not None:
         tpl_new_verts, tpl_faces = deform.deform(ctl_tri_mesh['verts'])

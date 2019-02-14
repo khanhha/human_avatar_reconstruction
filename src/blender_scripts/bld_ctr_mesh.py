@@ -603,7 +603,7 @@ print('output all data to file ', filepath)
 
 cdd_tris_path = os.path.join(OUT_DIR, 'tpl_ctl_effective_cdd_tris.pkl')
 with open(cdd_tris_path, 'wb') as f:
-    pickle.dump(cdd_tris, f)
+    pickle.dump(file=f, obj=cdd_tris)
         
 with open(filepath, 'wb') as f:
     data = {}
@@ -623,7 +623,7 @@ with open(filepath, 'wb') as f:
     data['template_symmetric_vert_pairs'] = vic_mirror_pairs
     data['body_part_dict'] = {v: k for k, v in body_part_dict().items()}
     pickle.dump(data, f)
-3
+
 # output the two meshes for the sake of debugging
 filepath = os.path.join(OUT_DIR, 'origin_control_mesh_tri.obj')
 print('output triangulated control mesh to ', filepath)

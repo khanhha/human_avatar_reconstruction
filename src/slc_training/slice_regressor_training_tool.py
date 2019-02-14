@@ -7,7 +7,7 @@ import shutil
 import sys
 from collections import defaultdict
 from sklearn.cluster import KMeans
-from slice_regressor_dtree import RBFNet
+from slc_training.slice_regressor_dtree import RBFNet
 from common import util
 
 def slice_model_config():

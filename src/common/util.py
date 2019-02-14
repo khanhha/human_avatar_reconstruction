@@ -39,6 +39,9 @@ def contour_center(X, Y):
 
 from scipy.interpolate import splprep, splev
 def resample_contour(X, Y, n_point):
+    okay = np.where(np.abs(np.diff(X)) + np.abs(np.diff(Y)) > 0)
+    X = X[okay]
+    Y = Y[okay]
     tck, u = splprep([X, Y], s=0)
     u_1 = np.linspace(0.0, 1.0, n_point)
     X, Y = splev(u_1, tck)

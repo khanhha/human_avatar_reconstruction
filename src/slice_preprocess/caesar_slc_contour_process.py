@@ -120,12 +120,17 @@ def radial_code(points, D, half = True):
 
     return feature
 
-def torso_contour_w_d(X, Y):
+def torso_contour_center(X, Y):
     idx_ymax, idx_ymin = np.argmax(Y), np.argmin(Y)
-    idx_xmax, idx_xmin = np.argmax(X), np.argmin(X)
     center_y = 0.5 * (Y[idx_ymax] + Y[idx_ymin])
     center_x = 0.5 * (X[idx_ymin] + X[idx_ymax])
     center = np.array([center_x, center_y])
+
+    return center
+
+def torso_contour_w_d(X, Y):
+    idx_ymax, idx_ymin = np.argmax(Y), np.argmin(Y)
+    idx_xmax, idx_xmin = np.argmax(X), np.argmin(X)
 
     W = Y[idx_ymax] - Y[idx_ymin]
     D = X[idx_xmax] - X[idx_xmin]
@@ -265,6 +270,60 @@ def align_leg_contour(X, Y, ld_points):
     #plt.show()
     return contour_1[:,0], contour_1[:,1]
 
+from copy import deepcopy
+#make contour start from its cleavage point
+#make contour symmetric
+def fix_crotch_contour(X, Y):
+    #top-right part
+    tr_mask = np.bitwise_and(X > 0, Y > 0)
+    tmp_X = deepcopy(X)
+    tmp_X[~tr_mask] = -np.inf
+    above_idx = np.argmax(tmp_X)
+
+    #bottom right pat
+    br_mask = np.bitwise_and(X > 0, Y < 0)
+    tmp_X = deepcopy(X)
+    tmp_X[~br_mask] = -np.inf
+    below_idx = np.argmax((tmp_X))
+
+    #find the cleavage
+    #candidate mask
+    cdd_mask = np.bitwise_and(Y > Y[below_idx], Y < Y[above_idx])
+    cdd_mask = np.bitwise_and(cdd_mask, X > 0)
+    tmp_X = deepcopy(X)
+    tmp_X[~cdd_mask] = np.inf
+    cleavage_idx = int( np.argmin(tmp_X))
+
+    #rolling to make the cleaveage point as the first point of contour
+    X = np.roll(X, -cleavage_idx)
+    Y = np.roll(Y, -cleavage_idx)
+    Y = Y - Y[0] #make the contour zero-center along Y direction
+    #from now on cleavage_idx = 0
+
+    mask =  X < 0
+    tmp_Y = deepcopy(Y)
+    tmp_Y[~mask] = np.inf
+    diff_Y = np.abs(Y[0] - tmp_Y)
+    half_idx = np.argmin(diff_Y)
+
+    half_X = X[:half_idx+1]
+    half_Y = Y[:half_idx+1]
+    mask = half_Y >= 0.0
+    half_X = half_X[mask]
+    half_Y = half_Y[mask]
+
+    X1 = np.concatenate([half_X,  half_X[1:][::-1]], axis=0)
+    Y1 = np.concatenate([half_Y, -half_Y[1:][::-1]], axis=0)
+    # print(np.diff(X1))
+    # print(np.diff(Y1))
+    # plt.clf()
+    # plt.axes().set_aspect(1.0)
+    # plt.plot(X1, Y1, '-b')
+    # plt.plot(X1, Y1, '+r')
+    # plt.show()
+
+    return X1, Y1
+
 def process_leg_contour(path, contour, sup_points, ld_points):
     contour = preprocess_contour(contour, resolution=150)
 
@@ -340,6 +399,8 @@ def process_torso_contour(path, contour, sup_points, ld_points):
     X, Y = util.align_torso_contour(X, Y, anchor_pos_x=align_anchor_pos_x, debug_path=debug_align_path)
     if X is None or Y is None:
         raise Exception('failed torso contour alignment')
+    if slc_id == 'Crotch' or 'Aux_Crotch_Hip_' in slc_id:
+        X, Y = fix_crotch_contour(X, Y)
 
     X, Y = resample_contour(X, Y)
     #X, Y = util.smooth_contour(X, Y, sigma=2.0)
@@ -356,7 +417,6 @@ def run_process_slice_contours(process_id, slc_id, paths, shared_data):
 
     Ws = []
     Ds = []
-    Fs = []
     Cs = []
     Ns = []
 
@@ -377,6 +437,13 @@ def run_process_slice_contours(process_id, slc_id, paths, shared_data):
             ld_points = pickle.load(file)
 
         contour = load_contour(slc_id, path)
+
+        # crotch_pos = ld_points[72]
+        # plt.clf()
+        # plt.axes().set_aspect(1.0)
+        # plt.plot(contour[:,0], contour[:,1])
+        # plt.plot(crotch_pos[0], crotch_pos[1], '+r')
+        # plt.show()
 
         if util.is_leg_contour(slc_id):
             try:
@@ -411,6 +478,7 @@ if __name__  == '__main__':
     ap.add_argument("-p", "--suppoint", type=str, required=True, help="")
     ap.add_argument("-l", "--ldpoint", type=str, required=True, help="")
     ap.add_argument("-ids", "--slc_ids", type=str,  required=True, help="")
+    ap.add_argument("-np", "--nprocess", type=int,  required=False, default=1 ,help="")
 
     args = ap.parse_args()
     IN_DIR  = args.input
@@ -418,6 +486,7 @@ if __name__  == '__main__':
     SUPPOINT_DIR   = args.suppoint
     LDPOINT_DIR   = args.ldpoint
     slc_ids = args.slc_ids
+    n_processes = args.nprocess
 
     DEBUG_DIR = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/debug/'
     os.makedirs(DEBUG_DIR, exist_ok=True)
@@ -430,7 +499,6 @@ if __name__  == '__main__':
         for id in slc_ids:
             assert id in all_slc_ids, f'{id}: unrecognized slice id'
 
-    n_processes = 12
     failed_slice_paths = []
     for slc_id in slc_ids:
         SLICE_DIR = f'{IN_DIR}/{slc_id}/'

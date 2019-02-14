@@ -201,7 +201,8 @@ if __name__ == '__main__':
 
     os.makedirs(DEBUG_DIR, exist_ok=True)
 
-    slc_ids = ['Bust', 'Waist', 'Hip', 'UnderBust', 'Aux_Waist_UnderBust_0', 'Aux_Waist_UnderBust_1', 'Aux_Waist_UnderBust_2', 'Shoulder']
+    #slc_ids = ['Bust', 'Waist', 'Hip', 'UnderBust', 'Aux_Waist_UnderBust_0', 'Aux_Waist_UnderBust_1', 'Aux_Waist_UnderBust_2', 'Shoulder']
+    slc_ids = ['Crotch', 'Aux_Crotch_Hip_0', 'Aux_Crotch_Hip_1', 'Aux_Crotch_Hip_2', 'Hip']
     names = find_minimum_good_slc_names(IN_DIR, BAD_SLC_DIR, slc_ids)
 
     tmp_path = f'{DEBUG_DIR}/contour_radial.pkl'
@@ -230,11 +231,12 @@ if __name__ == '__main__':
     #slc_ratios   = {'Bust': bust_ratios, 'Hip':hip_ratios, 'Waist': waist_ratios, 'UnderBust' : underbust_ratios}
     #slc_contours = {'Bust': bust_contours, 'Hip':hip_contours, 'Waist': waist_contours, 'UnderBust' : underbust_contours}
 
-    X_global = np.concatenate([slc_ratios['Bust'], slc_ratios['Waist'], slc_ratios['Hip']], axis=1)
+    #X_global = np.concatenate([slc_ratios['Bust'], slc_ratios['Waist'], slc_ratios['Hip']], axis=1)
+    X_global = np.concatenate([slc_ratios['Crotch'], slc_ratios['Aux_Crotch_Hip_0'], slc_ratios['Aux_Crotch_Hip_1'], slc_ratios['Aux_Crotch_Hip_2'], slc_ratios['Hip']], axis=1)
     print(X_global.shape)
 
     K = 10
-    for slc_id in ['UnderBust', 'Aux_Waist_UnderBust_1', 'Shoulder']:
+    for slc_id in ['Crotch', 'Hip']:
         print(f'\nstart clustering slice : {slc_id}')
         slc_X = slc_ratios[slc_id]
         X = np.concatenate([X_global, slc_X], axis=1)
