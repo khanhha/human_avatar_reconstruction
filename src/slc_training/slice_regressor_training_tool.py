@@ -9,6 +9,7 @@ from collections import defaultdict
 from sklearn.cluster import KMeans
 from slc_training.slice_regressor_dtree import RBFNet
 from common import util
+from slc_training.slice_train_util import load_slc_contours, load_slice_data, load_bad_slice_names
 
 def slice_model_config():
     config = defaultdict(dict)
@@ -33,24 +34,6 @@ def slice_model_config():
     config['Knee']                   = {'n_cluster':12, 'n_output':9, 'no_regress_at_outputs':[]}
     return config
 
-def load_bad_slice_names(DIR, slc_id):
-    txt_path = None
-    for path in Path(DIR).glob('*.*'):
-        if slc_id == path.stem:
-            txt_path = path
-            break
-
-    if txt_path is None:
-        print(f'\tno bad slice path of slice {slc_id}')
-        return ()
-    else:
-        names = set()
-        with open(str(txt_path), 'r') as file:
-            for name in file.readlines():
-                name = name.replace('\n','')
-                names.add(name)
-        return names
-
 def print_statistic(X, Y):
     mean = np.mean(Y, axis=0)
     median = np.median(Y, axis=0)
@@ -66,132 +49,6 @@ def print_statistic(X, Y):
     print('nan count: ', np.isnan(Y).flatten().sum())
     print('inf count: ', np.isinf(X).flatten().sum())
     print('inf count: ', np.isinf(Y).flatten().sum())
-
-def load_slice_data(SLC_CODE_DIR, bad_slc_names):
-    slc_names = []
-    all_paths = [path for path in Path(SLC_CODE_DIR).glob('*.*')]
-    X, Y = [], []
-    W, D = [], []
-    for path in all_paths:
-        if path.stem in bad_slc_names:
-            continue
-        with open(str(path), 'rb') as file:
-            record = pickle.load(file)
-            w = record['W']
-            d = record['D']
-
-            if w == 0.0 or d == 0.0:
-                print('zero w or d: ', w, d, file=sys.stderr)
-                continue
-
-            feature = record['Code']
-
-            if np.isnan(feature).flatten().sum() > 0:
-                print(f'nan feature: {path}', file=sys.stderr)
-                continue
-
-            if np.isnan(X).flatten().sum() > 0:
-                print(f'nan X: {path}', file=sys.stderr)
-                continue
-
-            if np.isinf(feature).flatten().sum() > 0:
-                print(f'inf feature: {path}', file=sys.stderr)
-                continue
-
-            if np.isinf(X).flatten().sum() > 0:
-                print(f'inf X: {path}', file=sys.stderr)
-                continue
-
-            slc_names.append(path.stem)
-
-            #W and D arrays are just of the sake of test inference
-            W.append(w)
-            D.append(d)
-
-            X.append(w / d)
-            Y.append(feature)
-
-    #print_statistic(X, Y)
-
-    return np.array(X), np.array(Y), W, D, slc_names
-
-def load_slc_contours(SLC_DIR):
-    contours = {}
-    for path in Path(SLC_DIR).glob('*.pkl'):
-        with open(str(path), 'rb') as file:
-            record = pickle.load(file)
-            contours[path.stem] = record['cnt']
-    return contours
-
-def normalize_contour(X,Y, center):
-    X = X-center[0]
-    Y = Y-center[1]
-    dsts = np.sqrt(np.square(X) + np.square(Y))
-    mean_dst = np.max(dsts)
-    X = X / mean_dst
-    Y = Y / mean_dst
-    return X, Y
-
-import os
-def plot_contour_correrlation(IN_DIR, DEBUG_DIR, K):
-    ratios = []
-    contours = []
-    for path in Path(DEBUG_DIR).glob('*.*'):
-        os.remove(str(path))
-
-    for path in Path(IN_DIR).glob("*.*"):
-        with open(str(path), 'rb') as file:
-            data = pickle.load(file)
-            w = data['W']
-            d = data['D']
-            ratios.append(w/d)
-            contours.append(data['cnt'])
-
-    n_contour = len(ratios)
-    ratios = np.array(ratios).reshape(n_contour, 1)
-    kmeans = KMeans(n_clusters=K)
-    cnt_labels =  kmeans.fit_predict(ratios)
-    for l in kmeans.labels_:
-        l_contour_idxs = np.argwhere(cnt_labels==l)[:,0]
-        cls_center = kmeans.cluster_centers_[l]
-        cluster_mask = (cnt_labels == l)
-        points = ratios[cluster_mask].flatten()
-        std = np.std(points)
-        plt.clf()
-        plt.axes().set_aspect(1.0)
-        #cnt_centers = [util.contour_center(contours[i][:,0], contours[i][:,1]) for i in l_contour_idxs]
-        #cnt_centers = np.array(cnt_centers)
-        #mean_center = np.mean(cnt_centers, axis=0)
-        for idx in l_contour_idxs:
-            contour = contours[idx]
-            X = contour[0,:]
-            Y = contour[1,:]
-            X,Y = normalize_contour(X, Y, util.contour_center(X, Y))
-            X0 = X[0].reshape(-1)
-            X = np.concatenate([X, X0], axis=0)
-            Y0 = Y[0].reshape(-1)
-            Y = np.concatenate([Y, Y0], axis=0)
-            plt.plot(X, Y, '-b')
-            plt.title(f'n_contour_in_cluster = {len(l_contour_idxs)}\n center = {cls_center}, inertia={std}')
-
-        plt.savefig(f'{DEBUG_DIR}/label_{l}.png')
-
-
-def plot_all_contour_correlation():
-    #plot correlation
-    # print('plotting correlation k-means')
-    # for path in Path(IN_DIR).glob('*'):
-    #     slc_id = path.stem
-    #     if slc_id in slc_ids:
-    #
-    #         model_config = model_configs[slc_id]
-    #         K = model_config['n_cluster'] if 'n_cluster' in model_config else 12
-    #
-    #         CORR_DIR = f'{DEBUG_DIR}{slc_id}_correlation/'
-    #         os.makedirs(CORR_DIR, exist_ok=True)
-    #         plot_contour_correrlation(str(path), CORR_DIR, K)
-    # exit()
-    pass
 
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
