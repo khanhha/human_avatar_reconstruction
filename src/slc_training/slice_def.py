@@ -50,17 +50,16 @@ class SliceModelInputDef:
 
     input_dict = {}
 
-    def __init__(self):
-        tmp = [SliceID.Crotch.name, SliceID.Aux_Crotch_Hip_0.name, SliceID.Aux_Crotch_Hip_1.name, SliceID.Aux_Crotch_Hip_2.name, SliceID.Hip.name]
+    tmp = [SliceID.Crotch.name, SliceID.Aux_Crotch_Hip_0.name, SliceID.Aux_Crotch_Hip_1.name, SliceID.Aux_Crotch_Hip_2.name, SliceID.Hip.name]
+    input_dict[SliceID.Hip.name] = tmp
+    input_dict[SliceID.Aux_Crotch_Hip_2.name] = tmp
+    input_dict[SliceID.Aux_Crotch_Hip_1.name] = tmp
+    input_dict[SliceID.Aux_Crotch_Hip_0.name] = tmp
+    input_dict[SliceID.Crotch.name] = tmp
 
-        self.input_dict[SliceID.Hip.name] = tmp
-        self.input_dict[SliceID.Aux_Crotch_Hip_2.name] = tmp
-        self.input_dict[SliceID.Aux_Crotch_Hip_1.name] = tmp
-        self.input_dict[SliceID.Aux_Crotch_Hip_0.name] = tmp
-        self.input_dict[SliceID.Crotch.name] = tmp
-
-    def get_input_def(self, name):
-        if name not in self.input_dict:
+    @staticmethod
+    def get_input_def(name):
+        if name not in SliceModelInputDef.input_dict:
             return [name]
         else:
-            return self.input_dict[name]
+            return SliceModelInputDef.input_dict[name]

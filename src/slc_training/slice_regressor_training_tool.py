@@ -10,6 +10,7 @@ from sklearn.cluster import KMeans
 from slc_training.slice_regressor_dtree import RBFNet
 from common import util
 from slc_training.slice_train_util import load_slc_contours, load_slice_data, load_bad_slice_names
+import os
 
 def slice_model_config():
     config = defaultdict(dict)

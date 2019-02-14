@@ -3,6 +3,52 @@ from pathlib import Path
 import sys
 import numpy as np
 
+class SlcData():
+    def __init__(self, id, fnames, contours, features, W, D):
+        self.id = id
+        self.fnames = fnames
+        self.fnames_map = {name:idx for idx, name in enumerate(self.fnames)}
+        self.contours = contours
+        self.features = features
+        self.W = W
+        self.D = D
+
+    def __getitem__(self, slc_id):
+        idx = self.fnames_map[slc_id]
+        x = self.W[idx]/self.D[idx]
+        y = self.features[idx]
+        return x, y
+
+    def __len__(self):
+        return len(self.fnames)
+
+    @staticmethod
+    def build_training_data(in_slices, out_slc):
+
+        #collect file names shared by all slice data
+        shared_fnames = set()
+        for slc_data in in_slices:
+            if len(shared_fnames) == 0:
+                shared_fnames = {name for name in slc_data.fnames}
+            shared_fnames = shared_fnames.intersection(slc_data.fnames)
+
+        shared_fnames = shared_fnames.intersection(out_slc.fnames)
+
+        #extract X and Y for the list of file names
+        X = []
+        Y = []
+        for fname in shared_fnames:
+            cur_x = []
+            for slc_data in in_slices:
+                x, _ = slc_data[fname]
+                cur_x.append(x)
+            X.append(cur_x)
+
+            _, y = out_slc[fname]
+            Y.append(y)
+
+        return np.array(X), np.array(Y)
+
 def load_bad_slice_names(DIR, slc_id):
     txt_path = None
     for path in Path(DIR).glob('*.*'):
@@ -44,16 +90,8 @@ def load_slice_data(SLC_CODE_DIR, bad_slc_names):
                 print(f'nan feature: {path}', file=sys.stderr)
                 continue
 
-            if np.isnan(X).flatten().sum() > 0:
-                print(f'nan X: {path}', file=sys.stderr)
-                continue
-
             if np.isinf(feature).flatten().sum() > 0:
                 print(f'inf feature: {path}', file=sys.stderr)
-                continue
-
-            if np.isinf(X).flatten().sum() > 0:
-                print(f'inf X: {path}', file=sys.stderr)
                 continue
 
             slc_names.append(path.stem)
@@ -68,6 +106,51 @@ def load_slice_data(SLC_CODE_DIR, bad_slc_names):
     #print_statistic(X, Y)
 
     return np.array(X), np.array(Y), W, D, slc_names
+
+def load_slice_data_1(id, SLC_CONTOUR_DIR, SLC_FEATURE_DIR, bad_slc_names):
+    slc_names = []
+    features =  []
+    W, D = [], []
+    contours = []
+
+    all_paths = [path for path in Path(SLC_FEATURE_DIR).glob('*.*')]
+    for path in all_paths:
+
+        if path.stem in bad_slc_names:
+            continue
+
+        with open(str(path), 'rb') as file:
+            record = pickle.load(file)
+            w = record['W']
+            d = record['D']
+
+            if w == 0.0 or d == 0.0:
+                print('zero w or d: ', w, d, file=sys.stderr)
+                continue
+
+            feature = record['Code']
+
+            if np.isnan(feature).flatten().sum() > 0:
+                print(f'nan feature: {path}', file=sys.stderr)
+                continue
+
+            if np.isinf(feature).flatten().sum() > 0:
+                print(f'inf feature: {path}', file=sys.stderr)
+                continue
+
+            contour_path = f'{SLC_CONTOUR_DIR}/{path.name}'
+            with open(str(contour_path ), 'rb') as file:
+                record = pickle.load(file)
+                cnt = record['cnt']
+                contours.append(cnt)
+
+            slc_names.append(path.stem)
+            W.append(w)
+            D.append(d)
+            features.append(feature)
+
+    return SlcData(id=id, fnames=slc_names, contours=contours, features=features, W=W, D=D)
+
 
 def load_slc_contours(SLC_DIR):
     contours = {}
