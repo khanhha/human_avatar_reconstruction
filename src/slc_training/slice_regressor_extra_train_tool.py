@@ -2,7 +2,7 @@ import argparse
 from pathlib import Path
 from slc_training.slice_def import SliceModelInputDef, SliceID
 from slc_training.slice_train_util import load_slice_data_1, SlcData, load_bad_slice_names
-from slc_training.slice_regressor_dtree import RBFNet
+from slc_training.slice_regressor_dtree_1 import SliceRegressor
 import os
 
 if __name__ == '__main__':
@@ -12,6 +12,7 @@ if __name__ == '__main__':
     ap.add_argument("-bad_slc_dir", required=True, type=str, help="root directory contains all slice code directory")
     ap.add_argument("-model_dir", required=True, type=str, help="root directory contains all slice code directory")
     ap.add_argument("-slc_ids", required=True, type=str, help="root directory contains all slice code directory")
+    ap.add_argument("-mode", required=True, type=str, help="model definition model. single or neighbor")
     args = ap.parse_args()
 
     ALL_SLC_DIR  = args.slc_dir
@@ -19,6 +20,8 @@ if __name__ == '__main__':
     BAD_SLC_DIR = args.bad_slc_dir
     MODEL_DIR_ROOT  = args.model_dir
     train_slc_ids = args.slc_ids
+
+    os.makedirs(args.model_dir, exist_ok=True)
 
     all_slc_ids = [slc_enum.name for slc_enum in SliceID]
     if train_slc_ids == 'all' or train_slc_ids == 'All':
@@ -45,15 +48,23 @@ if __name__ == '__main__':
         all_slc_data[slc_id] = data
 
     for train_slc_id in train_slc_ids:
-
+        print(f'starting training slice {train_slc_id} in mode {args.mode}')
         input_ids = SliceModelInputDef.get_input_def(train_slc_id)
-        in_slc_data = [all_slc_data[id] for id in input_ids]
 
         out_slc_data = all_slc_data[train_slc_id]
 
-        X, Y = SlcData.build_training_data(in_slc_data, out_slc_data)
-        print(X.shape, Y.shape)
+        if args.mode == 'neighbor':
+            in_slc_data = [all_slc_data[id] for id in input_ids]
+            X, Y  = SlcData.build_training_data(in_slc_data, out_slc_data)
+            print(X.shape, Y.shape)
+            net = SliceRegressor(slc_id=train_slc_id, model_input_slc_ids=input_ids)
+        else:
+            in_slc_data = [all_slc_data[train_slc_id]]
+            X, Y  = SlcData.build_training_data(in_slc_data, out_slc_data)
+            net = SliceRegressor(slc_id=train_slc_id, model_input_slc_ids=[train_slc_id])
 
-        net = RBFNet(slc_id=train_slc_id, n_cluster=12, n_output=38, no_regress_at_outputs=None, debug_mode=None)
         net.fit(X, Y)
+        model_path = os.path.join(MODEL_DIR_ROOT, f'{train_slc_id}.pkl')
+        net.save_to_path(model_path)
+
 

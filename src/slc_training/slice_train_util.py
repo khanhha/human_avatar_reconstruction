@@ -22,17 +22,23 @@ class SlcData():
     def __len__(self):
         return len(self.fnames)
 
+    #minimum set of file names shared by all slices
     @staticmethod
-    def build_training_data(in_slices, out_slc):
-
-        #collect file names shared by all slice data
+    def extract_shared_fnames(slices):
         shared_fnames = set()
-        for slc_data in in_slices:
+        for slc_data in slices:
             if len(shared_fnames) == 0:
                 shared_fnames = {name for name in slc_data.fnames}
             shared_fnames = shared_fnames.intersection(slc_data.fnames)
 
-        shared_fnames = shared_fnames.intersection(out_slc.fnames)
+        return shared_fnames
+
+    @staticmethod
+    def build_training_data(in_slices, out_slc, fnames = None):
+        if fnames is None:
+            shared_fnames = SlcData.extract_shared_fnames(in_slices + [out_slc])
+        else:
+            shared_fnames = fnames
 
         #extract X and Y for the list of file names
         X = []
