@@ -211,22 +211,6 @@ if __name__ == '__main__':
         plt.savefig(os.path.join(args.debug_dir, f'{name}.png'), dpi=300)
         plt.close('all')
 
-        # contour = np.concatenate([contour[:,:], contour[:,0].reshape(2,1)], axis=1)
-        # res_contour_0 = np.concatenate([res_contour_0[:, :], res_contour_0[:, 0].reshape(2, 1)], axis=1)
-        # res_contour_1 = np.concatenate([res_contour_1[:, :], res_contour_1[:, 0].reshape(2, 1)], axis=1)
-        # plt.clf()
-        # plt.subplot(121)
-        # plt.plot(contour[0,:], contour[1,:], '-b')
-        # plt.plot(res_contour_0[0, :], res_contour_0[1, :], '-r')
-        # plt.title(f'model_0: single input:\n {model_0.slc_model_input_ids}')
-        # #plt.axes().set_aspect(1.0)
-        # plt.subplot(122)
-        # plt.plot(contour[0, :], contour[1, :], '-b')
-        # plt.plot(res_contour_1[0, :], res_contour_1[1, :], '-r')
-        # plt.title(f'model_1: neighbor input:\n{model_1.slc_model_input_ids}')
-        # plt.savefig(os.path.join(debug_dir, f'{name}.png'))
-
-
 
 
 

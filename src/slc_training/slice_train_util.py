@@ -53,7 +53,12 @@ class SlcData():
             _, y = out_slc[fname]
             Y.append(y)
 
-        return np.array(X), np.array(Y)
+        X = np.array(X)
+        Y = np.array(Y)
+        assert(np.sum(np.isnan(X[:])[:]) == 0)
+        assert(np.sum(np.isnan(Y[:])[:]) == 0)
+
+        return X, Y
 
 def load_bad_slice_names(DIR, slc_id):
     txt_path = None
