@@ -31,7 +31,7 @@ class SlcData():
                 shared_fnames = {name for name in slc_data.fnames}
             shared_fnames = shared_fnames.intersection(slc_data.fnames)
 
-        return shared_fnames
+        return sorted(list(shared_fnames))
 
     @staticmethod
     def build_training_data(in_slices, out_slc, fnames = None):

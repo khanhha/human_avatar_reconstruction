@@ -34,9 +34,9 @@ class SliceRegressor():
     def slc_model_input_ids(self):
         return self._model_slc_input_ids
 
-    def fit(self, X, Y):
+    def fit(self, X, Y, n_jobs = -1):
         N = X.shape[0]
-        X_train, X_test, train_idxs, test_idxs = train_test_split(X, np.arange(N), test_size=0.2, shuffle=True, random_state=200)
+        X_train, X_test, train_idxs, test_idxs = train_test_split(X, np.arange(N), test_size=0.2, shuffle=False, random_state=200)
         train_idxs = train_idxs
         test_idxs = test_idxs
         Y_train = Y[train_idxs]
@@ -46,9 +46,9 @@ class SliceRegressor():
         #regressor = ExtraTreesRegressor(random_state=200)
         #regressor = MultiOutputRegressor(ExtraTreesRegressor(n_estimators=100, min_samples_leaf=50))
         regressor = Pipeline([('gmm', GaussianMixture_Hack(n_init=10)), ('reg', ExtraTreesRegressor())])
-        parameters = {'gmm__n_components':np.arange(8,18,step=2), 'reg__n_estimators':np.arange(40,140,step=20), 'reg__min_samples_leaf':np.arange(20,140,step=20)}
+        parameters = {'gmm__n_components':np.arange(10,16,step=2), 'reg__n_estimators':np.arange(80,160,step=20), 'reg__min_samples_leaf':np.arange(20,140,step=20)}
         print(f'\tsearch parameters: {parameters}')
-        clf = GridSearchCV(regressor, parameters, cv = 5, verbose=1 , n_jobs=-1)
+        clf = GridSearchCV(regressor, parameters, cv = 2, n_jobs=n_jobs)
         clf.fit(X_train, Y_train)
         print(clf.best_estimator_)
         self.regressor = clf.best_estimator_
@@ -57,6 +57,7 @@ class SliceRegressor():
         print('\tregression score on test set: ', self.regressor.score(X_test, Y_test))
         print('\tregression score on test mse loss: ', self.loss(X_test, Y_test))
 
+        return train_idxs, test_idxs
 
     def loss(self, X, Y):
         Y_hat = self.regressor.predict(X)

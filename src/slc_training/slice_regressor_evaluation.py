@@ -38,22 +38,22 @@ def load_models(dir_0, dir_1, model_slc_ids):
         with open(model_path_0, 'rb') as file:
             model_0 = pickle.load(file)
 
-        assert is_valid_model(model_0, model_id) == 1
+        assert is_valid_model(model_0['model'], model_id) == 1
 
-        models_0[model_0.slc_id] = model_0
+        models_0[model_id] = model_0
 
         #load model 1
         model_path_1 = os.path.join(dir_1, f'{model_id}.pkl')
         with open(model_path_1, 'rb') as file:
             model_1 = pickle.load(file)
 
-        assert is_valid_model(model_1, model_id) == 1
+        assert is_valid_model(model_1['model'], model_id) == 1
 
-        models_1[model_1.slc_id] = model_1
+        models_1[model_id] = model_1
 
     return models_0, models_1
 
-def load_all_necessary_data(models_0, models_1, all_slc_dir, all_feature_dir, bad_slc_dir):
+def load_all_slice_data(models_0, models_1, all_slc_dir, all_feature_dir, bad_slc_dir):
 
     load_slc_ids = set()
     for slc_id, model in models_0.items():
@@ -76,6 +76,37 @@ def load_all_necessary_data(models_0, models_1, all_slc_dir, all_feature_dir, ba
 
     return all_slc_data
 
+def load_shared_file_names(models_0, models_1, all_slc_data):
+
+    shared_fnames = set()
+
+    for id, model in  models_0.items():
+        in_slc_data = [all_slc_data[id] for id in model.slc_model_input_ids]
+        out_slc_data = all_slc_data[id]
+        if len(shared_fnames) == 0:
+            shared_fnames = SlcData.extract_shared_fnames(in_slc_data + [out_slc_data])
+        else:
+            shared_fnames = shared_fnames.intersection(SlcData.extract_shared_fnames(in_slc_data + [out_slc_data]))
+
+    for id, model in  models_1.items():
+        in_slc_data = [all_slc_data[id] for id in model.slc_model_input_ids]
+        out_slc_data = all_slc_data[id]
+        shared_fnames = shared_fnames.intersection(SlcData.extract_shared_fnames(in_slc_data + [out_slc_data]))
+
+    return list(shared_fnames)
+
+def load_test_names_from_all_models(models_0_data, models_1_data):
+    test_names = set()
+    for id, model_data in models_0_data.items():
+        if len(test_names) == 0:
+            test_names = set(model_data['test_fnames'])
+        else:
+            test_names = test_names.intersection(set(model_data['test_fnames']))
+
+    for id, model_data in models_1_data.items():
+        test_names = test_names.intersection(set(model_data['test_fnames']))
+
+    return list(test_names)
 
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
@@ -88,10 +119,17 @@ if __name__ == '__main__':
     ap.add_argument("-model_ids", required=True, type=str, help="root directory contains all slice code directory")
     args = ap.parse_args()
 
-    os.makedirs(args.debug_dir)
+    #debug_dir = os.path.join(args.debug_dir, 'Crotch_to_Hip')
+    os.makedirs(args.debug_dir, exist_ok=True)
 
     model_slc_ids = args.model_ids.split(',')
-    models_0, models_1 = load_models(args.model_dir_0, args.model_dir_1, model_slc_ids)
+    models_0_data, models_1_data = load_models(args.model_dir_0, args.model_dir_1, model_slc_ids)
+    models_0, models_1 = {}, {}
+    for id, model_data in models_0_data.items():
+        models_0[id] = model_data['model']
+    for id, model_data in models_1_data.items():
+        models_1[id] = model_data['model']
+
 
     load_slc_ids = set()
     for slc_id, model in models_0.items():
@@ -99,58 +137,94 @@ if __name__ == '__main__':
         for id in model.slc_model_input_ids:
             load_slc_ids.add(id)
 
-    all_slc_data = load_all_necessary_data(models_0, models_1, args.slc_dir, args.feature_dir, args.bad_slc_dir)
+    all_slc_data = load_all_slice_data(models_0, models_1, args.slc_dir, args.feature_dir, args.bad_slc_dir)
 
-    for slc_id in model_slc_ids:
-        debug_dir = os.path.join(args.debug_dir, slc_id)
-        os.makedirs(debug_dir, exist_ok=True)
-        print(f'comparing models of slice {slc_id}')
-        SLC_DIR = os.path.join(args.slc_dir, slc_id)
+    #collect file names shared by all slice data
+    print('collect file names shared by all slice')
+    #shared_fnames = load_shared_file_names(models_0, models_1, all_slc_data)
+    shared_fnames = load_test_names_from_all_models(models_0_data, models_1_data)
+    print(f'n test names = {len(shared_fnames)}')
 
-        model_0 = models_0[slc_id]
-        model_1 = models_1[slc_id]
+    #predict result by all models
+    print('calculate prediction by all models')
+    models_0_preds = {}
+    for id, model in models_0.items():
+        in_slc_data = [all_slc_data[id] for id in model.slc_model_input_ids]
+        out_slc_data = all_slc_data[id]
+        X, _ = SlcData.build_training_data(in_slc_data, out_slc_data, shared_fnames)
+        P = model.predict(X)
+        models_0_preds[id] = P
 
-        in_slc_data_0  = [all_slc_data[id] for id in model_0.slc_model_input_ids]
-        out_slc_data_0= all_slc_data[slc_id]
-        fnames_0 = SlcData.extract_shared_fnames(in_slc_data_0 + [out_slc_data_0])
+    models_1_preds = {}
+    for id, model in models_1.items():
+        in_slc_data = [all_slc_data[id] for id in model.slc_model_input_ids]
+        out_slc_data = all_slc_data[id]
+        X, _ = SlcData.build_training_data(in_slc_data, out_slc_data, shared_fnames)
+        P = model.predict(X)
+        models_1_preds[id] = P
 
-        in_slc_data_1  = [all_slc_data[id] for id in model_1.slc_model_input_ids]
-        out_slc_data_1 = all_slc_data[slc_id]
-        fnames_1 = SlcData.extract_shared_fnames(in_slc_data_1 + [out_slc_data_1])
+    fontsize = 2
+    for idx, name in enumerate(shared_fnames):
+        contours = {}
+        res_contours_0 = {}
+        res_contours_1 = {}
 
-        fnames = fnames_0.intersection(fnames_1)
+        for slc_id in model_slc_ids:
+            SLC_DIR = os.path.join(args.slc_dir, slc_id)
+            contours[slc_id] = normalize_contour(load_contour(SLC_DIR, name), resolution = 20)
 
-        X_0, Y_0 = SlcData.build_training_data(in_slc_data_0, out_slc_data_0, fnames)
-        P_0 = model_0.predict(X_0)
-        print(f'model 0 input data shape X, Y: {X_0.shape} , {Y_0.shape}')
+            pred = models_0_preds[slc_id][idx,:]
+            res_contours_0[slc_id] = util.reconstruct_contour_fourier(pred.flatten())
 
-        X_1, Y_1 = SlcData.build_training_data(in_slc_data_1, out_slc_data_1, fnames)
-        P_1 = model_1.predict(X_1)
-        print(f'model 1 input data shape X, Y: {X_1.shape} , {Y_1.shape}')
+            pred = models_1_preds[slc_id][idx,:]
+            res_contours_1[slc_id] = util.reconstruct_contour_fourier(pred.flatten())
 
-        for idx, name in enumerate(fnames):
-            contour = normalize_contour(load_contour(SLC_DIR, name), resolution =(Y_0.shape[1] + 2) / 2)
-
-            pred = P_0[idx,:]
-            res_contour_0 = util.reconstruct_contour_fourier(pred.flatten())
-
-            pred = P_1[idx,:]
-            res_contour_1 = util.reconstruct_contour_fourier(pred.flatten())
+        n_slc = len(model_slc_ids)
+        fig, axs = plt.subplots(2, n_slc)
+        for i, slc_id in enumerate(model_slc_ids):
+            contour = contours[slc_id]
+            res_contour_0 = res_contours_0[slc_id]
+            res_contour_1 = res_contours_1[slc_id]
 
             contour = np.concatenate([contour[:,:], contour[:,0].reshape(2,1)], axis=1)
             res_contour_0 = np.concatenate([res_contour_0[:, :], res_contour_0[:, 0].reshape(2, 1)], axis=1)
             res_contour_1 = np.concatenate([res_contour_1[:, :], res_contour_1[:, 0].reshape(2, 1)], axis=1)
-            plt.clf()
-            plt.subplot(121)
-            plt.plot(contour[0,:], contour[1,:], '-b')
-            plt.plot(res_contour_0[0, :], res_contour_0[1, :], '-r')
-            plt.title(f'model_0: single input:\n {model_0.slc_model_input_ids}')
-            #plt.axes().set_aspect(1.0)
-            plt.subplot(122)
-            plt.plot(contour[0, :], contour[1, :], '-b')
-            plt.plot(res_contour_1[0, :], res_contour_1[1, :], '-r')
-            plt.title(f'model_1: neighbor input:\n{model_1.slc_model_input_ids}')
-            plt.savefig(os.path.join(debug_dir, f'{name}.png'))
+
+            inputs = models_0[slc_id].slc_model_input_ids
+            ax = axs[0,i]
+            ax.set_aspect(1.0)
+            ax.plot(contour[0,:], contour[1,:], '-b')
+            ax.plot(res_contour_0[0,:], res_contour_0[1,:], '-r')
+            ax.set_title(f'model name = {slc_id}\n inputs = {inputs}', fontsize=fontsize, loc='left')
+            ax.set_axis_off()
+
+            inputs = models_1[slc_id].slc_model_input_ids
+            ax = axs[1,i]
+            ax.set_aspect(1.0)
+            ax.plot(contour[0,:], contour[1,:], '-b')
+            ax.plot(res_contour_1[0,:], res_contour_1[1,:], '-r')
+            ax.set_title(f'model name = {slc_id}\n inputs = {inputs}', fontsize=fontsize, loc='left')
+            ax.set_axis_off()
+
+        title = f'{name}\n 1st row: single model. 2st row: neighbor model. \n green: ground truth. red: prediction'
+        fig.suptitle(title, fontsize=fontsize+2)
+        plt.savefig(os.path.join(args.debug_dir, f'{name}.png'), dpi=300)
+        plt.close('all')
+
+        # contour = np.concatenate([contour[:,:], contour[:,0].reshape(2,1)], axis=1)
+        # res_contour_0 = np.concatenate([res_contour_0[:, :], res_contour_0[:, 0].reshape(2, 1)], axis=1)
+        # res_contour_1 = np.concatenate([res_contour_1[:, :], res_contour_1[:, 0].reshape(2, 1)], axis=1)
+        # plt.clf()
+        # plt.subplot(121)
+        # plt.plot(contour[0,:], contour[1,:], '-b')
+        # plt.plot(res_contour_0[0, :], res_contour_0[1, :], '-r')
+        # plt.title(f'model_0: single input:\n {model_0.slc_model_input_ids}')
+        # #plt.axes().set_aspect(1.0)
+        # plt.subplot(122)
+        # plt.plot(contour[0, :], contour[1, :], '-b')
+        # plt.plot(res_contour_1[0, :], res_contour_1[1, :], '-r')
+        # plt.title(f'model_1: neighbor input:\n{model_1.slc_model_input_ids}')
+        # plt.savefig(os.path.join(debug_dir, f'{name}.png'))
 
 
 

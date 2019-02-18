@@ -4,7 +4,7 @@ from numpy.linalg import norm
 import common.util as util
 import shapely.geometry as geo
 from shapely.ops import nearest_points
-from slc_training.slice_regressor_dtree import RBFNet
+import pickle
 from scipy.spatial import KDTree
 from copy import copy
 from copy import deepcopy
@@ -325,8 +325,13 @@ class ControlMeshPredictor():
     def __init__(self, MODEL_DIR):
         self.models = {}
         for path in Path(MODEL_DIR).glob('*.pkl'):
-            self.models[path.stem] = RBFNet.load_from_path(path)
-            self.models[path.stem].clear_debug_data()
+            with open(str(path),'rb') as file:
+                data = pickle.load(file=file)
+                model = data['model']
+                assert model.slc_id == path.stem
+                self.models[model.slc_id] = model
+                #self.models[path.stem] = RBFNet.load_from_path(path)
+                #self.models[path.stem].clear_debug_data()
         print('ControlMeshPredictor: load models: ', self.models.keys())
 
     def set_control_mesh(self, ctl_mesh, slc_id_vert_idxs, slc_id_locs, ctl_sym_vert_pairs, arm_3d_tpl):

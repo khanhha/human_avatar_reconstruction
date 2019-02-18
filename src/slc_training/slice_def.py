@@ -57,6 +57,16 @@ class SliceModelInputDef:
     input_dict[SliceID.Aux_Crotch_Hip_0.name] = tmp
     input_dict[SliceID.Crotch.name] = tmp
 
+    input_dict[SliceID.Aux_Hip_Waist_0.name]         = [SliceID.Hip.name, SliceID.Waist.name, SliceID.Bust.name] + [SliceID.Aux_Hip_Waist_0.name]
+    input_dict[SliceID.Aux_Hip_Waist_1.name]         = [SliceID.Hip.name, SliceID.Waist.name, SliceID.Bust.name] + [SliceID.Aux_Hip_Waist_1.name]
+    input_dict[SliceID.Waist.name]                   = [SliceID.Hip.name, SliceID.Waist.name, SliceID.Bust.name]
+    input_dict[SliceID.Aux_Waist_UnderBust_0.name]   = [SliceID.Hip.name, SliceID.Waist.name, SliceID.Bust.name] + [SliceID.Aux_Waist_UnderBust_0.name]
+    input_dict[SliceID.Aux_Waist_UnderBust_1.name]   = [SliceID.Hip.name, SliceID.Waist.name, SliceID.Bust.name] + [SliceID.Aux_Waist_UnderBust_1.name]
+    input_dict[SliceID.Aux_Waist_UnderBust_2.name]   = [SliceID.Hip.name, SliceID.Waist.name, SliceID.Bust.name] + [SliceID.Aux_Waist_UnderBust_2.name]
+    input_dict[SliceID.UnderBust.name]               = [SliceID.Hip.name, SliceID.Waist.name, SliceID.Bust.name] #test
+    input_dict[SliceID.Aux_UnderBust_Bust_0.name]    = [SliceID.Hip.name, SliceID.Waist.name, SliceID.Bust.name] + [SliceID.Aux_UnderBust_Bust_0.name]
+    input_dict[SliceID.Bust.name]                    = [SliceID.Hip.name, SliceID.Waist.name, SliceID.Bust.name]
+
     @staticmethod
     def get_input_def(name):
         if name not in SliceModelInputDef.input_dict:
