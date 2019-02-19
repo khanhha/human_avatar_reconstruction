@@ -13,7 +13,7 @@ if __name__ == '__main__':
 
     model_ids = args.ids.split(',')
 
-    dir = os.path.join(args.model_dir, 'local_global')
+    dir = os.path.join(args.model_dir, 'cluster_local_global')
     slc_ids = [path.stem for path in Path(dir).glob('*.*')]
 
     models_score = []
@@ -39,7 +39,7 @@ if __name__ == '__main__':
     opacity = 0.4
     error_config = {'ecolor': '0.3'}
 
-    colors = ['r','g','b']
+    colors = ['red','green','blue', 'yellow','black']
     assert len(colors) == len(model_ids)
     for idx, model_id in enumerate(model_ids):
         slc_scores = models_score[idx]
