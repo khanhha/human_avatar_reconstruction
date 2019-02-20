@@ -46,6 +46,12 @@ class SliceID(AutoNumber):
     Elbow = ()
     Wrist = ()
 
+    def find_enum(name_id):
+        for name, member in SliceID.__members__.items():
+            if name == name_id:
+                return member
+        return None
+
 class SliceModelInputDef:
 
     input_dict = {}

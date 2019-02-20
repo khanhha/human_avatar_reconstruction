@@ -17,8 +17,8 @@ def util_reconstruct_single_mesh(record, OUT_DIR_CTL, OUT_DIR_DF, predictor, def
     idx = record[0]
     mdata_path = record[1]
     #print(mdata_path.name)
-    #if 'CSR0309A' not in mdata_path.name:
-    #      return
+    if 'CSR0309A' not in mdata_path.name:
+          return
 
     if idx % 100 == 0:
         print(f'{idx} - {mdata_path.name}')
@@ -33,7 +33,7 @@ def util_reconstruct_single_mesh(record, OUT_DIR_CTL, OUT_DIR_DF, predictor, def
     measurements = mdata['measurement']
     height = measurements['Height']
 
-    ctl_tri_mesh = predictor.predict(seg_dst_f, seg_dst_s, seg_locs_s, seg_locs_f, height)
+    ctl_tri_mesh = predictor.predict_1(seg_dst_f, seg_dst_s, seg_locs_s, seg_locs_f, height)
 
     # out_path = f'{OUT_DIR}{mdata_path.stem}_ctl_tri.obj'
     # export_mesh(out_path, verts=ctl_tri_mesh['verts'], faces=ctl_tri_mesh['faces'])
