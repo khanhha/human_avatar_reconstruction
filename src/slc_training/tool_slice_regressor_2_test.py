@@ -5,6 +5,7 @@ from slc_training.slice_train_util import load_bad_slice_names, load_slice_data_
 import common.util as util
 import matplotlib.pyplot as plt
 import numpy as np
+import itertools
 
 def load_contour(dir, name):
     if '.pkl' not in name:
@@ -29,40 +30,29 @@ def is_valid_model(model, id):
     d = model.slc_id == id
     return a and b and c and d
 
-def load_models(dir_0, dir_1, model_slc_ids):
-    models_0 = {}
-    models_1 = {}
-    for model_id in model_slc_ids:
-        # load model_0
-        model_path_0 = os.path.join(dir_0, f'{model_id}.pkl')
-        with open(model_path_0, 'rb') as file:
-            model_0 = pickle.load(file)
+def load_model_datas(dir, model_ids, slc_ids):
+    models = []
+    for model_id in model_ids:
+        slc_models = []
 
-        assert is_valid_model(model_0['model'], model_id) == 1
+        for slc_id in slc_ids:
+            model_path = os.path.join(*[dir, model_id, f'{slc_id}.pkl'])
+            with open(model_path, 'rb') as file:
+                model = pickle.load(file)
 
-        models_0[model_id] = model_0
+            assert is_valid_model(model['model'], slc_id) == 1
 
-        #load model 1
-        model_path_1 = os.path.join(dir_1, f'{model_id}.pkl')
-        with open(model_path_1, 'rb') as file:
-            model_1 = pickle.load(file)
+            slc_models.append(model)
 
-        assert is_valid_model(model_1['model'], model_id) == 1
+        models.append(slc_models)
 
-        models_1[model_id] = model_1
+    return models
 
-    return models_0, models_1
-
-def load_all_slice_data(models_0, models_1, all_slc_dir, all_feature_dir, bad_slc_dir):
+def load_all_slice_data(models, all_slc_dir, all_feature_dir, bad_slc_dir):
 
     load_slc_ids = set()
-    for slc_id, model in models_0.items():
-        load_slc_ids.add(slc_id)
-        for id in model.slc_model_input_ids:
-            load_slc_ids.add(id)
-
-    for slc_id, model in models_1.items():
-        load_slc_ids.add(slc_id)
+    for model in models:
+        load_slc_ids.add(model.slc_id)
         for id in model.slc_model_input_ids:
             load_slc_ids.add(id)
 
@@ -95,33 +85,25 @@ def load_shared_file_names(models_0, models_1, all_slc_data):
 
     return list(shared_fnames)
 
-def load_test_names_from_all_models(models_0_data, models_1_data):
+def load_test_names_from_all_models(models_data):
     test_names = set()
-    for id, model_data in models_0_data.items():
+    for model_data in models_data:
         if len(test_names) == 0:
             test_names = set(model_data['test_fnames'])
         else:
             test_names = test_names.intersection(set(model_data['test_fnames']))
 
-    for id, model_data in models_1_data.items():
-        test_names = test_names.intersection(set(model_data['test_fnames']))
-
     return list(test_names)
 
-def all_used_ids(models_0, models_1):
+def all_used_ids(models):
     load_slc_ids = set()
 
-    for slc_id, model in models_0.items():
-        load_slc_ids.add(slc_id)
+    for model in models:
+        load_slc_ids.add(model.slc_id)
         for id in model.slc_model_input_ids:
             load_slc_ids.add(id)
 
-    for slc_id, model in models_1.items():
-        load_slc_ids.add(slc_id)
-        for id in model.slc_model_input_ids:
-            load_slc_ids.add(id)
-
-    return load_slc_ids
+    return list(load_slc_ids)
 
 def align_ids(ids):
     out = None
@@ -145,98 +127,115 @@ if __name__ == '__main__':
     ap.add_argument("-feature_dir", required=True, type=str, help="root directory contains all slice code directory")
     ap.add_argument("-bad_slc_dir", required=True, type=str, help="root directory contains all slice code directory")
     ap.add_argument("-debug_dir", required=True, type=str, help="root directory contains all slice code directory")
-    ap.add_argument("-model_dir_0", required=True, type=str, help="root directory contains all slice code directory")
-    ap.add_argument("-model_dir_1", required=True, type=str, help="root directory contains all slice code directory")
-    ap.add_argument("-model_ids", required=True, type=str, help="root directory contains all slice code directory")
+    ap.add_argument("-model_dir", required=True, type=str, help="root directory contains all slice code directory")
+    ap.add_argument("-model_type_ids", required=True, type=str, help="root directory contains all slice code directory")
+    ap.add_argument("-slc_ids", required=True, type=str, help="root directory contains all slice code directory")
     args = ap.parse_args()
 
     #debug_dir = os.path.join(args.debug_dir, 'Crotch_to_Hip')
     os.makedirs(args.debug_dir, exist_ok=True)
 
-    model_slc_ids = args.model_ids.split(',')
-    models_0_data, models_1_data = load_models(args.model_dir_0, args.model_dir_1, model_slc_ids)
-    models_0, models_1 = {}, {}
-    for id, model_data in models_0_data.items():
-        models_0[id] = model_data['model']
-    for id, model_data in models_1_data.items():
-        models_1[id] = model_data['model']
+    model_type_ids = args.model_type_ids.split(',')
+    slc_ids = args.slc_ids.split(',')
 
-    load_slc_ids = all_used_ids(models_0, models_1)
+    models_data = load_model_datas(args.model_dir, model_type_ids, slc_ids)
 
-    all_slc_data = load_all_slice_data(models_0, models_1, args.slc_dir, args.feature_dir, args.bad_slc_dir)
+    models = []
+    for slc_model_datas in models_data:
+        slc_models = [model_data['model'] for model_data in slc_model_datas]
+        models.append(slc_models)
+
+    load_slc_ids = all_used_ids(list(itertools.chain.from_iterable(models)))
+
+    all_slc_data = load_all_slice_data(list(itertools.chain.from_iterable(models)), args.slc_dir, args.feature_dir, args.bad_slc_dir)
 
     #collect file names shared by all slice data
     print('collect file names shared by all slice')
     #shared_fnames = load_shared_file_names(models_0, models_1, all_slc_data)
-    shared_fnames = load_test_names_from_all_models(models_0_data, models_1_data)
+    shared_fnames = load_test_names_from_all_models(list(itertools.chain.from_iterable(models_data)))
     print(f'n test names = {len(shared_fnames)}')
+
+    n_models = len(model_type_ids)
+    n_slc = len(slc_ids)
 
     #predict result by all models
     print('calculate prediction by all models')
-    models_0_preds = {}
-    for id, model in models_0.items():
-        in_slc_data = [all_slc_data[id] for id in model.slc_model_input_ids]
-        out_slc_data = all_slc_data[id]
-        X, _ = SlcData.build_training_data(in_slc_data, out_slc_data, shared_fnames)
-        P = model.predict(X)
-        models_0_preds[id] = P
+    models_preds = []
+    for i in range(n_models):
+        preds = []
+        for j in range(n_slc):
+            model = models[i][j]
+            slc_id = slc_ids[j]
+            in_slc_data = [all_slc_data[id] for id in model.slc_model_input_ids]
+            out_slc_data = all_slc_data[slc_id]
 
-    models_1_preds = {}
-    for id, model in models_1.items():
-        in_slc_data = [all_slc_data[id] for id in model.slc_model_input_ids]
-        out_slc_data = all_slc_data[id]
-        X, _ = SlcData.build_training_data(in_slc_data, out_slc_data, shared_fnames)
-        P = model.predict(X)
-        models_1_preds[id] = P
+            X, _ = SlcData.build_training_data(in_slc_data, out_slc_data, shared_fnames)
+
+            P = model.predict(X)
+            preds.append(P)
+
+        models_preds.append(preds)
 
     fontsize = 2
-    for idx, name in enumerate(shared_fnames):
-        contours = {}
-        res_contours_0 = {}
-        res_contours_1 = {}
+    for file_idx, name in enumerate(shared_fnames):
 
-        for slc_id in model_slc_ids:
-            SLC_DIR = os.path.join(args.slc_dir, slc_id)
-            contours[slc_id] = normalize_contour(load_contour(SLC_DIR, name), resolution = 20)
+        model_contours = []
+        res_model_contours = []
 
-            pred = models_0_preds[slc_id][idx,:]
-            res_contours_0[slc_id] = util.reconstruct_contour_fourier(pred.flatten())
+        for i in range(n_models):
+            res_slc_contours = []
+            slc_contours = []
 
-            pred = models_1_preds[slc_id][idx,:]
-            res_contours_1[slc_id] = util.reconstruct_contour_fourier(pred.flatten())
+            slc_preds = models_preds[i]
 
-        n_slc = len(model_slc_ids)
-        fig, axs = plt.subplots(2, n_slc)
-        axs = axs.reshape(2,n_slc)
-        for i, slc_id in enumerate(model_slc_ids):
-            contour = contours[slc_id]
-            res_contour_0 = res_contours_0[slc_id]
-            res_contour_1 = res_contours_1[slc_id]
+            for j in range(n_slc):
 
-            contour = np.concatenate([contour[:,:], contour[:,0].reshape(2,1)], axis=1)
-            res_contour_0 = np.concatenate([res_contour_0[:, :], res_contour_0[:, 0].reshape(2, 1)], axis=1)
-            res_contour_1 = np.concatenate([res_contour_1[:, :], res_contour_1[:, 0].reshape(2, 1)], axis=1)
+                slc_id = slc_ids[j]
+                SLC_DIR = os.path.join(args.slc_dir, slc_id)
 
-            inputs = models_0[slc_id].slc_model_input_ids
-            ax = axs[0,i]
-            ax.set_aspect(1.0)
-            ax.plot(contour[0,:], contour[1,:], '-b')
-            ax.plot(res_contour_0[0,:], res_contour_0[1,:], '-r')
-            ax.set_title(f'model name = {slc_id}\n inputs = \n{align_ids(inputs)}', fontsize=fontsize, loc='left')
-            ax.set_axis_off()
+                slc_contours.append(normalize_contour(load_contour(SLC_DIR, name), resolution = 20))
 
-            inputs = models_1[slc_id].slc_model_input_ids
-            ax = axs[1,i]
-            ax.set_aspect(1.0)
-            ax.plot(contour[0,:], contour[1,:], '-b')
-            ax.plot(res_contour_1[0,:], res_contour_1[1,:], '-r')
-            ax.set_title(f'model name = {slc_id}\n inputs = \n{align_ids(inputs)}', fontsize=fontsize, loc='left')
-            ax.set_axis_off()
+                pred = slc_preds[j][file_idx, :]
+                res_slc_contours.append(util.reconstruct_contour_fourier(pred.flatten()))
 
-        title = f'{name}\n 1st row: single model. 2st row: neighbor model. \n green: ground truth. red: prediction'
-        fig.suptitle(title, fontsize=fontsize+2)
+            res_model_contours.append(res_slc_contours)
+            model_contours.append(slc_contours)
+
+        fig, axs = plt.subplots(n_models, n_slc)
+        axs = axs.reshape(n_models, n_slc)
+
+        for i in range(n_models):
+
+            ax = axs[i, 0]
+            ax.set_ylabel(f'{model_type_ids[i]}', rotation=1, size=fontsize+2, color='r', x=0)
+
+            for j  in range(n_slc):
+                contour = model_contours[i][j]
+                res_contour = res_model_contours[i][j]
+
+                contour = np.concatenate([contour[:,:], contour[:,0].reshape(2,1)], axis=1)
+                res_contour = np.concatenate([res_contour[:, :], res_contour[:, 0].reshape(2, 1)], axis=1)
+
+                inputs = models[i][j].slc_model_input_ids
+                slc_id = slc_ids[j]
+                ax = axs[i,j]
+                ax.set_aspect(1.0)
+                ax.plot(contour[0,:], contour[1,:], '-b', linewidth=0.8)
+                ax.plot(res_contour[0, :], res_contour[1, :], '-r', linewidth=0.8)
+                ax.set_title(f'model name = {slc_id} \ninputs = {align_ids(inputs)}', fontsize=fontsize, loc='left', y=0)
+                ax.set_xticks([])
+                ax.set_yticks([])
+                ax.spines['top'].set_visible(False)
+                ax.spines['right'].set_visible(False)
+                ax.spines['bottom'].set_visible(False)
+                ax.spines['left'].set_visible(False)
+
+        title = f'{name} \n green: ground truth. red: prediction'
+        #fig.suptitle(title, fontsize=fontsize+2)
+        #fig.tight_layout()
+        fig.subplots_adjust(wspace=0, hspace=0)
         #plt.show()
-        plt.savefig(os.path.join(args.debug_dir, f'{name}.png'), dpi=300)
+        plt.savefig(os.path.join(args.debug_dir, f'{name}.svg'), format='svg', dpi=2000)
         plt.close('all')
 
 

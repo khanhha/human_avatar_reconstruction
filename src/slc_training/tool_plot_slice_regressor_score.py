@@ -9,6 +9,7 @@ if __name__ == '__main__':
     ap = argparse.ArgumentParser()
     ap.add_argument("-model_dir",  required=True, type=str, help="root directory contains all slice directory")
     ap.add_argument("-ids",  required=True, type=str, help="root directory contains all slice directory")
+    ap.add_argument("-out_dir",  required=True, type=str, help="output directory to save figure")
     args = ap.parse_args()
 
     model_ids = args.ids.split(',')
@@ -49,10 +50,10 @@ if __name__ == '__main__':
     ax.set_ylabel('Model R2 Scores')
     ax.set_title('Scores by slices and models')
     ax.set_xticks(index + bar_width / 2)
-    ax.set_xticklabels(slc_ids)
-    ax.legend()
-
+    ax.set_xticklabels(slc_ids, fontsize=2)
+    ax.legend(fontsize=5)
     fig.tight_layout()
-    plt.show()
+    #plt.show()
+    fig.savefig(os.path.join(*[args.out_dir, 'model_accuracy.svg']), format='svg')
 
 
