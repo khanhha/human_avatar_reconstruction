@@ -20,29 +20,32 @@ if __name__ == '__main__':
     ALL_SLC_DIR  = args.slc_dir
     ALL_SLC_FEATURE_DIR = args.feature_dir
     BAD_SLC_DIR = args.bad_slc_dir
-    train_slc_ids = args.slc_ids
 
-    assert args.mode == 'single' or args.mode == 'neighbor'
+    assert args.mode in ['single','local', 'local_global', 'global', 'torso']
     MODEL_DIR_ROOT  = os.path.join(*[args.model_dir, f'no_cluster_{args.mode}'])
     os.makedirs(MODEL_DIR_ROOT, exist_ok=True)
 
-    global_in_slc_ids = ['Hip', 'Waist', 'Bust']
+    print('model type: ', f'no_cluster_{args.mode}')
 
     all_slc_ids = [path.stem for path in Path(args.slc_dir).glob('*')]
-    if train_slc_ids == 'all' or train_slc_ids == 'All':
+    if args.slc_ids == 'all' or args.slc_ids== 'All':
         train_slc_ids = all_slc_ids
+    elif args.slc_ids == 'torso':
+        train_slc_ids = ['Crotch','Aux_Crotch_Hip_0','Aux_Crotch_Hip_1','Aux_Crotch_Hip_1','Aux_Crotch_Hip_2','Hip'] + \
+                        ['Aux_Hip_Waist_0', 'Aux_Hip_Waist_1', 'Waist'] + \
+                        ['Aux_Waist_UnderBust_0', 'Aux_Waist_UnderBust_1', 'Aux_Waist_UnderBust_2', 'UnderBust', 'Bust']
     else:
-        train_slc_ids = train_slc_ids.split(',')
+        train_slc_ids = args.slc_ids.split(',')
         for id in train_slc_ids:
             assert id in all_slc_ids, f'{id}: unrecognized slice id'
 
+    input_mode_def = SliceModelInputDef(args.mode)
+
     #find all needed slice ids
     load_slc_ids = set()
-    for id in global_in_slc_ids:
-        load_slc_ids.add(id)
     for slc_id in train_slc_ids:
         load_slc_ids.add(slc_id)
-        input_def_ids = SliceModelInputDef.get_input_def(slc_id)
+        input_def_ids = input_mode_def.get_input_def(slc_id)
         for id in input_def_ids:
             load_slc_ids.add(id)
 
@@ -61,10 +64,7 @@ if __name__ == '__main__':
 
         print(f'\nstarting training slice {train_slc_id}')
 
-        if args.mode == 'single':
-            in_slc_ids = [train_slc_id]
-        else:
-            in_slc_ids = SliceModelInputDef.get_input_def(train_slc_id)
+        in_slc_ids = input_mode_def.get_input_def(train_slc_id)
 
         in_slc_data = [all_slc_data[id] for id in in_slc_ids]
 
@@ -79,6 +79,7 @@ if __name__ == '__main__':
         model_path = os.path.join(MODEL_DIR_ROOT, f'{train_slc_id}.pkl')
         train_fnames = {fnames[idx] for idx in train_idxs}
         test_fnames = {fnames[idx] for idx in test_idxs}
+        print(f'export model to path: {model_path}')
         with open(model_path, 'wb') as file:
             #net.save_to_path(model_path)
             data = {'model':net, 'train_fnames': train_fnames, 'test_fnames':test_fnames, 'train_score':train_score, 'test_score':test_score}

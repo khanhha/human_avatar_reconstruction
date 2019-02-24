@@ -419,8 +419,8 @@ def is_torso_slice(id):
 
 
 def is_leg_slice(id):
-    leg_slc_ids = {'LKnee', 'RKnee', 'LUnderCrotch', 'RUnderCrotch', 'LAux_Knee_UnderCrotch_3',
-                   'LAux_Knee_UnderCrotch_2', 'LAux_Knee_UnderCrotch_1', 'LAux_Knee_UnderCrotch_0'}
+    leg_slc_ids = {'Knee', 'UnderCrotch', 'Aux_Knee_UnderCrotch_3',
+                   'Aux_Knee_UnderCrotch_2','Aux_Knee_UnderCrotch_1', 'Aux_Knee_UnderCrotch_0'}
     if id in leg_slc_ids:
         return True
     else:

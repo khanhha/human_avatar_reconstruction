@@ -17,8 +17,8 @@ def util_reconstruct_single_mesh(record, OUT_DIR_CTL, OUT_DIR_DF, predictor, def
     idx = record[0]
     mdata_path = record[1]
     #print(mdata_path.name)
-    if 'CSR0309A' not in mdata_path.name:
-          return
+    # if 'CSR0309A' not in mdata_path.name:
+    #        return
 
     if idx % 100 == 0:
         print(f'{idx} - {mdata_path.name}')

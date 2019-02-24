@@ -24,6 +24,7 @@ if __name__ == '__main__':
 
     os.makedirs(MODEL_DIR_ROOT, exist_ok=True)
 
+    assert args.mode == 'single' or args.mode == 'neighbor'
 
     all_slc_ids = [path.stem for path in Path(args.slc_dir).glob('*')]
     if train_slc_ids == 'all' or train_slc_ids == 'All':

@@ -330,7 +330,7 @@ class ControlMeshPredictor():
             SliceID.Shoulder,
             SliceID.Aux_Armscye_Shoulder_0,
             SliceID.Armscye,
-            SliceID.Aux_Bust_Armscye_0,
+            #SliceID.Aux_Bust_Armscye_0,
 
             SliceID.Bust,
             SliceID.Aux_UnderBust_Bust_0,
@@ -382,10 +382,9 @@ class ControlMeshPredictor():
             if model.slc_id == slc_id.name:
                 found = True
 
-        assert found == True, 'invalid model slice id'
-        d = model.slc_id == id
+        #assert found == True, 'invalid model slice id'
 
-        return a and b and c and d
+        return a and b and c and found
 
     def set_control_mesh(self, ctl_mesh, slc_id_vert_idxs, slc_id_locs, ctl_sym_vert_pairs, arm_3d_tpl):
         self.ctl_mesh = ctl_mesh
@@ -414,109 +413,116 @@ class ControlMeshPredictor():
         print('victoria mesh: nverts = {0}, ntris = {1}'.format(self.tpl_mesh['verts'].shape[0],
                                                                 len(self.tpl_mesh['faces'])))
 
-    def collect_slice_data(self, seg_dst_f, seg_dst_s, seg_locs_f, seg_locs_s):
+    def collect_slice_measurement(self, seg_dst_f, seg_dst_s, seg_locs_f, seg_locs_s, h_ratio):
         slc_w_d= {}
-        slc_locs_s = {}
-        slc_locs_f = {}
+        slc_locs = {}
         for slc_id in self.slc_ids:
-            width = seg_dst_f[slc_id.name]
-            depth = seg_dst_s[slc_id.name]
+            width = h_ratio * seg_dst_f[slc_id.name]
+            depth = h_ratio * seg_dst_s[slc_id.name]
             slc_w_d[slc_id] = (width, depth)
 
-            slc_locs_f[slc_id] = seg_locs_f[slc_id.name]
-            slc_locs_s[slc_id] = seg_locs_s[slc_id.name]
-
-        return slc_w_d, slc_locs_f, slc_locs_s
-
-    def predict_1(self, seg_dst_f, seg_dst_s, seg_locs_s, seg_locs_f, height):
-
-        slc_w_d, slc_locs_f, slc_locs_s = self.collect_slice_data(seg_dst_f, seg_dst_s, seg_locs_f, seg_locs_s)
-
-        return self._predict(slc_w_d, slc_locs_f, slc_locs_s)
-
-    def _predict(self, slc_w_d, slc_locs_f, slc_locs_s):
-        ctl_new_mesh = deepcopy(self.ctl_mesh)
-        ctl_ankle_loc = self.slc_id_locs[SliceID.Ankle.name]
-
-        h_ratio = 1.0
-        for slc_id in self.slc_ids:
-            slc_idxs = self.slc_id_vert_idxs[slc_id.name]
-            slice = self.ctl_mesh['verts'][slc_idxs]
-
-            w = slc_w_d[slc_id][0] * h_ratio
-            d = slc_w_d[slc_id][1] * h_ratio
-
             #slice location, which is the back point of the slice (point on the back slice), relative to ankle in the side image.
-            slc_loc_side_img = slc_locs_s[slc_id]
+            slc_loc_side_img = seg_locs_s[slc_id.name]
             slc_loc_y = slc_loc_side_img[0]
             slc_loc_z = np.abs(slc_loc_side_img[1])
 
             #transform to victoria's scale. why?
-            slc_loc_z = slc_loc_z * h_ratio
             slc_loc_y = slc_loc_y * h_ratio
+            slc_loc_z = slc_loc_z * h_ratio
 
-            slc_loc_front_img = slc_locs_f[slc_id]
+            slc_loc_front_img = seg_locs_f[slc_id.name]
             slc_loc_x = slc_loc_front_img[0]
             slc_loc_x = slc_loc_x * h_ratio
 
-            slice_out = copy(slice)
+            slc_locs[slc_id] = (slc_loc_x, slc_loc_y, slc_loc_z)
+
+        return slc_w_d, slc_locs
+
+    def predict_1(self, seg_dst_f, seg_dst_s, seg_locs_s, seg_locs_f, height):
+
+        slc_w_d, slc_locs = self.collect_slice_measurement(seg_dst_f, seg_dst_s, seg_locs_f, seg_locs_s, h_ratio=1.0)
+
+        return self._predict(slc_w_d, slc_locs)
+
+    def _collect_model_inputs(self, model, slc_w_ds):
+        slc_input_ids = model.slc_model_input_ids
+        inputs = []
+        for id in slc_input_ids:
+            (width, depth) = slc_w_ds[SliceID.find_enum(id)]
+            ratio = width/depth
+            inputs.append(ratio)
+        return np.array(inputs)
+
+    def _predict(self, slc_w_d, slc_locs):
+        ctl_new_mesh = deepcopy(self.ctl_mesh)
+        ctl_ankle_loc = self.slc_id_locs[SliceID.Ankle.name]
+
+        for slc_id in self.slc_ids:
+            slc_idxs = self.slc_id_vert_idxs[slc_id.name]
+
+            slice_out = copy(self.ctl_mesh['verts'][slc_idxs])
+
+            w = slc_w_d[slc_id][0]
+            d = slc_w_d[slc_id][1]
+
+            (slc_loc_x, slc_loc_y, slc_loc_z) = slc_locs[slc_id]
 
             if slc_id in self.models:
                 #print('\t applied ', id_2d)
                 model = self.models[slc_id]
-                ratio = w/d
-                pred = model.predict(np.reshape(ratio, (1,1)))[0, :]
+                #ratio = w/d
+                input_x = self._collect_model_inputs(model, slc_w_d)
+                pred = model.predict(input_x)[0, :]
                 res_contour = util.reconstruct_contour_fourier(pred)
 
                 slice_out[:,0] =  res_contour[1,:]
                 slice_out[:,1] =  res_contour[0,:]
 
-                # we apply x,y scaling to make sure that our the final slice match width/height measurement
-                dim_range = np.max(slice_out, axis=0) - np.min(slice_out, axis=0)
-                w_ratio = w / dim_range[0]
-                d_ratio = d / dim_range[1]
-                slice_out = scale_vertical_slice(slice_out, w_ratio, d_ratio)
+            # we apply x,y scaling to make sure that our the final slice match width/height measurement
+            dim_range = np.max(slice_out, axis=0) - np.min(slice_out, axis=0)
+            w_ratio = w / dim_range[0]
+            d_ratio = d / dim_range[1]
+            slice_out = scale_vertical_slice(slice_out, w_ratio, d_ratio)
 
-                #debug
-                import matplotlib.pyplot as plt
-                plt.axes().set_aspect(1.0)
-                plt.plot(slice_out[:, 0], slice_out[:, 1], '-r')
-                plt.plot(slice_out[:, 0], slice_out[:, 1], '+r')
-                plt.show()
+            # import matplotlib.pyplot as plt
+            # plt.axes().set_aspect(1.0)
+            # plt.plot(slice_out[:, 0], slice_out[:, 1], '-r')
+            # plt.plot(slice_out[:, 0], slice_out[:, 1], '+r')
+            # plt.show()
 
-                # hack. the slices from hip to crothc is a bit flat along cleavage. we push the cleavage vertices a bit inside
-                if util.is_torso_contour(slc_id.name):
-                    if slc_id.name == 'Hip' or 'Crotch' in slc_id.name:
-                        slice_out = fix_crotch_hip_cleavage(slice_out, d)
+            # hack. the slices from hip to crothc is a bit flat along cleavage. we push the cleavage vertices a bit inside
+            if util.is_torso_contour(slc_id.name):
+                if slc_id.name == 'Hip' or 'Crotch' in slc_id.name:
+                    slice_out = fix_crotch_hip_cleavage(slice_out, d)
 
-                # align slice in vertical direction
-                slice_out[:, 2] = slc_loc_z + ctl_ankle_loc[2]
+            # align slice in vertical direction
+            slice_out[:, 2] = slc_loc_z + ctl_ankle_loc[2]
 
-                # align slice in horizontal direction
-                # Warning: need to be careful here. we assume that the maximum point on hor dir is on the back side of Victoria's mesh
-                # TODO => how to make horizontal direction consistent, when the back-to-front direction in image is opposite to back-to-front of Victoria?
-                slice_y_anchor = np.max(slice_out[:, 1])
-                slice_out[:, 1] += (slc_loc_y - slice_y_anchor + ctl_ankle_loc[1])
+            # align slice in horizontal direction
+            # Warning: need to be careful here. we assume that the maximum point on hor dir is on the back side of Victoria's mesh
+            # TODO => how to make horizontal direction consistent, when the back-to-front direction in image is opposite to back-to-front of Victoria?
+            slice_y_anchor = np.max(slice_out[:, 1])
+            slice_out[:, 1] += (slc_loc_y - slice_y_anchor + ctl_ankle_loc[1])
 
-                # arrange leg slice
-                if util.is_leg_contour(slc_id.name):
-                    slice_out[:, 0] += slc_loc_x
+            # arrange leg slice
+            if util.is_leg_contour(slc_id.name):
+                slice_out[:, 0] += slc_loc_x
 
-                ctl_new_mesh['verts'][slc_idxs, :] = slice_out
+            ctl_new_mesh['verts'][slc_idxs, :] = slice_out
 
-            # for the right vertices (right leg, right arm), mirror the left vertices
-            verts = ctl_new_mesh['verts']
-            for pair in self.ctl_sym_vert_pairs:
-                mirror_co = deepcopy(verts[pair[0]])
-                mirror_co[0] = -mirror_co[0]
-                verts[pair[1]] = mirror_co
+        # for the right vertices (right leg, right arm), mirror the left vertices
+        verts = ctl_new_mesh['verts']
+        for pair in self.ctl_sym_vert_pairs:
+            mirror_co = deepcopy(verts[pair[0]])
+            mirror_co[0] = -mirror_co[0]
+            verts[pair[1]] = mirror_co
 
-            # we create two versions of the control mesh
-            # the triangle version is used for deformation algorithm
-            ctl_mesh_tri_new = deepcopy(self.ctl_mesh)
-            ctl_mesh_tri_new['verts'] = deepcopy(ctl_new_mesh['verts'])
+        # we create two versions of the control mesh
+        # the triangle version is used for deformation algorithm
+        ctl_mesh_tri_new = deepcopy(self.ctl_mesh)
+        ctl_mesh_tri_new['verts'] = deepcopy(ctl_new_mesh['verts'])
 
-            return ctl_mesh_tri_new
+        return ctl_mesh_tri_new
 
     def predict(self, seg_dst_f, seg_dst_s, seg_locs_s, seg_locs_f, height):
         id_mappings = slice_id_3d_2d_mappings()

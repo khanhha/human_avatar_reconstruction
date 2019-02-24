@@ -14,9 +14,11 @@ if __name__ == '__main__':
 
     model_ids = args.ids.split(',')
 
-    dir = os.path.join(args.model_dir, 'cluster_local_global')
-    slc_ids = [path.stem for path in Path(dir).glob('*.*')]
-
+    #dir = os.path.join(args.model_dir, 'no_cluster_local_global')
+    #slc_ids = [path.stem for path in Path(dir).glob('*.*')]
+    slc_ids = ['Crotch', 'Aux_Crotch_Hip_0', 'Aux_Crotch_Hip_1', 'Aux_Crotch_Hip_1', 'Aux_Crotch_Hip_2', 'Hip'] + \
+                    ['Aux_Hip_Waist_0', 'Aux_Hip_Waist_1', 'Waist'] + \
+                    ['Aux_Waist_UnderBust_0', 'Aux_Waist_UnderBust_1', 'Aux_Waist_UnderBust_2', 'UnderBust', 'Bust']
     models_score = []
     for model_id in model_ids:
 
@@ -36,12 +38,12 @@ if __name__ == '__main__':
     n_groups = len(slc_ids)
     index = np.arange(n_groups)
 
-    bar_width = 0.15
-    opacity = 0.4
+    bar_width = 0.1
+    opacity = 0.8
     error_config = {'ecolor': '0.3'}
 
-    colors = ['red','green','blue', 'yellow','black']
-    assert len(colors) == len(model_ids)
+    colors = ['red','green','blue', 'violet','black', 'orange', 'peru']
+    assert len(colors) >= len(model_ids)
     for idx, model_id in enumerate(model_ids):
         slc_scores = models_score[idx]
         rects1 = ax.bar(np.arange(n_groups)+idx*bar_width, slc_scores, bar_width, alpha=opacity, color=colors[idx], error_kw=error_config, label=model_id)
@@ -51,9 +53,9 @@ if __name__ == '__main__':
     ax.set_title('Scores by slices and models')
     ax.set_xticks(index + bar_width / 2)
     ax.set_xticklabels(slc_ids, fontsize=2)
-    ax.legend(fontsize=5)
+    ax.legend(fontsize=7)
     fig.tight_layout()
-    #plt.show()
-    fig.savefig(os.path.join(*[args.out_dir, 'model_accuracy.svg']), format='svg')
+    plt.show()
+    #fig.savefig(os.path.join(*[args.out_dir, 'model_accuracy.svg']), format='svg')
 
 
