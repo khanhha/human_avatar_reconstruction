@@ -2,7 +2,7 @@ import argparse
 from pathlib import Path
 from slc_training.slice_def import SliceModelInputDef, SliceID
 from slc_training.slice_train_util import load_slice_data_1, SlcData, load_bad_slice_names
-from slc_training.slice_regressor_dtree_1 import SliceRegressorNoCluster
+from slc_training.slice_regressor_dtree_1 import SliceRegressorNoCluster, SliceRegressor
 import os
 import pickle
 import numpy as np
@@ -15,17 +15,19 @@ if __name__ == '__main__':
     ap.add_argument("-model_dir", required=True, type=str, help="root directory contains all slice code directory")
     ap.add_argument("-slc_ids", required=True, type=str, help="root directory contains all slice code directory")
     ap.add_argument("-mode", required=True, type=str, help="root directory contains all slice code directory")
+    ap.add_argument("-apply_cluster", action='store_true', help="root directory contains all slice code directory")
     args = ap.parse_args()
 
     ALL_SLC_DIR  = args.slc_dir
     ALL_SLC_FEATURE_DIR = args.feature_dir
     BAD_SLC_DIR = args.bad_slc_dir
 
+    cluster_prefix = 'cluster' if args.apply_cluster == True else 'no_cluster'
     assert args.mode in ['single','local', 'local_global', 'global', 'torso']
-    MODEL_DIR_ROOT  = os.path.join(*[args.model_dir, f'no_cluster_{args.mode}'])
+    MODEL_DIR_ROOT  = os.path.join(*[args.model_dir, f'{cluster_prefix}_{args.mode}'])
     os.makedirs(MODEL_DIR_ROOT, exist_ok=True)
 
-    print('model type: ', f'no_cluster_{args.mode}')
+    print('model type: ', f'{cluster_prefix}_{args.mode}')
 
     all_slc_ids = [path.stem for path in Path(args.slc_dir).glob('*')]
     if args.slc_ids == 'all' or args.slc_ids== 'All':
@@ -72,13 +74,16 @@ if __name__ == '__main__':
         X,  Y  = SlcData.build_training_data(in_slc_data,  out_slc_data, fnames)
         print(f'X  shape: {X.shape}. Y_shape = {Y.shape}' )
 
-        net = SliceRegressorNoCluster(slc_id=train_slc_id, model_input_slc_ids=in_slc_ids)
+        if args.apply_cluster:
+            net = SliceRegressor(slc_id=train_slc_id, model_input_slc_ids=in_slc_ids)
+        else:
+            net = SliceRegressorNoCluster(slc_id=train_slc_id, model_input_slc_ids=in_slc_ids)
 
         train_idxs, test_idxs, train_score, test_score = net.fit(X=X, Y=Y, n_jobs=12)
 
         model_path = os.path.join(MODEL_DIR_ROOT, f'{train_slc_id}.pkl')
         train_fnames = {fnames[idx] for idx in train_idxs}
-        test_fnames = {fnames[idx] for idx in test_idxs}
+        test_fnames  = {fnames[idx] for idx in test_idxs}
         print(f'export model to path: {model_path}')
         with open(model_path, 'wb') as file:
             #net.save_to_path(model_path)

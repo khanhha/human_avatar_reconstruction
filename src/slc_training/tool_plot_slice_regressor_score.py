@@ -42,7 +42,7 @@ if __name__ == '__main__':
     opacity = 0.8
     error_config = {'ecolor': '0.3'}
 
-    colors = ['red','green','blue', 'violet','black', 'orange', 'peru']
+    colors = ['red','green','blue', 'violet','black', 'orange', 'c']
     assert len(colors) >= len(model_ids)
     for idx, model_id in enumerate(model_ids):
         slc_scores = models_score[idx]
@@ -55,7 +55,7 @@ if __name__ == '__main__':
     ax.set_xticklabels(slc_ids, fontsize=2)
     ax.legend(fontsize=7)
     fig.tight_layout()
-    plt.show()
-    #fig.savefig(os.path.join(*[args.out_dir, 'model_accuracy.svg']), format='svg')
+    #plt.show()
+    fig.savefig(os.path.join(*[args.out_dir, 'model_accuracy.svg']), format='svg')
 
 
