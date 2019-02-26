@@ -67,54 +67,6 @@ def breast_part_slice_id_3d_2d_mappings():
         mappings['L' + id_2d] = id_2d
     return mappings
 
-def bone_lengths(arm_2d, ratio):
-    lengths = {}
-    lengths['Shin'] = ratio*norm(arm_2d['LAnkle'] - arm_2d['LKnee'])
-    lengths['Thigh'] = ratio*norm(arm_2d['LHip'] - arm_2d['LKnee'])
-    lengths['Torso'] = ratio*norm(arm_2d['MidHip'] - arm_2d['Neck'])
-    lengths['Shoulder'] = ratio*norm(arm_2d['LShoulder'] - arm_2d['Neck'])
-    lengths['UpperArm'] = ratio*norm(arm_2d['LShoulder'] - arm_2d['LElbow'])
-    lengths['ForeArm'] = ratio*norm(arm_2d['LElbow'] - arm_2d['LWrist'])
-    return lengths
-
-def scale_tpl_armature(arm_3d, arm_2d, ratio):
-    #leg
-    blengths = bone_lengths(arm_2d, ratio)
-    arm_3d['LKnee'] = arm_3d['LAnkle'] + blengths['Shin'] * util.normalize(arm_3d['LKnee'] - arm_3d['LAnkle'])
-    arm_3d['LHip']  = arm_3d['LKnee'] + blengths['Thigh'] * util.normalize(arm_3d['LHip'] - arm_3d['LKnee'])
-
-    midhip = 0.5*(arm_3d['LHip'] + arm_3d['RHip'])
-    arm_3d['Neck'] = midhip + blengths['Torso'] * util.normalize(arm_3d['Neck'] - midhip)
-    #TODO: Crotch, Spine, Chest
-
-    arm_3d['LShoulder'] = arm_3d['Neck'] + blengths['Shoulder'] * util.normalize(arm_3d['LShoulder'] - arm_3d['Neck'])
-
-    arm_3d['LElbow'] = arm_3d['LShoulder'] + blengths['UpperArm'] * util.normalize(arm_3d['LElbow'] - arm_3d['LShoulder'])
-
-    arm_3d['LWrist'] = arm_3d['LElbow'] + blengths['ForeArm'] * util.normalize(arm_3d['LWrist'] - arm_3d['LElbow'])
-
-    return arm_3d
-
-def infer_arm_slice_locations(shoulder_slc_loc, neck_shoulder_len, armature, upper_arm_len, under_arm_len):
-    neck_shoulder_dir = util.normalize(armature['LShoulder'] - armature['LNeck'])
-    shoulder = shoulder_slc_loc + neck_shoulder_len * neck_shoulder_dir
-
-    upper_arm_dir = util.normalize(armature['LElbow'] - armature['LShoulder'])
-    under_arm_dir = util.normalize(armature['LWrist'] - armature['LElbow'])
-
-    elbow = shoulder + upper_arm_dir * upper_arm_len
-    wrist = elbow + under_arm_dir * under_arm_len
-    locs = {}
-    locs['LAux_Shoulder_Elbow_0'] = shoulder + 0.5 * (elbow-shoulder)
-    locs['LElbow'] = elbow
-    locs['LAux_Elbow_Wrist_0'] = elbow + 0.5 * (wrist - elbow)
-    locs['LWrist'] = wrist
-    return locs
-
-def calc_arm_slice_locations(tpl_3d_armature, target_2d_armature, ratio):
-    shoulder_len = norm(target_2d_armature['Neck'] - target_2d_armature['LShoulder'])
-    shoulder_len = ratio * shoulder_len
-
 def subdivide_catmull_temp(mesh):
     verts = mesh['verts']
     faces = mesh['faces']
@@ -245,13 +197,16 @@ def projec_mesh_onto_mesh(mesh_0, mesh_0_vert_idxs, mesh_1):
     #export_mesh(out_path, np.array(test_points), [])
 
 #the basis origin of armature is the midhip position
-def transform_non_vertical_slice(slice, loc, loc_after, radius):
-    slice_n = slice - loc
+def scale_non_vertical_slice(slice, radius, scale_center = None):
+    if scale_center is None:
+        scale_center = np.mean(slice, axis = 0)
+
+    slice_n = slice - scale_center
     rads = norm(slice_n, axis=1)
     max_rad = np.max(rads)
     scale = radius / max_rad
     slice_n *= scale
-    return loc_after + slice_n
+    return scale_center + slice_n
 
 def scale_vertical_slice(slice, w_ratio, d_ratio, scale_center = None):
     if scale_center is None:
@@ -261,26 +216,6 @@ def scale_vertical_slice(slice, w_ratio, d_ratio, scale_center = None):
     nslice[:,1] *= d_ratio
     nslice = nslice + scale_center
     return nslice
-
-def transform_arm_slices(mesh, slc_id_locs, slc_id_vert_idxs, arm_3d):
-    slc_org = slc_id_locs['Slice_LElbow']
-    slc_idxs = slc_id_vert_idxs['Slice_LElbow']
-    slice = ctl_mesh['verts'][slc_idxs]
-    radius = h_ratio * 0.5 * seg_dst_f['Elbow']
-    mesh['verts'][slc_idxs, :] = transform_non_vertical_slice(slice, slc_org, arm_3d['LElbow'], radius)
-
-    slc_org = slc_id_locs['Slice_LWrist']
-    slc_idxs = slc_id_vert_idxs['Slice_LWrist']
-    slice = ctl_mesh['verts'][slc_idxs]
-    wrist_radius = h_ratio * 0.5 * 0.8 * seg_dst_f['Elbow']
-    mesh['verts'][slc_idxs, :] = transform_non_vertical_slice(slice, slc_org, arm_3d['LWrist'], wrist_radius)
-
-    lhand_idxs = []
-    for id, idxs in slc_id_vert_idxs.items():
-        if 'LHand' in id:
-            lhand_idxs.append(idxs[:])
-    displacement = arm_3d['LWrist'] - slc_id_locs['Slice_LWrist']
-    mesh['verts'][lhand_idxs, :] += displacement
 
 #note: this function just works for breast slice
 def scale_breast_height(brst_slc, slc_height):
@@ -361,6 +296,11 @@ class ControlMeshPredictor():
             SliceID.Ankle
     ]
 
+    arm_slc_ids = [
+        SliceID.Elbow,
+        SliceID.Wrist
+    ]
+
     def __init__(self, MODEL_DIR):
         self.models = {}
         for path in Path(MODEL_DIR).glob('*.pkl'):
@@ -413,34 +353,52 @@ class ControlMeshPredictor():
         print('victoria mesh: nverts = {0}, ntris = {1}'.format(self.tpl_mesh['verts'].shape[0],
                                                                 len(self.tpl_mesh['faces'])))
 
-    def collect_slice_measurement(self, seg_dst_f, seg_dst_s, seg_locs_f, seg_locs_s, h_ratio):
+    def collect_slice_measurement(self, seg_dst_f, seg_dst_s, seg_locs_f, seg_locs_s, seg_f, seg_s, joint_loc, h_ratio):
         slc_w_d= {}
         slc_locs = {}
         for slc_id in self.slc_ids:
             width = h_ratio * seg_dst_f[slc_id.name]
             depth = h_ratio * seg_dst_s[slc_id.name]
-            slc_w_d[slc_id] = (width, depth)
+            slc_w_d[slc_id] = np.array((width, depth))
 
             #slice location, which is the back point of the slice (point on the back slice), relative to ankle in the side image.
-            slc_loc_side_img = seg_locs_s[slc_id.name]
-            slc_loc_y = slc_loc_side_img[0]
-            slc_loc_z = np.abs(slc_loc_side_img[1])
-
-            #transform to victoria's scale. why?
-            slc_loc_y = slc_loc_y * h_ratio
-            slc_loc_z = slc_loc_z * h_ratio
-
+            slc_loc_side_img  = seg_locs_s[slc_id.name]
             slc_loc_front_img = seg_locs_f[slc_id.name]
-            slc_loc_x = slc_loc_front_img[0]
-            slc_loc_x = slc_loc_x * h_ratio
 
-            slc_locs[slc_id] = (slc_loc_x, slc_loc_y, slc_loc_z)
+            slc_loc_x = h_ratio * slc_loc_front_img[0]
+            slc_loc_y = h_ratio * slc_loc_side_img[0]
+            slc_loc_z = h_ratio * np.abs(slc_loc_side_img[1])
+
+            slc_locs[slc_id] = np.array([slc_loc_x, slc_loc_y, slc_loc_z])
+
+        shoulder_loc = h_ratio * joint_loc['LShoulder'] #the shoulder joint location in image scale
+
+        seg_arm = seg_f['Shoulder_Elbow']
+        upper_arm_dir = seg_arm[1,:] - seg_arm[0,:]; upper_arm_dir = upper_arm_dir / norm(upper_arm_dir)
+        upper_arm_dir = np.array([upper_arm_dir[0], 0.0, -upper_arm_dir[1]])
+        upper_arm_len = h_ratio * seg_dst_f['Shoulder_Elbow']
+        elbow_loc = shoulder_loc + upper_arm_dir * upper_arm_len
+
+        arm_seg = seg_f['Shoulder_Wrist']
+        arm_dir = arm_seg[1,:] - arm_seg[0,:]; arm_dir = arm_dir / norm(arm_dir)
+        arm_dir = np.array([arm_dir[0], 0.0, -arm_dir[1]])
+        arm_len = h_ratio * seg_dst_f['Shoulder_Wrist']
+        wrist_loc = shoulder_loc + arm_dir * arm_len
+
+        slc_locs[SliceID.find_enum('Elbow')] = elbow_loc
+        slc_locs[SliceID.find_enum('Wrist')] = wrist_loc
+
+        radius = h_ratio * seg_dst_f['Elbow']
+        slc_w_d[SliceID.find_enum('Elbow')] = np.array((radius, radius))
+
+        radius = h_ratio * seg_dst_f['Wrist']
+        slc_w_d[SliceID.find_enum('Wrist')] = np.array((radius, radius))
 
         return slc_w_d, slc_locs
 
-    def predict_1(self, seg_dst_f, seg_dst_s, seg_locs_s, seg_locs_f, height):
+    def predict_1(self, seg_dst_f, seg_dst_s, seg_locs_s, seg_locs_f, seg_f, seg_s, joint_loc, height):
 
-        slc_w_d, slc_locs = self.collect_slice_measurement(seg_dst_f, seg_dst_s, seg_locs_f, seg_locs_s, h_ratio=1.0)
+        slc_w_d, slc_locs = self.collect_slice_measurement(seg_dst_f, seg_dst_s, seg_locs_f, seg_locs_s, seg_f, seg_s, joint_loc, h_ratio=1.0)
 
         return self._predict(slc_w_d, slc_locs)
 
@@ -456,6 +414,49 @@ class ControlMeshPredictor():
     def _predict(self, slc_w_d, slc_locs):
         ctl_new_mesh = deepcopy(self.ctl_mesh)
         ctl_ankle_loc = self.slc_id_locs[SliceID.Ankle.name]
+
+        self._predict_torso_leg(ctl_new_mesh, slc_w_d, slc_locs, ctl_ankle_loc)
+
+        self._predict_arm(ctl_new_mesh, slc_w_d, slc_locs, ctl_ankle_loc)
+
+        # for the right vertices (right leg, right arm), mirror the left vertices
+        verts = ctl_new_mesh['verts']
+        for pair in self.ctl_sym_vert_pairs:
+            mirror_co = deepcopy(verts[pair[0]])
+            mirror_co[0] = -mirror_co[0]
+            verts[pair[1]] = mirror_co
+
+        # we create two versions of the control mesh
+        # the triangle version is used for deformation algorithm
+        ctl_mesh_tri_new = deepcopy(self.ctl_mesh)
+        ctl_mesh_tri_new['verts'] = deepcopy(ctl_new_mesh['verts'])
+
+        return ctl_mesh_tri_new
+
+    def _predict_arm(self, new_ctl_mesh, slc_w_d, slc_locs, ctl_ankle_loc):
+        for slc_id in self.arm_slc_ids:
+            print(slc_locs[slc_id])
+
+            slc_idxs = self.slc_id_vert_idxs[slc_id.name]
+
+            slice_out = copy(self.ctl_mesh['verts'][slc_idxs])
+
+            (slc_loc_x, slc_loc_y, slc_loc_z) = slc_locs[slc_id]
+
+            radius = 0.5*slc_w_d[slc_id][0]
+            center = np.mean(slice_out, axis=0)
+            slice_out = scale_non_vertical_slice(slice_out, radius, scale_center=center)
+
+            slice_out = slice_out - center
+
+            slice_out[:, 2] += (slc_loc_z  + ctl_ankle_loc[2])
+            slice_out[:, 1] += (slc_loc_y  + ctl_ankle_loc[1])
+            slice_out[:, 0] += (slc_loc_x  + ctl_ankle_loc[0])
+
+            new_ctl_mesh['verts'][slc_idxs, :] = slice_out
+
+
+    def _predict_torso_leg(self, new_ctl_mesh, slc_w_d, slc_locs, ctl_ankle_loc):
 
         for slc_id in self.slc_ids:
             slc_idxs = self.slc_id_vert_idxs[slc_id.name]
@@ -508,21 +509,8 @@ class ControlMeshPredictor():
             if util.is_leg_contour(slc_id.name):
                 slice_out[:, 0] += slc_loc_x
 
-            ctl_new_mesh['verts'][slc_idxs, :] = slice_out
+            new_ctl_mesh['verts'][slc_idxs, :] = slice_out
 
-        # for the right vertices (right leg, right arm), mirror the left vertices
-        verts = ctl_new_mesh['verts']
-        for pair in self.ctl_sym_vert_pairs:
-            mirror_co = deepcopy(verts[pair[0]])
-            mirror_co[0] = -mirror_co[0]
-            verts[pair[1]] = mirror_co
-
-        # we create two versions of the control mesh
-        # the triangle version is used for deformation algorithm
-        ctl_mesh_tri_new = deepcopy(self.ctl_mesh)
-        ctl_mesh_tri_new['verts'] = deepcopy(ctl_new_mesh['verts'])
-
-        return ctl_mesh_tri_new
 
     def predict(self, seg_dst_f, seg_dst_s, seg_locs_s, seg_locs_f, height):
         id_mappings = slice_id_3d_2d_mappings()

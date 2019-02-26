@@ -14,7 +14,7 @@ def select_single_obj(obj):
     bpy.ops.object.select_all(action='DESELECT')
     obj.select = True
     bpy.context.scene.objects.active = obj
-
+    
 
 def isect(obj1, obj2):
     select_single_obj(obj1)
@@ -31,6 +31,7 @@ def copy_obj(obj, new_name, location):
     scene.objects.link(new_object)
     new_object.location = location
     select_single_obj(new_object)
+    bpy.ops.object.make_single_user(type='SELECTED_OBJECTS', object=True, obdata=True)
     return new_object
 
 
@@ -496,7 +497,7 @@ def find_mirror_vertices(obj, group_name, error_threshold=1e-3):
     kd.balance()
 
     mirror_idxs = []
-    for mv in my_verts:
+    for idx, mv in enumerate(my_verts):
         mirror_co = deepcopy(mv.co)
         mirror_co.x = -mirror_co.x
         #dsts = np.array([(mirror_co - ov.co).length for ov in mesh.vertices])
@@ -504,7 +505,11 @@ def find_mirror_vertices(obj, group_name, error_threshold=1e-3):
         #found_co = mesh.vertices[idx].co
         #error = (found_co - mirror_co).length
         found_co, index, dst = kd.find(mirror_co)
-        assert dst < error_threshold, 'distance to found symmetric vertex is large'
+        if dst > error_threshold:
+            grp_names = [obj.vertex_groups[grp.group].name for grp in mv.groups]
+            print('failed symmetric vertex for vertex ', mv, ' in the groups ', grp_names, 'use the vertex index -1 itself')
+            #assert dst < error_threshold, 'distance to found symmetric vertex is large'
+            index = -1
         mirror_idxs.append(index)
 
     assert len(my_verts_idxs) == len(mirror_idxs), 'not find enough mirrored points'
@@ -555,6 +560,24 @@ def find_effective_cdd_triangles(tpl_mesh, ctl_mesh):
     
     return cdd_tris
 
+def triangulate_obj(obj):
+    tri_obj_name = obj.name + '_Tri'
+
+    if tri_obj_name in bpy.data.objects:
+        old_obj_tri = bpy.data.objects[tri_obj_name]
+        select_single_obj(old_obj_tri)
+        bpy.ops.object.delete()
+
+    obj_tri = copy_obj(obj, tri_obj_name, obj.location)
+    select_single_obj(obj_tri)
+
+    bpy.ops.object.modifier_add(type='TRIANGULATE')
+    obj_tri.modifiers['Triangulate'].quad_method = 'BEAUTY'
+    for modifier in obj_tri.modifiers:
+        bpy.ops.object.modifier_apply(modifier=modifier.name)
+
+    return obj_tri
+
 scene = bpy.context.scene
 
 OUT_DIR = '/home/khanhhh/data_1/projects/Oh/codes/human_estimation/data/meta_data/'
@@ -576,7 +599,7 @@ slc_vert_idxs = extract_slice_vert_indices(bpy.context.scene.objects["ControlMes
 
 slc_id_locs = calc_slice_location(bpy.data.objects["Armature"], bpy.data.objects["ControlMesh"], slc_vert_idxs)
 
-ctl_obj_tri = scene.objects['ControlMesh_Tri']
+ctl_obj_tri = triangulate_obj(scene.objects['ControlMesh'])
 ctl_obj_tri_mesh = mesh_to_numpy(ctl_obj_tri.data)
 
 ctl_obj_quad = scene.objects['ControlMesh']
