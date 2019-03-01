@@ -29,12 +29,23 @@ def dst_point_line(point, line_p, line_dir):
     n = np.array([-line_dir[1], line_dir[0]])
     return np.dot(v, n)
 
-def isect_line_line(p1, p2, p3, p4):
-    a = (p1[0]-p3[0])*(p3[1]-p4[1]) - (p1[1]-p3[1])*(p3[0]-p4[0])
-    b = (p1[0]-p2[0])*(p3[1]-p4[1]) - (p1[1]-p2[1])*(p3[0]-p4[0])
-    t = a/b
-    p = np.array([p1[0]+t*(p2[0]-p1[0]), p1[1]+t*(p2[1]-p1[1])])
-    return p
+#adapted from https://github.com/sobotka/blender/blob/master/source/blender/blenlib/intern/math_geom.c
+def isect_line_line(v0, v1, v2, v3):
+    s10 = v1-v0 #sub_v2_v2v2(s10, v1, v0);
+    s32 = v3-v2 #sub_v2_v2v2(s32, v3, v2)
+
+    div =  np.cross(s10, s32) #cross_v2v2(s10, s32);
+    if (div != 0.0):
+        u = np.cross(v1, v0)
+        v = np.cross(v3, v2)
+
+        r_vi = np.zeros((2,), dtype=np.float)
+        r_vi[0] = ((s32[0] * u) - (s10[0] * v)) / div
+        r_vi[1] = ((s32[1] * u) - (s10[1] * v)) / div
+
+        return r_vi
+    else:
+        return None
 
 def closest_on_quad_to_point_v3(p, a, b, c, d):
     p_0 = closest_on_tri_to_point_v3(p, a, b, c)

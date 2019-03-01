@@ -571,6 +571,13 @@ def triangulate_obj(obj):
     obj_tri = copy_obj(obj, tri_obj_name, obj.location)
     select_single_obj(obj_tri)
 
+    for i in range(len(obj_tri.layers)):
+        obj_tri.layers[i] = False
+    obj_tri.layers[4] = True
+
+    obj_tri.show_all_edges = True
+    obj_tri.show_wire = True
+
     bpy.ops.object.modifier_add(type='TRIANGULATE')
     obj_tri.modifiers['Triangulate'].quad_method = 'BEAUTY'
     for modifier in obj_tri.modifiers:
@@ -633,7 +640,7 @@ with open(filepath, 'wb') as f:
     data['slice_locs'] = slc_id_locs
     data['slice_vert_idxs'] = slc_vert_idxs
     data['arm_bone_locs'] = arm_bone_locs
-    
+    data['mid_ankle_loc'] = bpy.data.objects['Mid_Ankle_Loc'].location[:]
     data['control_mesh_symmetric_vert_pairs'] = mirror_pairs
 
     data['control_mesh'] = ctl_obj_tri_mesh

@@ -43,7 +43,13 @@ class SliceID(AutoNumber):
     Calf = ()
     Ankle = ()
 
+    Aux_Shoulder_Elbow_0 = ()
+    Aux_Shoulder_Elbow_1 = ()
+    Aux_Shoulder_Elbow_2 = ()
     Elbow = ()
+    Aux_Elbow_Wrist_0 = ()
+    Aux_Elbow_Wrist_1 = ()
+    Aux_Elbow_Wrist_2 = ()
     Wrist = ()
 
     @staticmethod

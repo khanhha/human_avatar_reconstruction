@@ -12,12 +12,14 @@ import multiprocessing
 from functools import partial
 import gc
 
+g_debug_name = None
 
 def util_reconstruct_single_mesh(record, OUT_DIR_CTL, OUT_DIR_DF, predictor, deformer):
     idx = record[0]
     mdata_path = record[1]
     #print(mdata_path.name)
-    if 'CSR0309A' not in mdata_path.name:
+    if g_debug_name is not None:
+        if g_debug_name not in mdata_path.name:
             return
 
     if idx % 100 == 0:
@@ -60,6 +62,7 @@ if __name__ == '__main__':
     ap.add_argument("-np", type=int, default = 1, help='')
     ap.add_argument("--deform", action='store_true', default = False, help='deformation or not')
     ap.add_argument("--nfiles", type=int, default = -1, help='just process this number of file')
+    ap.add_argument("--debug_name", type=str, default = '', help='just process this number of file')
 
     args = ap.parse_args()
 
@@ -74,6 +77,8 @@ if __name__ == '__main__':
     os.makedirs(OUT_DIR_DF_MESH, exist_ok=True)
     n_process = args.np
 
+    g_debug_name = args.debug_name if args.debug_name != '' else None
+
     with open(in_path, 'rb') as f:
         data = pickle.load(f)
 
@@ -82,7 +87,7 @@ if __name__ == '__main__':
         slc_id_vert_idxs = data['slice_vert_idxs']
         slc_id_locs = data['slice_locs']
         ctl_sym_vert_pairs = data['control_mesh_symmetric_vert_pairs']
-
+        mid_ankle_loc = np.array(data['mid_ankle_loc'])
         tpl_mesh = data['template_mesh']
         tpl_height = data['template_height']
         tpl_sym_vert_pairs = data['template_symmetric_vert_pairs']
@@ -91,7 +96,7 @@ if __name__ == '__main__':
 
         #load slice predictor
         predictor = ControlMeshPredictor(MODEL_DIR=MODEL_DIR)
-        predictor.set_control_mesh(ctl_mesh=ctl_mesh, slc_id_vert_idxs=slc_id_vert_idxs, slc_id_locs=slc_id_locs, ctl_sym_vert_pairs=ctl_sym_vert_pairs, arm_3d_tpl=arm_3d_tpl)
+        predictor.set_control_mesh(ctl_mesh=ctl_mesh, slc_id_vert_idxs=slc_id_vert_idxs, slc_id_locs=slc_id_locs, ctl_sym_vert_pairs=ctl_sym_vert_pairs, mid_ankle_loc=mid_ankle_loc)
         predictor.set_template_mesh(tpl_mesh=tpl_mesh, tpl_height=tpl_height)
 
     #load deform
