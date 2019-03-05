@@ -298,9 +298,9 @@ class ControlMeshPredictor():
     ]
 
     arm_slc_ids = [
-        SliceID.Aux_Shoulder_Elbow_0,
-        SliceID.Aux_Shoulder_Elbow_1,
-        SliceID.Aux_Shoulder_Elbow_2,
+        SliceID.UpperArm,
+        SliceID.Aux_UpperArm_Elbow_0,
+        SliceID.Aux_UpperArm_Elbow_1,
         SliceID.Elbow,
         SliceID.Aux_Elbow_Wrist_0,
         SliceID.Aux_Elbow_Wrist_1,
@@ -388,7 +388,7 @@ class ControlMeshPredictor():
         verts = mesh['verts'][vert_idxs]
         return np.mean(verts, axis=0)
 
-    def _calc_arm_slice_measurements(self, seg_dst_f, seg_f, shoulder_joint_loc, armscye_slc_center, height):
+    def _calc_arm_slice_measurements_1(self, seg_dst_f, seg_f, shoulder_joint_loc, armscye_slc_center, height):
         obj_mid_ankle_loc = self._mid_ankle_in_object_metrics(height)
 
         seg_arm = seg_f['Shoulder_Elbow']
@@ -403,7 +403,7 @@ class ControlMeshPredictor():
         arm_start_point = self._calc_arm_begin_point(shoulder_joint_loc, elbow_loc, armscye_slc_center)
 
         arm_slc_locs = {}
-        ids = [SliceID.Aux_Shoulder_Elbow_0, SliceID.Aux_Shoulder_Elbow_1, SliceID.Aux_Shoulder_Elbow_2]
+        ids = [SliceID.UpperArm, SliceID.Aux_UpperArm_Elbow_0, SliceID.Aux_UpperArm_Elbow_1]
         n_ids = len(ids)
         for i in range(n_ids):
             arm_slc_locs[ids[i]] = arm_start_point + float((i+1)/(n_ids+1))*(elbow_loc - arm_start_point)
@@ -424,13 +424,28 @@ class ControlMeshPredictor():
         arm_slc_locs[SliceID.Wrist] = wrist_loc
 
         radius_elbow = 0.5 * seg_dst_f['Elbow']
-        #slc_w_d[SliceID.find_enum('Elbow')] = np.array((radius_elbow, radius_elbow))
-
-        #radius_wrist = h_ratio * seg_dst_f['Wrist']
-        #slc_w_d[SliceID.find_enum('Wrist')] = np.array((radius_wrist, radius_wrist))
         return radius_elbow, arm_slc_locs
 
+    def _calc_arm_slice_measurements(self, seg_dst_f, seg_locs_f, shoulder_joint_loc, height):
+        obj_mid_ankle_loc = self._mid_ankle_in_object_metrics(height)
+        arm_y = shoulder_joint_loc[1]
+        slc_radius = {}
+        slc_locs = {}
+        for slc_id in self.arm_slc_ids:
+
+            slc_loc_front_img = seg_locs_f[slc_id.name]
+            loc_x =  slc_loc_front_img[0]
+            loc_z =  abs(slc_loc_front_img[1])
+
+            slc_locs[slc_id] = np.array([loc_x, arm_y, loc_z]) + obj_mid_ankle_loc
+
+            diameter = seg_dst_f[slc_id.name]
+            slc_radius[slc_id] = 0.5*diameter
+
+        return slc_radius, slc_locs
+
     def _calc_leg_torso_slice_measurement(self, seg_dst_f, seg_dst_s, seg_locs_f, seg_locs_s, height):
+        obj_mid_ankle_loc = self._mid_ankle_in_object_metrics(height)
         slc_w_d= {}
         slc_locs = {}
         for slc_id in self.slc_ids:
@@ -446,7 +461,7 @@ class ControlMeshPredictor():
             slc_loc_y = slc_loc_side_img[0]
             slc_loc_z = np.abs(slc_loc_side_img[1])
 
-            slc_locs[slc_id] = np.array([slc_loc_x, slc_loc_y, slc_loc_z]) + self._mid_ankle_in_object_metrics(height)
+            slc_locs[slc_id] = np.array([slc_loc_x, slc_loc_y, slc_loc_z]) + obj_mid_ankle_loc
 
         return slc_w_d, slc_locs
 
@@ -457,9 +472,9 @@ class ControlMeshPredictor():
         self._predict_torso_leg(ctl_new_mesh, slc_w_d, slc_locs)
 
         shoulder_joint_loc = joint_loc['LShoulder'] #the shoulder joint location in image scale
-        armscye_slc_center = self._verte_group_center(self.slc_id_vert_idxs, ctl_new_mesh,  SliceID.Armscye.name)
-        elbow_radius, arm_slc_locs = self._calc_arm_slice_measurements(seg_dst_f, seg_f, shoulder_joint_loc, armscye_slc_center, height)
-        self._predict_arm(ctl_new_mesh, elbow_radius, arm_slc_locs)
+        #armscye_slc_center = self._verte_group_center(self.slc_id_vert_idxs, ctl_new_mesh,  SliceID.Armscye.name)
+        arm_slc_radius, arm_slc_locs = self._calc_arm_slice_measurements(seg_dst_f, seg_locs_f, shoulder_joint_loc, height)
+        self._predict_arm(ctl_new_mesh, arm_slc_radius, arm_slc_locs)
 
         # for the right vertices (right leg, right arm), mirror the left vertices
         verts = ctl_new_mesh['verts']
@@ -479,15 +494,7 @@ class ControlMeshPredictor():
         scale = target_height/self.tpl_height
         return scale * self.mid_ankle_loc
 
-    def _predict_arm(self, new_ctl_mesh, elbow_radius, arm_slc_locs):
-        #find arm radius ratio
-        slc_idxs = self.slc_id_vert_idxs[SliceID.Elbow.name]
-        slice = copy(self.ctl_mesh['verts'][slc_idxs])
-        center = np.mean(slice, axis=0)
-        slice = slice - center
-        rads = norm(slice, axis=1)
-        max_rad = np.max(rads)
-        arm_scale = elbow_radius / max_rad
+    def _predict_arm(self, new_ctl_mesh, arm_slc_radius, arm_slc_locs):
 
         for slc_id in self.arm_slc_ids:
             #print(arm_slc_locs[slc_id])
@@ -498,8 +505,11 @@ class ControlMeshPredictor():
             (slc_loc_x, slc_loc_y, slc_loc_z) = arm_slc_locs[slc_id]
 
             scale_center = np.mean(slice_out, axis=0)
+
             slice_out = slice_out - scale_center
-            slice_out *= arm_scale
+            max_rad = np.max(norm(slice_out, axis=1))
+            radius_scale = arm_slc_radius[slc_id] / max_rad
+            slice_out *= radius_scale
 
             slice_out[:, 2] += (slc_loc_z)
             slice_out[:, 1] += (slc_loc_y)
