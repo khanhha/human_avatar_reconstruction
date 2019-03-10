@@ -130,6 +130,13 @@ class SliceModelInputDef:
         self._input_dict[SliceID.Bust] = [SliceID.Aux_UnderBust_Bust_0, SliceID.Bust, SliceID.Armscye] + global_ids
 
         #TODO leg slices
+        self._input_dict[SliceID.Knee]                   = [SliceID.Knee, SliceID.Aux_Knee_UnderCrotch_0, SliceID.Aux_Knee_UnderCrotch_1]                   + global_ids
+        self._input_dict[SliceID.Aux_Knee_UnderCrotch_0] = [SliceID.Knee, SliceID.Aux_Knee_UnderCrotch_0, SliceID.Aux_Knee_UnderCrotch_1]                   + global_ids
+        self._input_dict[SliceID.Aux_Knee_UnderCrotch_1] = [SliceID.Aux_Knee_UnderCrotch_0, SliceID.Aux_Knee_UnderCrotch_1, SliceID.Aux_Knee_UnderCrotch_2] + global_ids
+        self._input_dict[SliceID.Aux_Knee_UnderCrotch_2] = [SliceID.Aux_Knee_UnderCrotch_1, SliceID.Aux_Knee_UnderCrotch_2, SliceID.Aux_Knee_UnderCrotch_3] + global_ids
+        self._input_dict[SliceID.Aux_Knee_UnderCrotch_3] = [SliceID.Aux_Knee_UnderCrotch_2, SliceID.Aux_Knee_UnderCrotch_3, SliceID.UnderCrotch]            + global_ids
+        self._input_dict[SliceID.UnderCrotch]            = [SliceID.Aux_Knee_UnderCrotch_2, SliceID.Aux_Knee_UnderCrotch_3, SliceID.UnderCrotch]            + global_ids
+
 
     def _init_global_inputs_mode(self):
 
