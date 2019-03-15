@@ -9,30 +9,75 @@ from scipy import stats
 
 #section 3.1, "t-FFD: Free-Form Deformation by using Triangular Mesh"
 def parameterize(verts, vert_effect_idxs, basis):
-    P = []
-    T = np.zeros((3,3),np.float32)
-    for i in range(verts.shape[0]):
-        v_co = verts[i,:]
-        idxs = vert_effect_idxs[i]
-        v_uvw = []
-        for ctl_tri_idx in idxs:
-            d = v_co - basis[ctl_tri_idx, 0, :]
-            T[:,0] = basis[ctl_tri_idx, 1, :]
-            T[:,1] = basis[ctl_tri_idx, 2, :]
-            T[:,2] = basis[ctl_tri_idx, 3, :]
-            try:
-                local_co = np.linalg.solve(T, d)
-                v_uvw.append(local_co)
-            except Exception as exp:
-                print(f'exception: {exp}', file=sys.stderr)
-                print(f'linear system A = {T}')
-                print(f'right hand side = {d}')
-                exit()
-        P.append(v_uvw)
 
-        #if i % 500 == 0:
-        #    print(i,'/',verts.shape[0])
+    def parallel_util(start, end, out_queue, out_dir):
+        P_ret = []
+        T = np.zeros((3, 3), np.float32)
+        #print(f'\tstart range {start}-{end}')
+        for i in range(start, end):
+            v_co = verts[i,:]
+            idxs = vert_effect_idxs[i]
+            v_uvw = []
+            for ctl_tri_idx in idxs:
+                d = v_co - basis[ctl_tri_idx, 0, :]
+                T[:,0] = basis[ctl_tri_idx, 1, :]
+                T[:,1] = basis[ctl_tri_idx, 2, :]
+                T[:,2] = basis[ctl_tri_idx, 3, :]
+                try:
+                    local_co = np.linalg.solve(T, d)
+                    v_uvw.append(local_co)
+                except Exception as exp:
+                    print(f'exception: {exp}', file=sys.stderr)
+                    print(f'linear system A = {T}')
+                    print(f'right hand side = {d}')
+                    exit()
 
+            P_ret.append((i, v_uvw))
+
+        out_path = f'{out_dir}/{start}_{end}.pkl'
+
+        with open(out_path,'wb') as file:
+            pickle.dump(obj=P_ret, file=file)
+
+        out_queue.put(out_path)
+
+        #print(f'\t\tfinish range {start}-{end}')
+
+    N = verts.shape[0]
+    nprocess = 12
+    result_queue = multiprocessing.Queue()
+    step = N//12
+    procs = []
+    for i in range(nprocess):
+        start = i*step
+        end = (i+1)*step
+        if i == nprocess-1 and end != N:
+            end = N
+        p = Process(target=parallel_util, args=(start, end, result_queue, tempfile.gettempdir()))
+        p.start()
+        procs.append(p)
+    for p in procs:
+        p.join()
+
+    P = N*[None]
+    cnt = 0
+    #print('start merging data')
+    for i in range(nprocess):
+        data_path = result_queue.get()
+        with open(data_path, 'rb') as file:
+            pro_data = pickle.load(file)
+
+            for pair in pro_data:
+                idx = pair[0]
+                v_uvw = pair[1]
+                P[idx] = v_uvw
+                cnt += 1
+
+        os.remove(data_path)
+
+    assert cnt == N, 'failed to calculate all vertices'
+    for data in P:
+        assert data != None, 'missing vertex'
     return P
 
 #section 3.1, "t-FFD: Free-Form Deformation by using Triangular Mesh"
@@ -132,7 +177,7 @@ def calc_vertex_weigth_control_mesh_local(verts_tpl, verts_ctl, tris_ctl, tpl_v_
                 ratio = d / bd_part_avg_rad
                 if ratio < effective_range_factor:
                     w = ratio / effective_range_factor
-                    w = 1 - w
+                    w = (1 - w)**2
                     #w = np.exp(-4.0*w*w)
                     tri_idxs.append(tri_idx)
                     weights.append(w)
@@ -158,6 +203,103 @@ def calc_vertex_weigth_control_mesh_local(verts_tpl, verts_ctl, tris_ctl, tpl_v_
 
     return effect_idxs, effect_weights
 
+
+
+from multiprocessing import Process
+import tempfile
+import os
+def calc_vert_weight(tpl_verts, vert_effect_tri_idxs, ctl_verts, ctl_tris, effective_range_factor):
+
+    def parallel_util(start, end, result_queue, out_dir):
+        #print(f'\tstart range {start}-{end}')
+        ret = []
+        for v_idx in range(start, end):
+            v = tpl_verts[v_idx, :]
+            tri_idxs = vert_effect_tri_idxs[v_idx]
+            weights = []
+            new_tri_idxs = []
+            for t_idx in tri_idxs:
+                t = ctl_tris[t_idx]
+                v0, v1, v2 = ctl_verts[t[0]], ctl_verts[t[1]], ctl_verts[t[2]]
+                center = (v0 + v1 + v2) / 3.0
+                radius = (np.linalg.norm(v0 - center) + np.linalg.norm(v1 - center) + np.linalg.norm(v2 - center)) / 3.0
+                d = np.linalg.norm(v - center)
+                ratio = d / radius
+                if ratio < effective_range_factor:
+                    w = ratio / effective_range_factor
+                    w = 1.0 - w
+                    #w = np.exp(-w)
+                    new_tri_idxs.append(t_idx)
+                    weights.append(w)
+
+            ret.append((v_idx, new_tri_idxs, weights))
+
+        #print(f'\t\tfinish range {start}-{end}')
+        out_path = f'{out_dir}/{start}_{end}.pkl'
+        with open(out_path, 'wb') as file:
+            pickle.dump(file=file, obj=ret)
+        result_queue.put(out_path)
+        #print(f'\t\tdumped result of range {start}-{end} to file {out_path}')
+
+    N = len(vert_effect_tri_idxs)
+    nprocess = 12
+    result_queue = multiprocessing.Queue()
+    step = N//12
+    procs = []
+    for i in range(nprocess):
+        start = i*step
+        end = (i+1)*step
+        if i == nprocess-1 and end != N:
+            end = N
+        p = Process(target=parallel_util, args=(start, end, result_queue, tempfile.gettempdir()))
+        p.start()
+        procs.append(p)
+    for p in procs:
+        p.join()
+
+    new_vert_effect_tri_idxs = N*[None]
+    verts_weights = N*[None]
+    cnt = 0
+    for i in range(nprocess):
+        path = result_queue.get()
+        with open(path, 'rb') as file:
+            p_tuples = pickle.load(file)
+            for tuple in p_tuples:
+                new_vert_effect_tri_idxs[tuple[0]] = tuple[1]
+                verts_weights[tuple[0]] = tuple[2]
+                cnt += 1
+        os.remove(path)
+    assert cnt == N
+    print(f'\nfinish weight calculation for {cnt} vertices')
+    return new_vert_effect_tri_idxs, verts_weights
+
+    # for v_idx, tri_idxs in enumerate(vert_effect_tri_idxs):
+    #     if v_idx % 1000 == 0:
+    #         print(v_idx)
+    #
+    #     v = tpl_verts[v_idx, :]
+    #     weights = []
+    #     new_tri_idxs = []
+    #     for t_idx in tri_idxs:
+    #         t = ctl_tris[t_idx]
+    #         v0, v1, v2 = ctl_verts[t[0]], ctl_verts[t[1]], ctl_verts[t[2]]
+    #         center = (v0 + v1 + v2) / 3.0
+    #         radius = (np.linalg.norm(v0-center) + np.linalg.norm(v1-center) + np.linalg.norm(v2-center))/3.0
+    #         d = np.linalg.norm(v - center)
+    #         ratio = d / radius
+    #         if ratio < effective_range_factor:
+    #             w = ratio/effective_range_factor
+    #             w = 1.0 - w
+    #             #w = np.exp(-w)
+    #             new_tri_idxs.append(t_idx)
+    #             weights.append(w)
+    #
+    #     new_vert_effect_tri_idxs.append(new_tri_idxs)
+    #     verts_weights.append(weights)
+    #
+    # return new_vert_effect_tri_idxs, verts_weights
+
+
 def calc_vertex_weight_global(v, tris_ref, tri_centers, tri_radius, effective_range_factor):
     idxs = []
     weights = []
@@ -174,35 +316,6 @@ def calc_vertex_weight_global(v, tris_ref, tri_centers, tri_radius, effective_ra
             weights.append(w)
 
     return (idxs, weights)
-
-def calc_vert_weight(tpl_verts, vert_effect_tri_idxs, ctl_verts, ctl_tris, effective_range_factor):
-
-    verts_weights = []
-    new_vert_effect_tri_idxs = []
-
-    for v_idx, tri_idxs in enumerate(vert_effect_tri_idxs):
-        v = tpl_verts[v_idx, :]
-        weights = []
-        new_tri_idxs = []
-        for t_idx in tri_idxs:
-            t = ctl_tris[t_idx]
-            v0, v1, v2 = ctl_verts[t[0]], ctl_verts[t[1]], ctl_verts[t[2]]
-            center = (v0 + v1 + v2) / 3.0
-            radius = (np.linalg.norm(v0-center) + np.linalg.norm(v1-center) + np.linalg.norm(v2-center))/3.0
-            d = np.linalg.norm(v - center)
-            ratio = d / radius
-            if ratio < effective_range_factor:
-                w = ratio/effective_range_factor
-                w = 1.0 - w
-                #w = np.exp(-w)
-                new_tri_idxs.append(t_idx)
-                weights.append(w)
-
-        new_vert_effect_tri_idxs.append(new_tri_idxs)
-        verts_weights.append(weights)
-
-    return new_vert_effect_tri_idxs, verts_weights
-
 
 #section 3.2, "t-FFD: Free-Form Deformation by using Triangular Mesh"
 def calc_vertex_weigth_control_mesh_global(verts, verts_ref, tris_ref, effective_range_factor = 4, use_mean_tri_radius = False, n_process = 12):

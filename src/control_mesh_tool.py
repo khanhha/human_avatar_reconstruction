@@ -34,11 +34,14 @@ def util_reconstruct_single_mesh(record, OUT_DIR_CTL, OUT_DIR_DF, predictor, def
     seg_locs_f = mdata['landmark_segment_location_f']
     seg_f = mdata['landmark_segment_f']
     seg_s = mdata['landmark_segment_f']
-    joint_loc = mdata['joint_3D_location']
+    pose_joints_f = mdata['pose_joint_f']
+    pose_joints_s = mdata['pose_joint_s']
+    seg_s = mdata['landmark_segment_f']
+    joint_3d_loc = mdata['joint_3D_location']
     measurements = mdata['measurement']
     height = measurements['Height']
 
-    ctl_tri_mesh = predictor.predict(seg_dst_f, seg_dst_s, seg_locs_s, seg_locs_f, seg_f, seg_s, joint_loc, height)
+    ctl_tri_mesh = predictor.predict(seg_dst_f, seg_dst_s, seg_locs_s, seg_locs_f, joint_3d_loc, pose_joints_f, height)
 
     # out_path = f'{OUT_DIR}{mdata_path.stem}_ctl_tri.obj'
     # export_mesh(out_path, verts=ctl_tri_mesh['verts'], faces=ctl_tri_mesh['faces'])

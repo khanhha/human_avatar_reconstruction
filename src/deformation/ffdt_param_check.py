@@ -49,6 +49,7 @@ if __name__ == '__main__':
 
     v_idxs = [2945, 4373, 14, 69, 7322, 7993, 6941, 7946, 7750, 6445, 8321, 7634, 6145, 1042, 140, 2965, 4419, 3980, 5606, 6017]
     v_idxs = v_idxs + [13825, 12348, 6924, 7929, 12896, 14373]
+    v_idxs = v_idxs + [36262, 36241, 35458, 36115, 35334, 38022, 38719]
     for v_idx in v_idxs:
         #pick effect triangles
         neighbor_tris = [ctl_mesh_tris[t_idx] for t_idx in vert_effect_idxs[v_idx ]]

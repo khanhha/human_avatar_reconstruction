@@ -73,7 +73,7 @@ if __name__ == '__main__':
 
     print(f'\nsaving data')
     with open(f'{OUT_DIR}/{mode}_parameterization.pkl', 'wb') as f:
-        pickle.dump(w_data, f)
+        pickle.dump(w_data, f, protocol=4)
     print(f'\n\toutput parameterization to file {OUT_DIR}')
 
 

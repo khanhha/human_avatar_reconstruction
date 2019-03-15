@@ -348,7 +348,7 @@ def remove_arm_from_under_bust_slice(contour, arm_pnt_negx, arm_pnt_posx, debug_
     return contour, has_left_arm, has_right_arm, fixed_left, fixed_right
 
 #contour should be already pre-processed
-def fix_bust_height(bust_contour, sup_points, ld_points, armscye_contour, debug_path = None):
+def fix_bust_height(bust_contour, sup_points, ld_points, armscye_contour, push_in_scale = 0.0, debug_path = None):
     bust_contour    = preprocess_contour(bust_contour)
     armscye_contour = preprocess_contour(armscye_contour)
 
@@ -399,6 +399,9 @@ def fix_bust_height(bust_contour, sup_points, ld_points, armscye_contour, debug_
     armscye_contour_str = LineString([armscye_contour[i,:] for i in range(armscye_contour.shape[0])])
     bust_base_target = LineString([mid_bust-10*ver_ax, mid_bust + 10*ver_ax]).intersection(armscye_contour_str)
     bust_base_target = closest_point_points(mid_bust, bust_base_target)
+
+    #if push_in_scale != 0.0:
+    #    bust_base_target = bust_base_target + mid_bust
 
     left_side_ids = []
     for idx in range(0, n_bust_contour):

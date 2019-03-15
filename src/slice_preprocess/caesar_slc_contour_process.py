@@ -365,8 +365,8 @@ def process_torso_contour(path, contour, sup_points, ld_points):
             raise Exception('Failed bust slice')
 
         debug_bust_height_path = f'{DEBUG_BUST_HEIGHT_DIR}/{path.stem}.png'
-        contour, ok = fix_bust_height(contour, sup_points=sup_points, ld_points=ld_points,
-                                      armscye_contour=armscye_contour, debug_path=debug_bust_height_path)
+        # contour, ok = fix_bust_height(contour, sup_points=sup_points, ld_points=ld_points,
+        #                               armscye_contour=armscye_contour, debug_path=debug_bust_height_path)
 
     elif slc_id == 'Aux_UnderBust_Bust_0':
         align_anchor_pos_x = False
@@ -385,8 +385,8 @@ def process_torso_contour(path, contour, sup_points, ld_points):
             raise Exception('Failed under_bust slice')
 
         debug_underbust_height_path = f'{DEBUG_UNDERBUST_HEIGHT_DIR}/{path.stem}.png'
-        contour, ok = fix_bust_height(contour, sup_points=sup_points, ld_points=ld_points,
-                                      armscye_contour=armscye_contour, debug_path=debug_underbust_height_path)
+        #contour, ok = fix_bust_height(contour, sup_points=sup_points, ld_points=ld_points,
+        #                              armscye_contour=armscye_contour, debug_path=debug_underbust_height_path)
     else:
         contour = preprocess_contour(contour, resolution=150)
         pass

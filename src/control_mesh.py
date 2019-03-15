@@ -260,9 +260,6 @@ def fix_crotch_hip_cleavage(slice, depth):
 class ControlMeshPredictor():
 
     slc_ids = [
-            SliceID.Neck,
-            SliceID.Collar,
-
             SliceID.Shoulder,
             SliceID.Aux_Armscye_Shoulder_0,
             SliceID.Armscye,
@@ -295,6 +292,17 @@ class ControlMeshPredictor():
 
             SliceID.Calf,
             SliceID.Ankle
+    ]
+
+    head_slc_ids = [
+        SliceID.Collar,
+        SliceID.Aux_Collar_Head_0,
+        SliceID.Aux_Collar_Head_1,
+        SliceID.Aux_Collar_Head_2,
+        SliceID.Aux_Collar_Head_3,
+        SliceID.Aux_Collar_Head_4,
+        SliceID.Aux_Collar_Head_5,
+        SliceID.Aux_Collar_Head_6
     ]
 
     arm_slc_ids = [
@@ -360,16 +368,19 @@ class ControlMeshPredictor():
         print('victoria mesh: nverts = {0}, ntris = {1}'.format(self.tpl_mesh['verts'].shape[0],
                                                                 len(self.tpl_mesh['faces'])))
 
-    def predict(self, seg_dst_f, seg_dst_s, seg_locs_s, seg_locs_f, seg_f, seg_s, joint_loc, height):
+    def predict(self, seg_dst_f, seg_dst_s, seg_locs_s, seg_locs_f, joint_3d_loc, pose_joint_f, height):
         ctl_new_mesh = deepcopy(self.ctl_mesh)
 
         slc_w_d, slc_locs = self._calc_leg_torso_slice_measurement(seg_dst_f, seg_dst_s, seg_locs_f, seg_locs_s, height)
         self._predict_torso_leg(ctl_new_mesh, slc_w_d, slc_locs)
 
-        shoulder_joint_loc = joint_loc['LShoulder'] #the shoulder joint location in image scale
-        #armscye_slc_center = self._verte_group_center(self.slc_id_vert_idxs, ctl_new_mesh,  SliceID.Armscye.name)
-        arm_slc_radius, arm_slc_locs = self._calc_arm_slice_measurements(seg_dst_f, seg_locs_f, shoulder_joint_loc, height)
+        shoulder_3D_joint_loc = joint_3d_loc['LShoulder'] #the shoulder joint location in image scale
+        lshoulder_f = pose_joint_f['LShoulder']
+        arm_slc_radius, arm_slc_locs = self._calc_arm_slice_measurements(seg_dst_f, seg_locs_f, shoulder_3D_joint_loc, lshoulder_f, height)
         self._predict_arm(ctl_new_mesh, arm_slc_radius, arm_slc_locs)
+
+        head_slc_w_d, head_slc_locs = self._calc_head_slice_measurement(seg_dst_f, seg_dst_s, seg_locs_f, seg_locs_s, height)
+        self._transform_head(ctl_new_mesh, head_slc_w_d, head_slc_locs)
 
         # for the right vertices (right leg, right arm), mirror the left vertices
         verts = ctl_new_mesh['verts']
@@ -451,18 +462,16 @@ class ControlMeshPredictor():
         radius_elbow = 0.5 * seg_dst_f['Elbow']
         return radius_elbow, arm_slc_locs
 
-    def _calc_arm_slice_measurements(self, seg_dst_f, seg_locs_f, shoulder_joint_loc, height):
+    def _calc_arm_slice_measurements(self, seg_dst_f, seg_locs_f, shoulder_joint_loc, lshoulder_f, height):
         obj_mid_ankle_loc = self._mid_ankle_in_object_metrics(height)
-        arm_y = shoulder_joint_loc[1]
         slc_radius = {}
         slc_locs = {}
         for slc_id in self.arm_slc_ids:
-
             slc_loc_front_img = seg_locs_f[slc_id.name]
-            loc_x =  slc_loc_front_img[0]
-            loc_z =  abs(slc_loc_front_img[1])
-
-            slc_locs[slc_id] = np.array([loc_x, arm_y, loc_z]) + obj_mid_ankle_loc
+            shoulder_to_arm_slc = slc_loc_front_img - lshoulder_f
+            shoulder_to_arm_slc = np.array([shoulder_to_arm_slc[0], 0.0, -shoulder_to_arm_slc[1]])
+            arm_slc_loc = shoulder_joint_loc + shoulder_to_arm_slc
+            slc_locs[slc_id] = arm_slc_loc + obj_mid_ankle_loc
 
             diameter = seg_dst_f[slc_id.name]
             slc_radius[slc_id] = 0.5*diameter
@@ -490,7 +499,26 @@ class ControlMeshPredictor():
 
         return slc_w_d, slc_locs
 
+    def _calc_head_slice_measurement(self, seg_dst_f, seg_dst_s, seg_locs_f, seg_locs_s, height):
+        obj_mid_ankle_loc = self._mid_ankle_in_object_metrics(height)
+        slc_w_d= {}
+        slc_locs = {}
+        for slc_id in self.head_slc_ids:
+            width = seg_dst_f[slc_id.name]
+            depth = seg_dst_s[slc_id.name]
+            slc_w_d[slc_id] = np.array((width, depth))
 
+            #slice location, which is the back point of the slice (point on the back slice), relative to ankle in the side image.
+            slc_loc_side_img  = seg_locs_s[slc_id.name]
+            slc_loc_front_img = seg_locs_f[slc_id.name]
+
+            slc_loc_x = slc_loc_front_img[0]
+            slc_loc_y = slc_loc_side_img[0]
+            slc_loc_z = np.abs(slc_loc_side_img[1])
+
+            slc_locs[slc_id] = np.array([slc_loc_x, slc_loc_y, slc_loc_z]) + obj_mid_ankle_loc
+
+        return slc_w_d, slc_locs
 
     def _mid_ankle_in_object_metrics(self, target_height):
         scale = target_height/self.tpl_height
@@ -574,4 +602,42 @@ class ControlMeshPredictor():
 
             new_ctl_mesh['verts'][slc_idxs, :] = slice_out
 
+    def _transform_head(self, new_ctl_mesh, slc_w_d, slc_locs):
+
+        for slc_id in self.head_slc_ids:
+            slc_idxs = self.slc_id_vert_idxs[slc_id.name]
+
+            slice_out = copy(self.ctl_mesh['verts'][slc_idxs])
+
+            w = slc_w_d[slc_id][0]
+            d = slc_w_d[slc_id][1]
+
+            (slc_loc_x, slc_loc_y, slc_loc_z) = slc_locs[slc_id]
+
+            # we apply x,y scaling to make sure that our the final slice match width/height measurement
+            dim_range = np.max(slice_out, axis=0) - np.min(slice_out, axis=0)
+            w_ratio = w / dim_range[0]
+            d_ratio = d / dim_range[1]
+            slice_out = scale_vertical_slice(slice_out, w_ratio, d_ratio)
+
+            # import matplotlib.pyplot as plt
+            # plt.axes().set_aspect(1.0)
+            # plt.plot(slice_out[:, 0], slice_out[:, 1], '-r')
+            # plt.plot(slice_out[:, 0], slice_out[:, 1], '+r')
+            # plt.show()
+
+            # align slice in vertical direction
+            slice_out[:, 2] = slc_loc_z
+
+            # align slice in horizontal direction
+            # Warning: need to be careful here. we assume that the maximum point on hor dir is on the back side of Victoria's mesh
+            # TODO => how to make horizontal direction consistent, when the back-to-front direction in image is opposite to back-to-front of Victoria?
+            slice_y_anchor = np.max(slice_out[:, 1])
+            slice_out[:, 1] += (slc_loc_y - slice_y_anchor)
+
+            # arrange leg slice
+            # if util.is_leg_contour(slc_id.name):
+            slice_out[:, 0] += slc_loc_x
+
+            new_ctl_mesh['verts'][slc_idxs, :] = slice_out
 

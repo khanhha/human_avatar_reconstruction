@@ -8,8 +8,17 @@ class AutoNumber(Enum):
         return obj
 
 class SliceID(AutoNumber):
-    Neck = ()
+
+    Aux_Collar_Head_6 = ()
+    Aux_Collar_Head_5 = ()
+    Aux_Collar_Head_4 = ()
+    Aux_Collar_Head_3 = ()
+    Aux_Collar_Head_2 = ()
+    Aux_Collar_Head_1 = ()
+    Aux_Collar_Head_0 = ()
+
     Collar = ()
+
     Shoulder = ()
     Aux_Armscye_Shoulder_0 = ()
     Armscye = ()

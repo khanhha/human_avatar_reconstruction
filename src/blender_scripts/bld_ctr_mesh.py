@@ -518,7 +518,9 @@ def find_mirror_vertices(obj, group_name, error_threshold=1e-3):
 
     return pairs
 
-def find_effective_cdd_triangles(tpl_mesh, ctl_mesh):
+def find_effective_cdd_triangles(tpl_obj, ctl_obj):
+    tpl_mesh = tpl_obj.data
+    ctl_mesh = ctl_obj.data
     print('start finding effective candidate control triangles for each vertex of Victoria')
     ctl_bm = bmesh.new()
     ctl_bm.from_mesh(ctl_mesh)
@@ -526,11 +528,23 @@ def find_effective_cdd_triangles(tpl_mesh, ctl_mesh):
     ctl_bm.faces.ensure_lookup_table()
     ctl_bm.verts.ensure_lookup_table()
 
-    n_ring = 2
     bvh = mathutils.bvhtree.BVHTree.FromBMesh(ctl_bm)
 
     cdd_tris = []
     for idx, v in enumerate(tpl_mesh.vertices):
+
+        is_head = False
+        for vgrp in v.groups:
+            grp_name = tpl_obj.vertex_groups[vgrp.group].name
+            if 'Head' in grp_name:
+                is_head=True
+                break
+            
+        if is_head == True:
+            n_ring=4
+        else:
+            n_ring=4
+
         ret = bvh.find_nearest(v.co)
 
         f_idx = ret[2]
@@ -615,7 +629,7 @@ ctl_obj_quad_mesh = mesh_to_numpy(ctl_obj_quad.data)
 vic_obj = scene.objects['VictoriaMesh']
 vic_obj_mesh = mesh_to_numpy(vic_obj.data)
 
-cdd_tris = find_effective_cdd_triangles(vic_obj.data, ctl_obj_tri.data)
+cdd_tris = find_effective_cdd_triangles(vic_obj, ctl_obj_tri)
 
 vic_v_body_parts = extract_body_part_indices(vic_obj, grp_mark='Part_')
 ctl_f_body_parts = extract_body_part_face_indices(ctl_obj_tri, grp_mark='Part_')
