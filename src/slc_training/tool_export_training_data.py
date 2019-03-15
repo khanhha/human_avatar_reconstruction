@@ -14,7 +14,7 @@ if __name__ == '__main__':
     ap.add_argument("-mode", required=False, default='local_global', type=str, help="output directory")
     args = ap.parse_args()
 
-    input_mode_def = SliceModelInputDef('local_global')
+    input_mode_def = SliceModelInputDef(args.mode)
 
     all_slc_ids = [path.stem for path in Path(args.slc_dir).glob('*')]
     print('\n all slice ids = ', all_slc_ids, '\n')
