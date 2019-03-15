@@ -45,7 +45,7 @@
         -bad_slc_dir DATA_SET_DIR/bad_slices/ 
         -model_dir OUPUT_MODEL_DIR
         -slc_ids Hip
-	-mode local_global
+        -mode local_global
 	
 	the parameter bad_slc_dir refer to a folder that contains text files, each of which store bad slice names for each type of slices. Bad slices are ones which are distorted or noise.
 	
