@@ -39,25 +39,19 @@
 	- DATA_SET_DIR/slice_code/fourier contains the actual training data. It consists of width, depth and fourier code of each contour. Note that fourier code is already scaled and normalized. To understand more about the data structure, please check the function load_slice_data in file slice_regressor_training_tool.py
 	- DATA_SET_DIR/bad_slices contrains a text file which list bad, irregular file names for each type of slice
 	
-    3. run slice_regressor_training_tool.py 
-        -i DATA_SET_DIR/female_slice/ 
-        -c DATA_SET_DIR/slice_code/fourier/ 
-        -b DATA_SET_DIR/bad_slices/ 
-        -d OUTPUT_DEBUG_DIR 
-        -m OUPUT_MODEL_DIR
-        -ids Hip
-        -test_infer 1 
-        -train_infer 0
-    
+    3. run tool_slice_regressor_3_train.py 
+        -slc_dir DATA_SET_DIR/female_slice/ 
+        -feature_dir DATA_SET_DIR/slice_code/fourier/ 
+        -bad_slc_dir DATA_SET_DIR/bad_slices/ 
+        -model_dir OUPUT_MODEL_DIR
+        -slc_ids Hip
+	-mode local_global
+	
+	the parameter bad_slc_dir refer to a folder that contains text files, each of which store bad slice names for each type of slices. Bad slices are ones which are distorted or noise.
+	
 	the parameter "ids" tell the tool which slice type it should train. The slice id is corresponding to sub folder names under DATA_SET_DIR/female_slice
-    
-    the parameter "test_infer" tells the tool to use the model to infer the slice contour from the trained models and output result visualiazation to the folder OUTPUT_DEBUG_DIR
-     
-    4. code guildelines
-        - to understand about training data, please refer to the function "load_slice_data" in slice_regressor_training_tool
-        - to understand about k-means clustering, model training, please refer to the model definition inside slice_regressor_detree.py
-   
-    
+	
+	the parameter "mode" specifies the input information of the model. It  could take the following strings ["single", "local", "local_global", "global", "torso"]. For more detail how each type of input is defined, please refer to the class "SliceModelInputDef" in the file "slice_def.py"
     
 # How to run shape-key analysis
     1. set up enviroment 
