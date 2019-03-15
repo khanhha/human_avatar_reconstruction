@@ -8,6 +8,8 @@
     - Y: NxK where N is the number of slices. K is the fourier code size. K could be different number depending on each type of slice
 
 # how to convert the caesar slice data into local_global training format, run the following tool
+    download [the slide data](https://drive.google.com/open?id=1O2yg-zfgRGayqnTxRfSt7zFe6xzrKvuo)
+    
     tool_export_training_data.py
     -slc_dir SLICE_DATA_DIR/female_slice/
     -feature_dir SLICE_DATA_DIR/slice_code/fourier/ 
@@ -15,7 +17,7 @@
     -mode local_global
     -out_dir OUTPUT_DIR
     
-    mode specifies different input model definition. it could take the following strings ["single", "local", "local_global", "torso"]
+    mode specifies different input model definitions. it could take the following strings ["single", "local", "local_global", "torso"]
     for more detail about how each input type is defined, please refer to the class SliceModelInputDef in the file slice_def.py 
 
 # reconstruct slice 2D points from its fourier code
