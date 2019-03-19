@@ -174,6 +174,9 @@ def mpii_calc_slice_plane_locs(cae_obj, ld_idxs):
 
     shoulder = 0.5*(verts[ld_idxs[29-1]].co + verts[ld_idxs[41-1]].co)
     locs['Shoulder'] = shoulder
+    
+    collar = verts[ld_idxs[24-1]].co
+    locs['Aux_Shoulder_Collar_0'] = 0.5*(shoulder+collar)   
 
     locs['Aux_Armscye_Shoulder_0'] = 0.5*(shoulder + armscye)
 
@@ -607,6 +610,7 @@ def mpii_extract_slices():
     os.makedirs(DIR_OUT_SLICE, exist_ok=True)
     slice_ids = []
     slice_ids = ['Aux_Crotch_Hip_0','Aux_Crotch_Hip_1','Aux_Crotch_Hip_2']
+    slice_ids = ['Aux_Shoulder_Collar_0']
     debug_file = 'csr4149a.obj'
     debug_slc = 'Aux_Crotch_Hip_0'
     debug_file = None

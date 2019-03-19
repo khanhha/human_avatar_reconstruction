@@ -412,7 +412,8 @@ def is_torso_slice(id):
     torso_slc_ids = {'Crotch', 'Aux_Crotch_Hip_0', 'Aux_Crotch_Hip_1', 'Aux_Crotch_Hip_2', 'Hip', 'Waist', 'UnderBust',
                      'Aux_Hip_Waist_0', 'Aux_Hip_Waist_1',
                      'Aux_Waist_UnderBust_0', 'Aux_Waist_UnderBust_1','Aux_Waist_UnderBust_2',
-                     'Aux_UnderBust_Bust_0', 'Bust', 'Armscye', 'Aux_Armscye_Shoulder_0', 'Shoulder'}
+                     'Aux_UnderBust_Bust_0', 'Bust', 'Armscye', 'Aux_Armscye_Shoulder_0', 'Shoulder', 
+                     'Aux_Shoulder_Collar_0'}
     if id in torso_slc_ids:
         return True
     else:

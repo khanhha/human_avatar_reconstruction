@@ -259,7 +259,8 @@ def fix_crotch_hip_cleavage(slice, depth):
 
 class ControlMeshPredictor():
 
-    slc_ids = [
+    torso_slc_ids = [
+            SliceID.Aux_Shoulder_Collar_0,
             SliceID.Shoulder,
             SliceID.Aux_Armscye_Shoulder_0,
             SliceID.Armscye,
@@ -333,7 +334,7 @@ class ControlMeshPredictor():
         c = hasattr(model, 'predict')
 
         found = False
-        for slc_id in self.slc_ids:
+        for slc_id in self.torso_slc_ids:
             if model.slc_id == slc_id.name:
                 found = True
 
@@ -368,15 +369,13 @@ class ControlMeshPredictor():
         print('victoria mesh: nverts = {0}, ntris = {1}'.format(self.tpl_mesh['verts'].shape[0],
                                                                 len(self.tpl_mesh['faces'])))
 
-    def predict(self, seg_dst_f, seg_dst_s, seg_locs_s, seg_locs_f, joint_3d_loc, pose_joint_f, height):
+    def predict(self, seg_dst_f, seg_dst_s, seg_locs_s, seg_locs_f, pose_joint_f, pose_joint_s, height):
         ctl_new_mesh = deepcopy(self.ctl_mesh)
 
         slc_w_d, slc_locs = self._calc_leg_torso_slice_measurement(seg_dst_f, seg_dst_s, seg_locs_f, seg_locs_s, height)
         self._predict_torso_leg(ctl_new_mesh, slc_w_d, slc_locs)
 
-        shoulder_3D_joint_loc = joint_3d_loc['LShoulder'] #the shoulder joint location in image scale
-        lshoulder_f = pose_joint_f['LShoulder']
-        arm_slc_radius, arm_slc_locs = self._calc_arm_slice_measurements(seg_dst_f, seg_locs_f, shoulder_3D_joint_loc, lshoulder_f, height)
+        arm_slc_radius, arm_slc_locs = self._calc_arm_slice_measurements(seg_dst_f, seg_locs_f, pose_joint_f, pose_joint_s, height)
         self._predict_arm(ctl_new_mesh, arm_slc_radius, arm_slc_locs)
 
         head_slc_w_d, head_slc_locs = self._calc_head_slice_measurement(seg_dst_f, seg_dst_s, seg_locs_f, seg_locs_s, height)
@@ -462,7 +461,11 @@ class ControlMeshPredictor():
         radius_elbow = 0.5 * seg_dst_f['Elbow']
         return radius_elbow, arm_slc_locs
 
-    def _calc_arm_slice_measurements(self, seg_dst_f, seg_locs_f, shoulder_joint_loc, lshoulder_f, height):
+    def _calc_arm_slice_measurements(self, seg_dst_f, seg_locs_f, pose_joint_f, pose_joint_s, height):
+        lshoulder_f = pose_joint_f['LShoulder']
+        lshouder_s  = pose_joint_s['LShoulder']
+        shoulder_3D_joint_loc = np.array([lshoulder_f[0], lshouder_s[0], np.abs(lshoulder_f[1])])
+
         obj_mid_ankle_loc = self._mid_ankle_in_object_metrics(height)
         slc_radius = {}
         slc_locs = {}
@@ -470,7 +473,7 @@ class ControlMeshPredictor():
             slc_loc_front_img = seg_locs_f[slc_id.name]
             shoulder_to_arm_slc = slc_loc_front_img - lshoulder_f
             shoulder_to_arm_slc = np.array([shoulder_to_arm_slc[0], 0.0, -shoulder_to_arm_slc[1]])
-            arm_slc_loc = shoulder_joint_loc + shoulder_to_arm_slc
+            arm_slc_loc = shoulder_3D_joint_loc + shoulder_to_arm_slc
             slc_locs[slc_id] = arm_slc_loc + obj_mid_ankle_loc
 
             diameter = seg_dst_f[slc_id.name]
@@ -482,7 +485,7 @@ class ControlMeshPredictor():
         obj_mid_ankle_loc = self._mid_ankle_in_object_metrics(height)
         slc_w_d= {}
         slc_locs = {}
-        for slc_id in self.slc_ids:
+        for slc_id in self.torso_slc_ids:
             width = seg_dst_f[slc_id.name]
             depth = seg_dst_s[slc_id.name]
             slc_w_d[slc_id] = np.array((width, depth))
@@ -493,7 +496,8 @@ class ControlMeshPredictor():
 
             slc_loc_x = slc_loc_front_img[0]
             slc_loc_y = slc_loc_side_img[0]
-            slc_loc_z = np.abs(slc_loc_side_img[1])
+            #slc_loc_z = np.abs(slc_loc_side_img[1])
+            slc_loc_z = np.abs(slc_loc_front_img[1])
 
             slc_locs[slc_id] = np.array([slc_loc_x, slc_loc_y, slc_loc_z]) + obj_mid_ankle_loc
 
@@ -549,7 +553,7 @@ class ControlMeshPredictor():
 
     def _predict_torso_leg(self, new_ctl_mesh, slc_w_d, slc_locs):
 
-        for slc_id in self.slc_ids:
+        for slc_id in self.torso_slc_ids:
             slc_idxs = self.slc_id_vert_idxs[slc_id.name]
 
             slice_out = copy(self.ctl_mesh['verts'][slc_idxs])

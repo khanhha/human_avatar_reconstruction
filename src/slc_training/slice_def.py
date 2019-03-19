@@ -19,6 +19,8 @@ class SliceID(AutoNumber):
 
     Collar = ()
 
+    Aux_Shoulder_Collar_0 = ()
+
     Shoulder = ()
     Aux_Armscye_Shoulder_0 = ()
     Armscye = ()

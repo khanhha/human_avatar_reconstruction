@@ -41,7 +41,7 @@ def util_reconstruct_single_mesh(record, OUT_DIR_CTL, OUT_DIR_DF, predictor, def
     measurements = mdata['measurement']
     height = measurements['Height']
 
-    ctl_tri_mesh = predictor.predict(seg_dst_f, seg_dst_s, seg_locs_s, seg_locs_f, joint_3d_loc, pose_joints_f, height)
+    ctl_tri_mesh = predictor.predict(seg_dst_f, seg_dst_s, seg_locs_s, seg_locs_f, pose_joints_f, pose_joints_s, height)
 
     # out_path = f'{OUT_DIR}{mdata_path.stem}_ctl_tri.obj'
     # export_mesh(out_path, verts=ctl_tri_mesh['verts'], faces=ctl_tri_mesh['faces'])

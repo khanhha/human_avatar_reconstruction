@@ -22,7 +22,7 @@ def fourier(item, n, G_DEBUG_DIR):
 def fourier_resolution(slc_id):
     if util.is_leg_contour(slc_id):
         return 11
-    elif slc_id in ['Shoulder', 'Aux_Armscye_Shoulder_0']:
+    elif slc_id in ['Shoulder', 'Aux_Armscye_Shoulder_0', 'Aux_Shoulder_Collar_0']:
         return 24
     else:
         return 20
