@@ -363,9 +363,10 @@ class ControlMeshPredictor():
         print('control  mesh: nverts = {0}, ntris = {1}'.format(self.ctl_mesh['verts'].shape[0],
                                                                 len(self.ctl_mesh['faces'])))
 
-    def set_template_mesh(self, tpl_mesh, tpl_height):
+    def set_template_mesh(self, tpl_mesh, tpl_height, tpl_joint_locs):
         self.tpl_mesh = tpl_mesh
         self.tpl_height = tpl_height
+        self.tpl_joint_locs = tpl_joint_locs
         print('victoria mesh: nverts = {0}, ntris = {1}'.format(self.tpl_mesh['verts'].shape[0],
                                                                 len(self.tpl_mesh['faces'])))
 
@@ -378,8 +379,14 @@ class ControlMeshPredictor():
         arm_slc_radius, arm_slc_locs = self._calc_arm_slice_measurements(seg_dst_f, seg_locs_f, pose_joint_f, pose_joint_s, height)
         self._predict_arm(ctl_new_mesh, arm_slc_radius, arm_slc_locs)
 
-        head_slc_w_d, head_slc_locs = self._calc_head_slice_measurement(seg_dst_f, seg_dst_s, seg_locs_f, seg_locs_s, height)
-        self._transform_head(ctl_new_mesh, head_slc_w_d, head_slc_locs)
+        #head_slc_w_d, head_slc_locs = self._calc_head_slice_measurement(seg_dst_f, seg_dst_s, seg_locs_f, seg_locs_s, height)
+        #self._transform_head(ctl_new_mesh, head_slc_w_d, head_slc_locs)
+        head_scale_ratios = self._calc_head_scale(pose_joint_f, pose_joint_s, use_eye=False)
+        neck_f = pose_joint_f['Neck']
+        neck_s = pose_joint_s['Neck']
+        neck   = np.array([0.0, neck_s[0], abs(neck_f[1])])
+        neck = neck + self._mid_ankle_in_object_metrics(height)
+        self._scale_head(ctl_new_mesh, head_scale_ratios, neck)
 
         # for the right vertices (right leg, right arm), mirror the left vertices
         verts = ctl_new_mesh['verts']
@@ -523,6 +530,78 @@ class ControlMeshPredictor():
             slc_locs[slc_id] = np.array([slc_loc_x, slc_loc_y, slc_loc_z]) + obj_mid_ankle_loc
 
         return slc_w_d, slc_locs
+
+    def _calc_head_scale(self, pose_joint_f, pose_joint_s, use_eye = True):
+        if use_eye:
+            leye = pose_joint_f['LEye']
+            reye = pose_joint_f['REye']
+            eye_dst = abs(leye[0]-reye[0])
+
+            leye_tpl = self.tpl_joint_locs['LEye']
+            reye_tpl = self.tpl_joint_locs['REye']
+            eye_dst_tpl = abs(leye_tpl[0] - reye_tpl[0])
+
+            scale_x = eye_dst / eye_dst_tpl
+
+            neck_f = pose_joint_f['Neck']
+            mideye = 0.5*(leye+reye)
+            neck_eye_dst = abs(neck_f[1]-mideye[1])
+
+            neck_tpl = self.tpl_joint_locs['Neck']
+            mideye_tpl = 0.5*(leye_tpl+reye_tpl)
+            neck_eye_dst_tpl = abs(neck_tpl[2] - mideye_tpl[2])
+
+            scale_z = neck_eye_dst/neck_eye_dst_tpl
+
+            scale_y = scale_x
+
+        else:
+            lear_f = pose_joint_f['LEar']
+            rear_f= pose_joint_f['REar']
+            ear_dst = abs(lear_f[0] - rear_f[0])
+
+            lear_tpl = self.tpl_joint_locs['LEar']
+            rear_tpl = self.tpl_joint_locs['REar']
+            ear_dst_tpl = abs(lear_tpl[0] - rear_tpl[0])
+
+            scale_x = ear_dst / ear_dst_tpl
+
+            neck_f = pose_joint_f['Neck']
+            midear_f = 0.5 * (lear_f + rear_f)
+            neck_ear_dst = abs(neck_f[1] - midear_f[1])
+
+            neck_tpl = self.tpl_joint_locs['Neck']
+            midear_tpl = 0.5 * (lear_tpl + rear_tpl)
+            neck_ear_dst_tpl = abs(neck_tpl[2] - midear_tpl[2])
+
+            scale_z = neck_ear_dst / neck_ear_dst_tpl
+
+            ear_s  = pose_joint_s['LEar'] if 'LEar' in pose_joint_s else pose_joint_s['REar']
+            eye_s  = pose_joint_s['LEye'] if 'LEye' in pose_joint_s else pose_joint_s['REye']
+            eye_ear_dst_s = abs(ear_s[0] - eye_s[0])
+
+            leye_tpl = self.tpl_joint_locs['LEye']
+            eye_ear_dst_tpl = abs(lear_tpl[1] - leye_tpl[1])
+
+            scale_y = eye_ear_dst_s / eye_ear_dst_tpl
+
+        return (scale_x, scale_y, scale_z)
+
+    def _scale_head(self, ctl_new_mesh, ratios, neck):
+
+        tpl_neck = self.tpl_joint_locs['Neck']
+
+        for slc_id in self.head_slc_ids:
+            slc_idxs = self.slc_id_vert_idxs[slc_id.name]
+            slice_out = copy(self.ctl_mesh['verts'][slc_idxs])
+
+            slice_out = slice_out - tpl_neck
+            slice_out[:,0] *= ratios[0]
+            slice_out[:,1] *= ratios[1]
+            slice_out[:,2] *= ratios[2]
+
+            slice_out = slice_out + neck
+            ctl_new_mesh['verts'][slc_idxs, :] = slice_out
 
     def _mid_ankle_in_object_metrics(self, target_height):
         scale = target_height/self.tpl_height

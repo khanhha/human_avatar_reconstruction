@@ -600,6 +600,15 @@ def triangulate_obj(obj):
 
     return obj_tri
 
+def collect_pose_joints():
+    names = ['LEye', 'REye', 'Neck', 'LEar', 'REar']
+    joint_locs = {}
+    for name in names:
+        obj = bpy.data.objects[name]
+        assert obj != None
+        joint_locs[name] = np.array(obj.location[:])
+    return joint_locs
+
 scene = bpy.context.scene
 
 OUT_DIR = '/home/khanhhh/data_1/projects/Oh/codes/human_estimation/data/meta_data/'
@@ -615,7 +624,7 @@ for obj in scene.objects:
         id_3d = obj.name.replace('_plane', '')
         slc_rects[id_3d] = pln_verts
 
-arm_bone_locs = extract_armature_bone_locations(bpy.data.objects["Armature"])
+#arm_bone_locs = extract_armature_bone_locations(bpy.data.objects["Armature"])
 
 slc_vert_idxs = extract_slice_vert_indices(bpy.context.scene.objects["ControlMesh"])
 
@@ -643,6 +652,8 @@ mirror_pairs = find_mirror_vertices(bpy.data.objects['ControlMesh'], 'LBody')
 
 vic_mirror_pairs = find_mirror_vertices(bpy.data.objects['VictoriaMesh'], 'LBody')
 
+vic_joint_locs = collect_pose_joints()
+
 filepath = os.path.join(OUT_DIR, 'vic_data.pkl')
 print('output all data to file ', filepath)
 
@@ -654,7 +665,7 @@ with open(filepath, 'wb') as f:
     data = {}
     data['slice_locs'] = slc_id_locs
     data['slice_vert_idxs'] = slc_vert_idxs
-    data['arm_bone_locs'] = arm_bone_locs
+    #data['arm_bone_locs'] = arm_bone_locs
     data['mid_ankle_loc'] = bpy.data.objects['Mid_Ankle_Loc'].location[:]
     data['control_mesh_symmetric_vert_pairs'] = mirror_pairs
 
@@ -662,6 +673,7 @@ with open(filepath, 'wb') as f:
     data['control_mesh_face_body_parts'] = ctl_f_body_parts
     data['control_mesh_quad_dom'] = ctl_obj_quad_mesh
 
+    data['template_joint_locs'] = vic_joint_locs
     data['template_mesh'] = vic_obj_mesh
     data['template_height'] = np.linalg.norm(height_locs)
     data['template_vert_body_parts'] = vic_v_body_parts

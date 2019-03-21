@@ -91,16 +91,17 @@ if __name__ == '__main__':
         slc_id_locs = data['slice_locs']
         ctl_sym_vert_pairs = data['control_mesh_symmetric_vert_pairs']
         mid_ankle_loc = np.array(data['mid_ankle_loc'])
+        tpl_joint_locs = data['template_joint_locs']
         tpl_mesh = data['template_mesh']
         tpl_height = data['template_height']
         tpl_sym_vert_pairs = data['template_symmetric_vert_pairs']
 
-        arm_3d_tpl = data['arm_bone_locs']
+        #arm_3d_tpl = data['arm_bone_locs']
 
         #load slice predictor
         predictor = ControlMeshPredictor(MODEL_DIR=MODEL_DIR)
         predictor.set_control_mesh(ctl_mesh=ctl_mesh, slc_id_vert_idxs=slc_id_vert_idxs, slc_id_locs=slc_id_locs, ctl_sym_vert_pairs=ctl_sym_vert_pairs, mid_ankle_loc=mid_ankle_loc)
-        predictor.set_template_mesh(tpl_mesh=tpl_mesh, tpl_height=tpl_height)
+        predictor.set_template_mesh(tpl_mesh=tpl_mesh, tpl_height=tpl_height, tpl_joint_locs=tpl_joint_locs)
 
     #load deform
     if args.deform is True:
