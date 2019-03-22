@@ -478,7 +478,7 @@ def extract_body_part_face_indices(obj, grp_mark):
 
     return face_types
 
-def find_mirror_vertices(obj, group_name, error_threshold=1e-3):
+def find_mirror_vertices(obj, group_name, error_threshold=1.0):
     mesh = obj.data
     my_verts = []
     my_verts_idxs = []

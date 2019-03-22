@@ -6,6 +6,7 @@ import pickle
 from functools import partial
 import shutil
 import common.util as util
+import warnings
 
 G_DEBUG_ROOT_DIR = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/debug/'
 G_DEBUG_SLC_DIR = ''
@@ -16,7 +17,11 @@ def fourier(item, n, G_DEBUG_DIR):
     X = contour[0,:]
     Y = contour[1,:]
     debug_path = f'{G_DEBUG_DIR}/{name}.png'
-    code = util.calc_fourier_descriptor(X, Y, resolution=n, path_debug=debug_path)
+    try:
+        code = util.calc_fourier_descriptor(X, Y, resolution=n, path_debug=debug_path)
+    except Exception as exp:
+        print('exception: ', exp, name)
+        return None
     return code
 
 def fourier_resolution(slc_id):
@@ -26,18 +31,18 @@ def fourier_resolution(slc_id):
         return 24
     else:
         return 20
-
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
     ap.add_argument("-i", "--IN_DIR", required=True, help="")
     ap.add_argument("-o", "--OUT_DIR", required=True, help="")
     ap.add_argument("-ids", "--slc_ids", required=True, help="")
-
     args = vars(ap.parse_args())
 
     IN_DIR = args['IN_DIR']
     OUT_DIR = args['OUT_DIR']
     ids = args['slc_ids']
+
+    warnings.filterwarnings('error')
 
     nprocess = 12
     pool = multiprocessing.Pool(nprocess)
@@ -81,6 +86,9 @@ if __name__ == '__main__':
         os.makedirs(CODE_OUT_DIR, exist_ok=True)
 
         for path, record, code in zip(paths, records, codes):
+            if code is None:
+                print(f'null fourier code {path.stem}')
+                continue
             W = record['W']
             D = record['D']
             with open(f'{CODE_OUT_DIR}/{path.stem}.pkl', 'wb') as file:

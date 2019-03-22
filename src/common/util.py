@@ -282,21 +282,31 @@ def symmetrize_contour(X, Y, debug_path = None):
         plt.clf()
         plt.axes().set_aspect(1)
         plt.plot(X, Y, 'b-')
-        plt.plot(X[0], Y[0], 'r+')
-        #plt.show()
 
     candidate_mask  = np.bitwise_and(X < 0, Y > Y[0])
-    non_cdd_mask = np.bitwise_not(candidate_mask)
     Y_1 = np.copy(Y)
-    Y_1[non_cdd_mask] = 9999999999.0
-    Y_1 = np.abs(Y_1 - Y[0])
-    end_idx = np.argmin(Y_1)
+    non_cdd_mask = np.bitwise_not(candidate_mask)
+    #plt.plot(X[candidate_mask ], Y[candidate_mask ], 'g-', linewidth=2)
 
-    X = np.concatenate([X[:end_idx],  X[:end_idx][::-1]], axis=0)
-    Y = np.concatenate([Y[:end_idx], -Y[:end_idx][::-1]], axis=0)
+    Y_1[non_cdd_mask] = 9999999999.0 #make these points very large to avoid them the final result
+    Y_1 = np.abs(Y_1 - Y[0])
+    first_half_end_idx = np.argmin(Y_1)
+    #plt.plot(X[first_half_end_idx], Y[first_half_end_idx], 'r+')
+
+    first_half_X = X[:first_half_end_idx+1]
+    first_half_Y = Y[:first_half_end_idx+1]
+    #make it zero-centered along y
+    first_half_Y = first_half_Y - first_half_Y[0]
+
+    mid_point = np.array([first_half_X[-1], first_half_Y[0]])
+
+    X = np.concatenate([first_half_X, np.array([mid_point[0]]),  first_half_X[::-1]], axis=0)
+    Y = np.concatenate([first_half_Y, np.array([mid_point[1]]), -first_half_Y[::-1]], axis=0)
     if debug_path is not None:
-        plt.plot(X[end_idx], Y[end_idx], 'r+')
+        plt.plot(mid_point[0], mid_point[1], 'y+')
+        plt.plot([X[0], mid_point[0]], [Y[0], mid_point[1]], 'r-', linewidth=2)
         plt.plot(X, Y, 'r-')
+        #plt.show()
         plt.savefig(debug_path)
 
     return X, Y

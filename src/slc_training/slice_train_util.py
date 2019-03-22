@@ -136,7 +136,7 @@ def load_slice_data_1(id, SLC_CONTOUR_DIR, SLC_FEATURE_DIR, bad_slc_names):
             d = record['D']
 
             if w == 0.0 or d == 0.0:
-                print('zero w or d: ', w, d, file=sys.stderr)
+                print('load_slice_data_1: zero w or d: ', w, d, file=sys.stderr)
                 continue
 
             feature = record['Code']

@@ -319,6 +319,8 @@ class ControlMeshPredictor():
 
     def __init__(self, MODEL_DIR):
         self.models = {}
+        n_models = len(list([path for path in Path(MODEL_DIR).glob('*.pkl')]))
+        assert n_models > 0, f'no model in the folder {MODEL_DIR}'
         for path in Path(MODEL_DIR).glob('*.pkl'):
             with open(str(path),'rb') as file:
                 data = pickle.load(file=file)

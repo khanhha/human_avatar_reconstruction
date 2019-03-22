@@ -501,7 +501,8 @@ if __name__  == '__main__':
     elif slc_ids == 'torso':
         slc_ids = ['Crotch', 'Aux_Crotch_Hip_0', 'Aux_Crotch_Hip_1', 'Aux_Crotch_Hip_1', 'Aux_Crotch_Hip_2', 'Hip'] + \
                         ['Aux_Hip_Waist_0', 'Aux_Hip_Waist_1', 'Waist'] + \
-                        ['Aux_Waist_UnderBust_0', 'Aux_Waist_UnderBust_1', 'Aux_Waist_UnderBust_2', 'UnderBust', 'Bust']
+                        ['Aux_Waist_UnderBust_0', 'Aux_Waist_UnderBust_1', 'Aux_Waist_UnderBust_2', 'UnderBust', 'Bust'] + \
+                        ['Armscye', 'Aux_Armscye_Shoulder_0', 'Shoulder', 'Aux_Shoulder_Collar_0']
     else:
         slc_ids = slc_ids.split(',')
         for id in slc_ids:
