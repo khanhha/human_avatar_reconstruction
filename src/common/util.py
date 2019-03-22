@@ -277,6 +277,30 @@ def reconstruct_torso_slice_contour(feature, D, W, mirror = False):
 
     return np.vstack([X, Y])
 
+def symmetrize_contour(X, Y, debug_path = None):
+    if debug_path is not None:
+        plt.clf()
+        plt.axes().set_aspect(1)
+        plt.plot(X, Y, 'b-')
+        plt.plot(X[0], Y[0], 'r+')
+        #plt.show()
+
+    candidate_mask  = np.bitwise_and(X < 0, Y > Y[0])
+    non_cdd_mask = np.bitwise_not(candidate_mask)
+    Y_1 = np.copy(Y)
+    Y_1[non_cdd_mask] = 9999999999.0
+    Y_1 = np.abs(Y_1 - Y[0])
+    end_idx = np.argmin(Y_1)
+
+    X = np.concatenate([X[:end_idx],  X[:end_idx][::-1]], axis=0)
+    Y = np.concatenate([Y[:end_idx], -Y[:end_idx][::-1]], axis=0)
+    if debug_path is not None:
+        plt.plot(X[end_idx], Y[end_idx], 'r+')
+        plt.plot(X, Y, 'r-')
+        plt.savefig(debug_path)
+
+    return X, Y
+
 def align_torso_contour(X, Y, anchor_pos_x = True, debug_path = None):
     idx_ymax, idx_ymin = np.argmax(Y), np.argmin(Y)
     center_y = 0.5 * (Y[idx_ymax] + Y[idx_ymin])

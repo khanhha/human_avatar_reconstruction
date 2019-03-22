@@ -610,7 +610,7 @@ def mpii_extract_slices():
     os.makedirs(DIR_OUT_SLICE, exist_ok=True)
     slice_ids = []
     slice_ids = ['Aux_Crotch_Hip_0','Aux_Crotch_Hip_1','Aux_Crotch_Hip_2']
-    slice_ids = ['Aux_Shoulder_Collar_0']
+    slice_ids = ['Hip', 'Waist']
     debug_file = 'csr4149a.obj'
     debug_slc = 'Aux_Crotch_Hip_0'
     debug_file = None

@@ -47,7 +47,6 @@ def resample_contour(X, Y, n_point = 150, debug_path = None):
     Y = np.roll(Y, -min_idx)
     #print('starting index: ', min_idx)
 
-
     #fix bad points
     # jump = np.sqrt(np.diff(X) ** 2 + np.diff(X) ** 2)
     # smooth_jump = ndimage.gaussian_filter1d(jump, 5, mode='wrap')  # window of size 5 is arbitrary
@@ -395,14 +394,19 @@ def process_torso_contour(path, contour, sup_points, ld_points):
     Y = contour[:, 0]
     X = contour[:, 1]
 
-    debug_align_path = f'{DEBUG_ALIGN_DIR}/{path.stem}.png'
-    X, Y = util.align_torso_contour(X, Y, anchor_pos_x=align_anchor_pos_x, debug_path=debug_align_path)
+    X, Y = util.align_torso_contour(X, Y, anchor_pos_x=align_anchor_pos_x, debug_path=None)
+
+
     if X is None or Y is None:
         raise Exception('failed torso contour alignment')
     if slc_id == 'Crotch' or 'Aux_Crotch_Hip_' in slc_id:
         X, Y = fix_crotch_contour(X, Y)
 
     X, Y = resample_contour(X, Y)
+
+    debug_align_path = f'{DEBUG_ALIGN_DIR}/{path.stem}.png'
+    X, Y = util.symmetrize_contour(X, Y, debug_path=debug_align_path)
+
     #X, Y = util.smooth_contour(X, Y, sigma=2.0)
 
     W, D = torso_contour_w_d(X, Y)
@@ -494,6 +498,10 @@ if __name__  == '__main__':
     all_slc_ids = [path.stem for path in Path(IN_DIR).glob('./*')]
     if slc_ids == 'all':
         slc_ids = all_slc_ids
+    elif slc_ids == 'torso':
+        slc_ids = ['Crotch', 'Aux_Crotch_Hip_0', 'Aux_Crotch_Hip_1', 'Aux_Crotch_Hip_1', 'Aux_Crotch_Hip_2', 'Hip'] + \
+                        ['Aux_Hip_Waist_0', 'Aux_Hip_Waist_1', 'Waist'] + \
+                        ['Aux_Waist_UnderBust_0', 'Aux_Waist_UnderBust_1', 'Aux_Waist_UnderBust_2', 'UnderBust', 'Bust']
     else:
         slc_ids = slc_ids.split(',')
         for id in slc_ids:
