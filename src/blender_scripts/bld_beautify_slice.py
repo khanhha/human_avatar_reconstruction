@@ -179,10 +179,9 @@ def sort_torso_slice_vertices(slc_vert_idxs, mesh_verts, title=''):
 
 
 def is_torso_slice(id):
-    torso_slc_ids = {'Crotch', 'Aux_Crotch_Hip_0', 
-                     'Aux_Crotch_Hip_1', 'Aux_Crotch_Hip_2', 'Hip', 'Waist', 'UnderBust',
-                     'Aux_Hip_Waist_0',
-                     'Aux_Waist_UnderBust_0', 'Aux_Waist_UnderBust_1',
+    torso_slc_ids = {'Crotch', 'Aux_Crotch_Hip_0', 'Aux_Crotch_Hip_1', 'Aux_Crotch_Hip_2', 'Hip',
+                     'Aux_Hip_Waist_0', 'Aux_Hip_Waist_1', 'Waist',
+                     'Aux_Waist_UnderBust_0', 'Aux_Waist_UnderBust_1', 'Aux_Waist_UnderBust_1', 'UnderBust',
                      'Aux_UnderBust_Bust_0', 'Bust', 'Armscye', 'Aux_Armscye_Shoulder_0', 'Shoulder'}
     if id in torso_slc_ids:
         return True
