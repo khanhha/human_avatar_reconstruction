@@ -480,8 +480,10 @@ class ControlMeshPredictor():
         slc_locs = {}
         for slc_id in self.arm_slc_ids:
             slc_loc_front_img = seg_locs_f[slc_id.name]
+            #find the displacement from the 2D front left shoulder joint to the arm slice
             shoulder_to_arm_slc = slc_loc_front_img - lshoulder_f
             shoulder_to_arm_slc = np.array([shoulder_to_arm_slc[0], 0.0, -shoulder_to_arm_slc[1]])
+            #add the displacemetn to the 3D left shoulder location => we have the 3D arm slice location
             arm_slc_loc = shoulder_3D_joint_loc + shoulder_to_arm_slc
             slc_locs[slc_id] = arm_slc_loc + obj_mid_ankle_loc
 
