@@ -15,28 +15,10 @@ from PIL import Image
 from tqdm import tqdm
 from sklearn.preprocessing import StandardScaler, Normalizer, MinMaxScaler
 from pca.dense_net import JointMask
-from pca.nn_util import AverageMeter, ImgDataSet, load_target
+from pca.nn_util import  ImgPairDataSet, AverageMeter, load_target
+from pca.nn_util import create_pair_loader
 
-
-def create_loader(input_dir, target_dir, transforms, target_transform):
-    x_paths = [path for path in Path(input_dir).glob('*.*')]
-
-    all_y_paths = dict([(path.stem, path) for path in Path(target_dir).glob('*.*')])
-    y_paths = []
-    for x_path in x_paths:
-        assert x_path.stem in all_y_paths
-        y_paths.append(all_y_paths[x_path.stem])
-
-    dataset =  ImgDataSet(transforms, x_paths, y_paths, target_transform)
-
-    return torch.utils.data.DataLoader(dataset, batch_size=args.batch_size, shuffle=True, num_workers=4)
-
-def set_parameter_requires_grad(model, feature_extracting):
-    if feature_extracting:
-        for param in model.parameters():
-            param.requires_grad = False
-
-def train(train_loader, model, criterion, optimizer, validation, args):
+def train(train_loader, valid_loader, model, criterion, optimizer, validation, args):
     # switch to train mode
     model.train()
     if Path(args.model_path).exists():
@@ -59,18 +41,21 @@ def train(train_loader, model, criterion, optimizer, validation, args):
         losses = AverageMeter()
 
         model.train()
-        for i, (input, target) in enumerate(train_loader):
-            input_var  = Variable(input).cuda()
+        for i, (input_f, input_s, target) in enumerate(train_loader):
+            input_f_var  = Variable(input_f).cuda()
+            input_s_var  = Variable(input_s).cuda()
+
             target_var = Variable(target).cuda()
 
-            masks_pred = model(input_var)
+            pred = model(input_f_var, input_s_var)
 
-            masks_probs_flat = masks_pred.view(-1)
-            true_masks_flat  = target_var.view(-1)
+            probs_flat = pred.view(-1)
+            true_flat  = target_var.view(-1)
 
             #assert (masks_probs_flat >= 0. & masks_probs_flat <= 1.).all()
-            loss = criterion(masks_probs_flat, true_masks_flat)
-            losses.update(loss)
+            loss = criterion(probs_flat, true_flat)
+            losses.update(loss, input_f_var.size(0))
+
             tq.set_postfix(loss='{:.5f}'.format(losses.avg))
             tq.update(args.batch_size)
 
@@ -97,22 +82,25 @@ def validate(model, val_loader, criterion):
     losses = AverageMeter()
     model.eval()
     with torch.no_grad():
-        for i, (input, target) in enumerate(val_loader):
-            input_var = Variable(input).cuda()
+        for i, (input_f, input_s, target) in enumerate(val_loader):
+            input_f_var = Variable(input_f).cuda()
+            input_s_var = Variable(input_s).cuda()
             target_var = Variable(target).cuda()
 
-            output = model(input_var)
+            output = model(input_f_var, input_s_var)
             loss = criterion(output, target_var)
 
-            losses.update(loss.item(), input_var.size(0))
+            losses.update(loss.item(), input_f_var.size(0))
 
     return {'valid_loss': losses.avg}
 
-
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
-    ap.add_argument("-input_dir", type=str, required=True)
+    ap.add_argument("-sil_f_dir", type=str, required=True)
+    ap.add_argument("-sil_s_dir", type=str, required=True)
     ap.add_argument("-target_dir", type=str, required=True)
+    ap.add_argument("-model_path_f", type=str, required=True)
+    ap.add_argument("-model_path_s", type=str, required=True)
     ap.add_argument("-model_path", type=str, required=True)
     ap.add_argument("-out_dir", type=str, required=True)
     ap.add_argument("--use_pretrained",  default=True, required=False)
@@ -127,22 +115,9 @@ if __name__ == '__main__':
     args = ap.parse_args()
 
 
-    print('hello')
     input_size = 224
-    num_classes = 100
-    model = densenet121(pretrained=False, num_classes=num_classes)
-    set_parameter_requires_grad(model, args.feature_extract)
-    #num_ftrs = model.classifier.in_features
-    #model.classifier = nn.Sequential(nn.Linear(num_ftrs, 512), nn.ReLU(), nn.Linear(512, num_classes))
-    print(model)
 
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
-    # Data augmentation and normalization for training
-    # Just normalization for validation
     train_transform = transforms.Compose([
-            #transforms.RandomResizedCrop(input_size),
-            #transforms.RandomHorizontalFlip(),
             transforms.Resize((input_size, input_size)),
             transforms.ToTensor(),
             transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
@@ -150,7 +125,6 @@ if __name__ == '__main__':
 
     valid_transform = transforms.Compose([
             transforms.Resize((input_size, input_size)),
-            #transforms.CenterCrop(input_size),
             transforms.ToTensor(),
             transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
         ])
@@ -162,18 +136,22 @@ if __name__ == '__main__':
         pickle.dump(file=file, obj=target_scaler)
 
     # Create training and validation datasets
-    train_dir = os.path.join(*[args.input_dir, 'train'])
-    valid_dir = os.path.join(*[args.input_dir, 'valid'])
-    train_loader = create_loader(train_dir, args.target_dir, train_transform, target_scaler)
-    valid_loader = create_loader(valid_dir, args.target_dir, valid_transform, target_scaler)
+    train_f_dir = os.path.join(*[args.sil_f_dir, 'train'])
+    train_s_dir = os.path.join(*[args.sil_s_dir, 'train'])
+    valid_f_dir = os.path.join(*[args.sil_f_dir, 'valid'])
+    valid_s_dir = os.path.join(*[args.sil_s_dir, 'valid'])
+    train_loader = create_pair_loader(train_f_dir, train_s_dir, args.target_dir, train_transform, target_scaler)
+    valid_loader = create_pair_loader(valid_f_dir, valid_s_dir, args.target_dir, valid_transform, target_scaler)
+
+    joint_net = load_joint_net_161_train(args.model_path_f, args.model_path_s)
 
     #criterion = nn.BCEWithLogitsLoss()
     criterion = nn.MSELoss()
-    optimizer = torch.optim.SGD(model.parameters(), args.lr,
+    optimizer = torch.optim.SGD(joint_net.parameters(), args.lr,
                                 momentum=args.momentum,
                                 weight_decay=args.weight_decay)
 
-    model_ft = model.to(device)
-    train(train_loader, model, criterion, optimizer, validate, args)
 
-
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    model_ft = joint_net.to(device)
+    train(train_loader, valid_loader, joint_net, criterion, optimizer, validate, args)
