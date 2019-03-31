@@ -32,6 +32,8 @@ if __name__ == '__main__':
     ap.add_argument("-mesh_dir", type=str)
     ap.add_argument("-out_dir", type=str)
     ap.add_argument("-debug_dir", default='', required=False, type=str)
+    ap.add_argument("-n_pca", default=50, required=False, type=int)
+
     args = ap.parse_args()
 
     n_vert = 6449
@@ -44,7 +46,7 @@ if __name__ == '__main__':
     #print(evectors_org.shape)
     #print(evalues_org.shape)
 
-    npca = 100
+    npca = args.n_pca
     evectors = evectors_org[:npca, :].T
     evalues  = evalues_org[:,:npca]
 

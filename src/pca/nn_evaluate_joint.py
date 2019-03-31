@@ -30,10 +30,11 @@ if __name__ == '__main__':
     ap.add_argument("-pca_model_dir", type=str, required=True)
     ap.add_argument("-out_dir", type=str, required=True)
     ap.add_argument("-on_test_set", type=bool, default=False, required=False)
+    ap.add_argument("-n_classes", type=int, default=50, required=False)
     args = ap.parse_args()
 
 
-    model = load_joint_net_161_test(args.model_path)
+    model = load_joint_net_161_test(args.model_path, num_classes=args.n_classes)
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     model = model.to(device)
     model.eval()
@@ -49,7 +50,7 @@ if __name__ == '__main__':
     with open(args.target_scaler_path, 'rb') as file:
         target_scaler = pickle.load(file)
 
-    pca_model = load_pca_model(args.pca_model_dir)
+    pca_model = load_pca_model(args.pca_model_dir, npca=args.n_classes)
 
     if args.on_test_set:
         sil_f_dir = os.path.join(*[args.sil_f_dir, 'test'])

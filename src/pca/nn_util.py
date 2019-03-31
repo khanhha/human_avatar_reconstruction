@@ -92,6 +92,7 @@ class ImgPairDataSet(Dataset):
     def __len__(self):
         return len(self.img_paths_f)
 
+
 class ImgPairDataSet_FName(Dataset):
     def __init__(self, img_transform, img_paths_f, img_paths_s, target_paths, target_transform):
         self.img_transform = img_transform
@@ -127,6 +128,8 @@ def adjust_learning_rate(optimizer, epoch, lr):
     lr = lr * (0.1 ** (epoch // 30))
     for param_group in optimizer.param_groups:
         param_group['lr'] = lr
+
+    return lr
 
 def load_target(target_dir):
     data = []
@@ -200,4 +203,23 @@ def load_pca_model(model_dir, npca=100):
 
     n_vert = 6449
     n_face = 12894
-    return {'evectors':evectors, 'evalues':evalues, 'faces':faces, 'mean_points':mean_points, 'n_pca':100, 'n_vert':n_vert, 'n_face':n_face}
+    return {'evectors':evectors, 'evalues':evalues, 'faces':faces, 'mean_points':mean_points, 'n_pca':npca, 'n_vert':n_vert, 'n_face':n_face}
+
+
+def find_latest_model_path(dir):
+    model_paths = []
+    epochs = []
+    for path in Path(dir).glob('*.pt'):
+        if 'epoch' not in path.stem:
+            continue
+        model_paths.append(path)
+        parts = path.stem.split('_')
+        epoch = int(parts[-1])
+        epochs.append(epoch)
+
+    if len(epochs) > 0:
+        epochs = np.array(epochs)
+        max_idx = np.argmax(epochs)
+        return model_paths[max_idx]
+    else:
+        return None
