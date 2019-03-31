@@ -13,7 +13,6 @@ from os.path import join
 import os
 import matplotlib.pyplot as plt
 
-
 class AverageMeter(object):
     """Computes and stores the average and current value"""
     def __init__(self):
@@ -92,6 +91,38 @@ class ImgPairDataSet(Dataset):
     def __len__(self):
         return len(self.img_paths_f)
 
+class ImgPairDataSetInfer(Dataset):
+    def __init__(self, img_transform, img_paths_f, img_paths_s):
+        self.img_transform = img_transform
+        self.img_paths_f = img_paths_f
+        self.img_paths_s = img_paths_s
+
+        assert len(self.img_paths_f) == len(self.img_paths_s)
+
+
+    def __getitem__(self, i):
+        fpath= self.img_paths_f[i]
+        img_f = Image.open(fpath)
+        # if img_f.size[0] != 224:
+        #     img_f = img_f.resize((224,224), Image.NEAREST)
+
+        img_f = self.img_transform(img_f)
+
+        spath = self.img_paths_s[i]
+        img_s = Image.open(spath)
+        # if img_s.size[0] != 224:
+        #     img_s = img_s.resize((224,224),Image.NEAREST)
+
+        img_s = self.img_transform(img_s)
+
+        return img_f, img_s
+
+    def get_filepath(self, i):
+        return self.img_paths_f[i]
+
+    def __len__(self):
+        return len(self.img_paths_f)
+
 
 class ImgPairDataSet_FName(Dataset):
     def __init__(self, img_transform, img_paths_f, img_paths_s, target_paths, target_transform):
@@ -153,10 +184,27 @@ def create_pair_loader(input_dir_f, input_dir_s, target_dir, transforms, target_
     all_y_paths = dict([(path.stem, path) for path in Path(target_dir).glob('*.*')])
     y_paths = []
     for x_path in f_paths:
-        assert x_path.stem in all_y_paths
+        assert x_path.stem in all_y_paths, f'missing target {x_path}'
         y_paths.append(all_y_paths[x_path.stem])
 
     dataset =  ImgPairDataSet(transforms, img_paths_f=f_paths, img_paths_s=s_paths, target_paths= y_paths, target_transform=target_transform)
+
+    return torch.utils.data.DataLoader(dataset, batch_size = batch_size, shuffle=shuffle, num_workers=4)
+
+def create_pair_loader_inference(input_dir_f, input_dir_s, transforms, batch_size = 16, shuffle=False):
+    names = set([path.name for path in Path(input_dir_f).glob('*.*')])
+    s_paths = []
+    f_paths = []
+    for name in names:
+        f_path = os.path.join(*[input_dir_f, name])
+        s_path = os.path.join(*[input_dir_s, name])
+        if Path(f_path).exists() == True and Path(s_path).exists() == True:
+            f_paths.append(Path(f_path))
+            s_paths.append(Path(s_path))
+        else:
+            print(f'missing front or side silhouette : {name}')
+
+    dataset =  ImgPairDataSetInfer(transforms, img_paths_f=f_paths, img_paths_s=s_paths)
 
     return torch.utils.data.DataLoader(dataset, batch_size = batch_size, shuffle=shuffle, num_workers=4)
 

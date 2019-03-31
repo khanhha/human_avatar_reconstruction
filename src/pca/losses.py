@@ -2,11 +2,11 @@ import torch
 
 class SMPLLoss(torch.nn.Module):
 
-    def __init__(self, pca):
+    def __init__(self, pca, pca_weight = 0.0):
         super(SMPLLoss, self).__init__()
         self.mse = torch.nn.MSELoss()
         self.pca = pca.transpose(0,1)
-        self.pca_weight = 0.0
+        self.pca_weight = pca_weight
 
     def decay_pca_weight(self, epoch):
         start = 0.05

@@ -65,7 +65,6 @@ if __name__ == '__main__':
         pred = model(img)
         pred = pred.data.cpu().numpy()
         pred = target_scaler.inverse_transform(pred)
-        #print(pred.min(), pred.max())
         verts, faces = reconstruct_mesh_from_pca(pca_model, pred)
 
         opath = join(*[args.out_dir, f'{path.stem}.obj'])
