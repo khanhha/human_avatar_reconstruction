@@ -19,6 +19,12 @@ def load_fcl_keypoint_idxs(fcl_kp_path):
         idxs.append(idx)
     return idxs
 
+def select_single_obj(obj):
+    bpy.ops.object.select_all(action='DESELECT')
+    obj.select = True
+    bpy.context.scene.objects.active = obj
+
+
 def main():
     fcl_kp_path = '/home/khanhhh/data_1/projects/Oh/data/face/meta_data/facelib_kp_mesh_idx.pkl'
     with open(fcl_kp_path, 'rb') as file:
@@ -31,18 +37,27 @@ def main():
         vic_kp_idxs = data['keypoint_idx']
 
     fcl_obj = bpy.data.objects['facelib_obj']
-    fcl_bm = bmesh.from_edit_mesh(fcl_obj.data)
 
     vic_mesh = bpy.data.objects['VictoriaMesh'].data
+    vic_kp_coords = []
+    for i in vic_kp_idxs:
+        vic_kp_co = vic_mesh.vertices[i].co
+        vic_kp_coords.append((vic_kp_co))
+    
+    fcl_bm = bmesh.from_edit_mesh(fcl_obj.data)
     for i, idx in enumerate(fcl_kp_idxs):
         fcl_bm.verts[idx].select = True
-        vic_kp_co = vic_mesh.vertices[vic_kp_idxs[i]].co
-        cur_co = fcl_bm.verts[idx].co
-        t = vic_kp_co - cur_co
-        bpy.ops.transform.translate(value=t, proportional='ENABLED', proportional_size=0.3)
-        if i >2:
-            break
-        break
+        for j in range(3):
+            fcl_bm.verts[idx].co[j] = vic_kp_coords[i][j]
+        #bpy.ops.object.hook_add_newob()
+
+    #bpy.ops.object.mode_set(mode='OBJECT')
+    #select_single_obj(fcl_obj)
+    #modifier = fcl_obj.modifiers.new(name="Laplacian", type='LAPLACIANDEFORM')
+    #modifier.vertex_group = 'kp'
+    #bpy.ops.object.laplaciandeform_bind()
+
+    
 
 if __name__ == '__main__':
     main()
