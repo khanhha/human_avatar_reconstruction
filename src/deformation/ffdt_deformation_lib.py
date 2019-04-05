@@ -6,6 +6,8 @@ from functools import partial
 import sys
 from copy import deepcopy
 from scipy import stats
+from scipy.spatial import KDTree
+from tqdm import tqdm
 
 #section 3.1, "t-FFD: Free-Form Deformation by using Triangular Mesh"
 def parameterize(verts, vert_effect_idxs, basis):
@@ -82,14 +84,35 @@ def parameterize(verts, vert_effect_idxs, basis):
 
 #section 3.1, "t-FFD: Free-Form Deformation by using Triangular Mesh"
 def calc_triangle_local_basis(verts, tris):
+    # basis = np.zeros((len(tris),4, 3), dtype=np.float32)
+    # for i, t in enumerate(tris):
+    #     if len(t) != 3:
+    #         raise Exception(f' face {i} is not a triangle. unable to calculate triangle bases')
+    #     basis[i, 0, :] = verts[t[0]]
+    #     basis[i, 1, :] = normalize(verts[t[1]] - verts[t[0]])
+    #     basis[i, 2, :] = normalize(verts[t[2]] - verts[t[0]])
+    #     basis[i, 3, :] = normalize(np.cross(basis[i, 1, :], basis[i, 2, :]))
+
+    tris= np.array(tris)
+    b_0 = verts[tris[:,1]] - verts[tris[:,0]]
+    b_0 = (b_0.T / np.linalg.norm(b_0, axis=1)).T
+
+    b_1 = verts[tris[:,2]] - verts[tris[:,0]]
+    b_1 = (b_1.T / np.linalg.norm(b_1, axis=1)).T
+
+    b_2 = np.cross(b_0, b_1, axisa=1, axisb=1)
+    b_2 = (b_2.T / np.linalg.norm(b_2, axis=1)).T
+
+    # diff_1 = np.abs(basis[:,1,:] - b_0)
+    # diff_2 = np.abs(basis[:,2,:] - b_1)
+    # diff_3 = np.abs(basis[:,3,:] - b_2)
+
     basis = np.zeros((len(tris),4, 3), dtype=np.float32)
-    for i, t in enumerate(tris):
-        if len(t) != 3:
-            raise Exception(f' face {i} is not a triangle. unable to calculate triangle bases')
-        basis[i, 0, :] = verts[t[0]]
-        basis[i, 1, :] = verts[t[1]] - verts[t[0]]
-        basis[i, 2, :] = verts[t[2]] - verts[t[0]]
-        basis[i, 3, :] = normalize(np.cross(basis[i, 1, :], basis[i, 2, :]))
+    basis[:, 0, :] = verts[tris[:,0]]
+    basis[:, 1, :] = b_0
+    basis[:, 2, :] = b_1
+    basis[:, 3, :] = b_2
+
     return basis
 
 def average_circumscribed_radius_tris(verts, tris, tris_idxs):
@@ -214,13 +237,15 @@ def calc_vert_weight(tpl_verts, vert_effect_tri_idxs, ctl_verts, ctl_tris, effec
         #print(f'\tstart range {start}-{end}')
         ret = []
         for v_idx in range(start, end):
+            # if v_idx != 23383:
+            #     continue
             v = tpl_verts[v_idx, :]
             tri_idxs = vert_effect_tri_idxs[v_idx]
             weights = []
             new_tri_idxs = []
             for t_idx in tri_idxs:
                 t = ctl_tris[t_idx]
-                v0, v1, v2 = ctl_verts[t[0]], ctl_verts[t[1]], ctl_verts[t[2]]
+                v0, v1, v2 = ctl_verts[t[0], :], ctl_verts[t[1],:], ctl_verts[t[2],:]
                 center = (v0 + v1 + v2) / 3.0
                 radius = (np.linalg.norm(v0 - center) + np.linalg.norm(v1 - center) + np.linalg.norm(v2 - center)) / 3.0
                 d = np.linalg.norm(v - center)
@@ -300,20 +325,42 @@ def calc_vert_weight(tpl_verts, vert_effect_tri_idxs, ctl_verts, ctl_tris, effec
     # return new_vert_effect_tri_idxs, verts_weights
 
 
-def calc_vertex_weight_global(v, tris_ref, tri_centers, tri_radius, effective_range_factor):
+def calc_vertex_weight_global(v, tri_centers, tri_kd_tree, tri_radius, effective_range_factor, query_radius):
+
+    neighbor_tri_idxs = tri_kd_tree.query_ball_point(v, query_radius)
+
     idxs = []
     weights = []
-    for j, t in enumerate(tris_ref):
-        #w = vert_tri_weight(v, verts_ref[t[0]], verts_ref[t[1]], verts_ref[t[2]])
+
+    for j in neighbor_tri_idxs:
         d = np.linalg.norm(v - tri_centers[j, :])
         ratio = d/tri_radius[j]
+
         if ratio < effective_range_factor:
-            #w = 1.0 - ratio / effective_range_factor
             w = ratio/effective_range_factor
             w = 1.0 - w
             #w = np.exp(w*w)
             idxs.append(j)
             weights.append(w)
+
+    if len(idxs) == 0:
+        print(f'isolated vertex: {v}')
+        dsts, neighbor_tri_idxs = tri_kd_tree.query(v, k = 45)
+        cls_dst = dsts[0]
+        min_effect_range_factor = cls_dst / neighbor_tri_idxs[0]
+        total_d = 0.0
+        for j in neighbor_tri_idxs:
+            d = np.linalg.norm(v - tri_centers[j, :])
+            total_d += d
+
+        for j in neighbor_tri_idxs:
+            d = np.linalg.norm(v - tri_centers[j, :])
+            ratio = d/tri_radius[j]
+            w = np.exp(-ratio)
+            idxs.append(j)
+            weights.append(w)
+
+    assert len(idxs) > 0, 'isolated points. no weights are calculated'
 
     return (idxs, weights)
 
@@ -334,11 +381,15 @@ def calc_vertex_weigth_control_mesh_global(verts, verts_ref, tris_ref, effective
         avg_rad = np.mean(tri_radius)
         tri_radius[:] = avg_rad
 
+
+    tri_kd_tree = KDTree(tri_centers)
+    query_radius = tri_radius.max() * effective_range_factor
     nprocess = n_process
     pool = multiprocessing.Pool(nprocess)
-    results = pool.map(func=partial(calc_vertex_weight_global, tris_ref=tris_ref, tri_centers=tri_centers, tri_radius =tri_radius, effective_range_factor=effective_range_factor),
-                       iterable=verts, chunksize=128)
 
+    results = pool.map(func=partial(calc_vertex_weight_global,
+                                    tri_kd_tree = tri_kd_tree, tri_centers=tri_centers, tri_radius =tri_radius, effective_range_factor=effective_range_factor, query_radius=query_radius),
+                       iterable=verts, chunksize=128)
     for pair in results:
         effect_idxs.append(pair[0])
         effect_weights.append(pair[1])
@@ -346,28 +397,42 @@ def calc_vertex_weigth_control_mesh_global(verts, verts_ref, tris_ref, effective
     return effect_idxs, effect_weights
 
 #section 3.4 Mapping, "t-FFD: Free-Form Deformation by using Triangular Mesh"
-def deform_template_mesh(df_verts, effect_vert_tri_idxs, vert_weights, vert_UVWs, ctl_df_basis, deform_vert_idxs = None):
-    nv = len(df_verts)
+def deform_template_mesh(vert_tri_idxs, vert_weights, vert_UVWs, ctl_df_basis):
+    # for i in deform_vert_idxs:
+    #     tri_idxs    =   vert_tri_idxs[i]
+    #     tri_basis   =   ctl_df_basis[tri_idxs,:,:]
+    #     tri_uvws    =   vert_UVWs[i]
+    #     tri_weights =   vert_weights[i]
+    #     b_0 = (tri_basis[:,1, :].T * tri_uvws[:,0]).T
+    #     b_1 = (tri_basis[:,2, :].T * tri_uvws[:,1]).T
+    #     b_2 = (tri_basis[:,3, :].T * tri_uvws[:,2]).T
+    #     coords = tri_basis[:,0,:] + b_0 + b_1 + b_2
+    #     df_co_1 = np.average(coords, weights=tri_weights, axis=0)
+    #     df_verts[i, :] = df_co_1
+    #
+    # diff = np.abs(df_coords - df_verts)
+    #return df_verts
 
-    #apply all or just a subset of vertices
-    if deform_vert_idxs == None:
-        deform_vert_idxs = range(nv)
+    v_b_0 = ctl_df_basis[vert_tri_idxs,1,:] #12894x107x3
+    v_w_0 = vert_UVWs[:, :, 0] #12894x107
+    v_b_0 = v_b_0 * np.expand_dims(v_w_0, axis=2)
 
-    for i in deform_vert_idxs:
-        df_co = np.zeros(3, np.float32)
-        W = 0.0
-        for idx, ev_idx in enumerate(effect_vert_tri_idxs[i]):
-            df_basis = ctl_df_basis[ev_idx,:,:]
-            uvw = vert_UVWs[i][idx]
-            co = df_basis[0,:] + uvw[0]*df_basis[1,:]+ uvw[1]*df_basis[2,:]+ uvw[2]*df_basis[3,:]
-            w_tri = vert_weights[i][idx]
-            df_co += w_tri * co
-            W += w_tri
-        if W > 0:
-            df_co /= W
-            df_verts[i,:] = df_co
+    v_b_1 = ctl_df_basis[vert_tri_idxs,2,:] #12894x107x3
+    v_w_1 = vert_UVWs[:, :, 1] #12894x107
+    v_b_1 = v_b_1 * np.expand_dims(v_w_1, axis=2)
 
-    return df_verts
+    v_b_2 = ctl_df_basis[vert_tri_idxs,3,:] #12894x107x3
+    v_w_2 = vert_UVWs[:, :, 2] #12894x107
+    v_b_2 = v_b_2 * np.expand_dims(v_w_2, axis=2)
+
+    v_org = ctl_df_basis[vert_tri_idxs, 0, :]
+
+    coords = v_org + v_b_0 + v_b_1 + v_b_2
+
+    v_weights = np.dstack([vert_weights, vert_weights, vert_weights])
+    df_coords = np.average(coords, weights=v_weights, axis=1)
+
+    return df_coords
 
 import pickle
 class TemplateMeshDeform():
@@ -385,11 +450,33 @@ class TemplateMeshDeform():
             if len(tri) != 3:
                 raise Exception('Non-triangle control mesh')
 
-    def set_parameterization(self, ctl_tri_basis, vert_UVWs, vert_weights, vert_effect_idxs):
-        self.ctl_tri_basis = ctl_tri_basis
-        self.vert_UVWs = vert_UVWs
-        self.vert_weights = vert_weights
-        self.vert_effect_idxs = vert_effect_idxs
+    def set_parameterization(self, vert_tri_UVWs, vert_tri_weights, vert_effect_tri_idxs):
+        n_max_neighbour = np.max([len(vert_tri_UVWs[i]) for i in range(len(vert_tri_UVWs))])
+        n_v = len(vert_tri_UVWs)
+
+        #padding all vertex information to the size of n_max_neighbor for the sake of parallerization
+        for i in range(n_v):
+            v_tri_idx = vert_effect_tri_idxs[i]
+            v_tri_uvw = vert_tri_UVWs[i]
+            v_tri_weigths = vert_tri_weights[i]
+
+            cur_len = len(v_tri_idx)
+            assert cur_len == len(v_tri_uvw)
+            assert cur_len == len(v_tri_weigths)
+
+            pad = n_max_neighbour - cur_len
+
+            v_tri_idx = v_tri_idx + pad*[v_tri_idx[0]]
+            v_tri_uvw = v_tri_uvw + pad*[v_tri_uvw[0]]
+            v_tri_weigths = v_tri_weigths + pad*[0.0] #very important. zero weight padding so padded elements has no effect
+
+            vert_effect_tri_idxs[i] = v_tri_idx
+            vert_tri_UVWs[i] = v_tri_uvw
+            vert_tri_weights[i] = v_tri_weigths
+
+        self.vert_tri_UVWs    =    np.array(vert_tri_UVWs)
+        self.vert_tri_weights =    np.array(vert_tri_weights)
+        self.vert_tri_idxs    =    np.array(vert_effect_tri_idxs)
 
     def calculate_parameterization(self):
         print(f'\nstart calculating local basis (U,V,W) for each control mesh triangle \m')
@@ -398,10 +485,10 @@ class TemplateMeshDeform():
 
         print(f'\nstart calculating weights')
         print(f'\n\teffective range = {self.effective_range}, use_mean_radius = {self.use_mean_rad}')
-        self.vert_effect_idxs, self.vert_weights = calc_vertex_weigth_control_mesh_global(self.tpl_verts, self.ctl_verts, self.ctl_tris,
-                                                                                   effective_range_factor = self.effective_range,
-                                                                                   use_mean_tri_radius = self.use_mean_rad)
-        lens = np.array([len(idxs) for idxs in self.vert_effect_idxs])
+        self.vert_tri_idxs, self.vert_tri_weights = calc_vertex_weigth_control_mesh_global(self.tpl_verts, self.ctl_verts, self.ctl_tris,
+                                                                                           effective_range_factor = self.effective_range,
+                                                                                           use_mean_tri_radius = self.use_mean_rad)
+        lens = np.array([len(idxs) for idxs in self.vert_tri_idxs])
         stat = stats.describe(lens)
         print(f'\tfinish weight calculation')
         print(f'\tneighbor size statistics: mean number of neighbor, variance number of neighbor')
@@ -413,8 +500,6 @@ class TemplateMeshDeform():
 
         ctl_new_basis = calc_triangle_local_basis(new_ctl_vert, self.ctl_tris)
 
-        tpl_new_verts = deepcopy(self.tpl_verts)
-        tpl_new_faces = deepcopy(self.tpl_faces)
-        deform_template_mesh(tpl_new_verts, self.vert_effect_idxs, self.vert_weights, self.vert_UVWs, ctl_new_basis)
+        tpl_new_verts = deform_template_mesh(self.vert_tri_idxs, self.vert_tri_weights, self.vert_tri_UVWs, ctl_new_basis)
 
-        return tpl_new_verts, tpl_new_faces
+        return tpl_new_verts

@@ -14,6 +14,7 @@ if __name__ == '__main__':
     ap.add_argument("-cdd_tris", required=False, type=str, default='')
     ap.add_argument("-e", "--effective_range", required=False, default=3)
     ap.add_argument("-use_mean_rad", "--use_mean_radius", required=False, default=0)
+    ap.add_argument("-out_name_id", required=False, type=str, default='parameterization')
 
     args = vars(ap.parse_args())
 
@@ -54,7 +55,7 @@ if __name__ == '__main__':
         vert_effect_idxs, vert_weights = df.calc_vert_weight(tpl_verts, vert_effect_cdd_idxs, ctl_verts, ctl_faces, effecttive_range)
         print(f'\tfinish weight calculation')
     else:
-        print('not support local parameterizati on currently')
+        print('not support local parameterization on currently')
         exit()
         #ctl_f_body_parts = data['control_mesh_face_body_parts']
         #tpl_v_body_parts = data['template_vert_body_parts']
@@ -72,7 +73,8 @@ if __name__ == '__main__':
     w_data['control_mesh_tri_basis'] = ctl_tri_bs
 
     print(f'\nsaving data')
-    with open(f'{OUT_DIR}/{mode}_parameterization.pkl', 'wb') as f:
+    id = args['out_name_id']
+    with open(f'{OUT_DIR}/{mode}_{id}.pkl', 'wb') as f:
         pickle.dump(w_data, f, protocol=4)
     print(f'\n\toutput parameterization to file {OUT_DIR}')
 
