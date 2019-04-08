@@ -31,7 +31,7 @@ class AverageMeter(object):
         self.avg = self.sum / self.count
 
 class ImgDataSet(Dataset):
-    def __init__(self, img_transform, img_paths, target_paths, target_transform):
+    def __init__(self, img_transform, img_paths, target_paths, target_transform=None):
         self.img_transform = img_transform
         self.img_paths = img_paths
         self.target_paths = target_paths
@@ -44,7 +44,8 @@ class ImgDataSet(Dataset):
         img = self.img_transform(img)
 
         target = np.load(self.target_paths[i]).astype(np.float32)
-        target = self.target_transform.transform(target.reshape(1,-1))
+        if self.target_transform is not None:
+            target = self.target_transform.transform(target.reshape(1,-1))
         target = target.flatten()
         #print(target.min(), target.max())
         return img, target #torch.from_numpy(np.array(mask, dtype=np.int64))
@@ -80,7 +81,8 @@ class ImgPairDataSet(Dataset):
         img_s = self.img_transform(img_s)
 
         target = np.load(self.target_paths[i]).astype(np.float32)
-        target = self.target_transform.transform(target.reshape(1,-1))
+        if self.target_transform is not None:
+            target = self.target_transform.transform(target.reshape(1,-1))
         target = target.flatten()
         #print(target.min(), target.max())
         return img_f, img_s, target #torch.from_numpy(np.array(mask, dtype=np.int64))
@@ -168,7 +170,7 @@ def load_target(target_dir):
         data.append(np.load(path))
     return data
 
-def create_pair_loader(input_dir_f, input_dir_s, target_dir, transforms, target_transform, batch_size = 16, shuffle=False):
+def create_pair_loader(input_dir_f, input_dir_s, target_dir, transforms, target_transform = None, batch_size = 16, shuffle=False):
     names = set([path.name for path in Path(input_dir_f).glob('*.*')])
     s_paths = []
     f_paths = []

@@ -14,11 +14,11 @@ import pickle
 from PIL import Image
 from tqdm import tqdm
 from sklearn.preprocessing import StandardScaler, Normalizer, MinMaxScaler
+from sklearn.externals import joblib
 from pca.dense_net import JointMask
 from pca.nn_util import  ImgPairDataSet, AverageMeter, load_target
 from pca.nn_util import create_pair_loader, find_latest_model_path, load_pca_model, adjust_learning_rate
 from pca.losses import SMPLLoss
-from sklearn.externals import joblib
 
 def train(train_loader, valid_loader, model, criterion, optimizer, validation, args):
     # switch to train mode
@@ -131,8 +131,8 @@ if __name__ == '__main__':
     ap.add_argument("-model_path_f", type=str, required=True)
     ap.add_argument("-model_path_s", type=str, required=True)
     ap.add_argument("-model_dir", type=str, required=True)
-    ap.add_argument("-pca_model_dir", type=str, required=True)
-    ap.add_argument("-out_dir", type=str, required=True)
+    ap.add_argument("-pca_model_path", type=str, required=True)
+    ap.add_argument("-target_transform_path", type=str, required=False, default='')
     ap.add_argument("--use_pretrained",  default=True, required=False)
     ap.add_argument("--feature_extract", default=False, required=False)
     ap.add_argument('-n_epoch', default=150, type=int, metavar='N', help='number of total epochs to run')
@@ -163,19 +163,18 @@ if __name__ == '__main__':
             transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
         ])
 
-    target_scaler = MinMaxScaler()
-    target_data = load_target(args.target_dir)
-    target_scaler.fit(target_data)
-    with open(os.path.join(*[args.out_dir, 'target_scaler.pkl']), 'wb') as file:
-        pickle.dump(file=file, obj=target_scaler)
+    target_transform = None
+    if args.target_transform_path != '':
+        target_transform = joblib.load(filename=args.target_transform_path)
+        print(f'used target_transform: {target_transform}' )
 
     # Create training and validation datasets
     train_f_dir = os.path.join(*[args.sil_f_dir, 'train'])
     train_s_dir = os.path.join(*[args.sil_s_dir, 'train'])
     valid_f_dir = os.path.join(*[args.sil_f_dir, 'valid'])
     valid_s_dir = os.path.join(*[args.sil_s_dir, 'valid'])
-    train_loader = create_pair_loader(train_f_dir, train_s_dir, args.target_dir, train_transform, target_scaler)
-    valid_loader = create_pair_loader(valid_f_dir, valid_s_dir, args.target_dir, valid_transform, target_scaler)
+    train_loader = create_pair_loader(train_f_dir, train_s_dir, args.target_dir, train_transform, target_transform = target_transform)
+    valid_loader = create_pair_loader(valid_f_dir, valid_s_dir, args.target_dir, valid_transform, target_transform = target_transform)
 
     joint_net = load_joint_net_161_train(args.model_path_f, args.model_path_s, num_classes=num_classes)
 
@@ -183,13 +182,9 @@ if __name__ == '__main__':
     pca_components = np.sqrt(pca_model.explained_variance_[:, np.newaxis]) * pca_model.components_
     pca_components = torch.Tensor(pca_components.T).cuda()
 
-    #criterion = nn.BCEWithLogitsLoss()
-    #criterion = nn.MSELoss()
-    # optimizer = torch.optim.SGD(joint_net.parameters(), args.lr,
-    #                             momentum=args.momentum,
-    #                             weight_decay=args.weight_decay)
-    optimizer = torch.optim.RMSprop(joint_net.parameters(), lr = args.lr)
+    criterion = SMPLLoss(pca_components)
 
+    optimizer = torch.optim.RMSprop(joint_net.parameters(), lr = args.lr)
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     model_ft = joint_net.to(device)
