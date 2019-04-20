@@ -16,21 +16,9 @@ from tqdm import tqdm
 from sklearn.preprocessing import StandardScaler, Normalizer, MinMaxScaler
 from sklearn.externals import joblib
 from pca.dense_net import JointMask
-from pca.nn_util import AverageMeter, ImgDataSet, load_target, adjust_learning_rate, find_latest_model_path, load_pca_model
+from pca.nn_util import AverageMeter, ImgDataSet, load_target, adjust_learning_rate, find_latest_model_path, network_input_size, create_single_loader
 from pca.losses import SMPLLoss_1, SMPLLoss
 
-def create_loader(input_dir, target_dir, transforms, target_transform = None):
-    x_paths = [path for path in Path(input_dir).glob('*.*')]
-
-    all_y_paths = dict([(path.stem, path) for path in Path(target_dir).glob('*.*')])
-    y_paths = []
-    for x_path in x_paths:
-        assert x_path.stem in all_y_paths
-        y_paths.append(all_y_paths[x_path.stem])
-
-    dataset =  ImgDataSet(transforms, x_paths, y_paths, target_transform=target_transform)
-
-    return torch.utils.data.DataLoader(dataset, batch_size=args.batch_size, shuffle=True, num_workers=4)
 
 def set_parameter_requires_grad(model, feature_extracting):
     if feature_extracting:
@@ -155,14 +143,14 @@ if __name__ == '__main__':
     ap.add_argument('-momentum', default=0.9, type=float, metavar='M', help='momentum')
     ap.add_argument('-print_freq', default=20, type=int, metavar='N', help='print frequency (default: 10)')
     ap.add_argument('-weight_decay', default=1e-4, type=float, metavar='W', help='weight decay (default: 1e-4)')
-    ap.add_argument("--batch_size", default=16, required=False)
-    ap.add_argument('-num_workers', default=4, type=int, help='output dataset directory')
+    ap.add_argument("-batch_size", default=16, required=False)
+    ap.add_argument('-num_workers', default=2, type=int, help='output dataset directory')
     ap.add_argument('-num_classes', default=50, type=int, help='output dataset directory')
 
     args = ap.parse_args()
 
     print('hello')
-    input_size = 224
+
     num_classes = args.num_classes
     model = densenet121(pretrained=False, num_classes=num_classes)
     set_parameter_requires_grad(model, args.feature_extract)
@@ -174,18 +162,13 @@ if __name__ == '__main__':
     # Data augmentation and normalization for training
     # Just normalization for validation
     train_transform = transforms.Compose([
-            #transforms.RandomResizedCrop(input_size),
-            #transforms.RandomHorizontalFlip(),
-            transforms.Resize((input_size, input_size)),
             transforms.ToTensor(),
-            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+            #transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
         ])
 
     valid_transform = transforms.Compose([
-            transforms.Resize((input_size, input_size)),
-            #transforms.CenterCrop(input_size),
             transforms.ToTensor(),
-            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+            #transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
         ])
 
     # Create training and validation datasets
@@ -196,8 +179,8 @@ if __name__ == '__main__':
 
     train_dir = os.path.join(*[args.input_dir, 'train'])
     valid_dir = os.path.join(*[args.input_dir, 'valid'])
-    train_loader = create_loader(train_dir, args.target_dir, train_transform, target_transform)
-    valid_loader = create_loader(valid_dir, args.target_dir, valid_transform, target_transform)
+    train_loader = create_single_loader(train_dir, args.target_dir, train_transform, target_transform, batch_size=args.batch_size)
+    valid_loader = create_single_loader(valid_dir, args.target_dir, valid_transform, target_transform, batch_size=args.batch_size)
 
     #criterion = nn.BCEWithLogitsLoss()
     #criterion = nn.MSELoss()

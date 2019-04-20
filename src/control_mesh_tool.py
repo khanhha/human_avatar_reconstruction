@@ -17,13 +17,11 @@ g_debug_name = None
 def util_reconstruct_single_mesh(record, OUT_DIR_CTL, OUT_DIR_DF, predictor, deformer):
     idx = record[0]
     mdata_path = record[1]
-    #print(mdata_path.name)
-    if g_debug_name is not None:
-        if g_debug_name not in mdata_path.name:
-            return
 
-    if idx % 100 == 0:
-        print(f'{idx} - {mdata_path.name}')
+    #if idx % 100 == 0:
+    #    print(f'{idx} - {mdata_path.name}')
+
+    print(mdata_path.name)
 
     # load 2d measurements
     mdata = np.load(mdata_path).item()
@@ -128,7 +126,7 @@ if __name__ == '__main__':
 
             deform = TemplateMeshDeform(effective_range=4, use_mean_rad=False)
             deform.set_meshes(ctl_verts=ctl_mesh['verts'], ctl_tris=ctl_mesh['faces'], tpl_verts=tpl_mesh['verts'], tpl_faces=tpl_faces)
-            deform.set_parameterization(ctl_tri_basis=ctl_tri_bs, vert_UVWs=vert_UVWs, vert_weights=vert_weights, vert_effect_idxs=vert_effect_idxs)
+            deform.set_parameterization(ctl_tri_basis=ctl_tri_bs, vert_tri_UVWs=vert_UVWs, vert_tri_weights=vert_weights, vert_effect_tri_idxs=vert_effect_idxs)
     else:
         deform = None
 
@@ -141,6 +139,15 @@ if __name__ == '__main__':
     nfiles = len(mpaths) if args.nfiles <= 0 else args.nfiles
     process_idxs = sorted_idxs[:nfiles]
     mpaths = [mpaths[idx] for idx in process_idxs]
+
+    if args.debug_name != '':
+        debug_path = None
+        for idx, path in mpaths:
+            if args.debug_name in path.stem:
+                debug_path = path
+                break
+        assert debug_path is not None
+        mpaths = [(0, debug_path)]
 
     print(f'total files: {len(mpaths)}')
     pool = multiprocessing.Pool(processes=n_process)

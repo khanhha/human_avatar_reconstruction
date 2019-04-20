@@ -6,6 +6,7 @@ import shapely.affinity as affinity
 import math
 from numpy.linalg import norm
 from pathlib import Path
+import cv2 as cv
 
 from scipy.ndimage import filters
 def smooth_contour(X, Y, sigma=3):
@@ -373,6 +374,16 @@ def align_torso_contour(X, Y, anchor_pos_x = True, debug_path = None):
     return np.array(X_algn), np.array(Y_algn)
 
 
+def find_largest_contour(img_bi, app_type=cv.CHAIN_APPROX_TC89_L1):
+    cnt, contours, _ = cv.findContours(img_bi, cv.RETR_LIST, app_type)
+    largest_cnt = None
+    largest_area = -1
+    for cnt in contours:
+        area = cv.contourArea(cnt)
+        if area > largest_area:
+            largest_area = area
+            largest_cnt = cnt
+    return largest_cnt
 
 def load_bad_slice_names(DIR, slc_id):
     txt_path = None

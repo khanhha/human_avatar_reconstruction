@@ -1,9 +1,9 @@
 -i /home/khanhhh/data_1/projects/Oh/codes/human_estimation/data/meta_data/vic_data.pkl \
 -w /home/khanhhh/data_1/projects/Oh/codes/human_estimation/data/meta_data/fixed_range_parameterization.pkl \
--m /home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/caesar_images_persp/caesar_front_side_measurement \
+-m /home/khanhhh/data_1/projects/Oh/codes/body_measure/data/measurement/ \
 -mo /home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/models/no_cluster_local_global/ \
--o /home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/ \
+-o /home/khanhhh/data_1/projects/Oh/codes/body_measure/data/ \
 -np 1 \
 --deform \
 --nfiles -10 \
---debug_name CSR0309A
+--debug_name IMG_1928

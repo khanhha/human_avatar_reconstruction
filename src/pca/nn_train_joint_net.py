@@ -145,22 +145,23 @@ if __name__ == '__main__':
     ap.add_argument('-num_classes', default=50, type=int, required=False, help='output dataset directory')
     args = ap.parse_args()
 
-    input_size = 224
+    input_size_h = 264
+    input_size_w = 192
 
     num_classes = args.num_classes
 
     os.makedirs(args.model_dir, exist_ok=True)
 
     train_transform = transforms.Compose([
-            transforms.Resize((input_size, input_size)),
-            transforms.ToTensor(),
-            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+            transforms.Resize((input_size_h, input_size_w)),
+            #transforms.ToTensor(),
+            #transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
         ])
 
     valid_transform = transforms.Compose([
-            transforms.Resize((input_size, input_size)),
-            transforms.ToTensor(),
-            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+            transforms.Resize((input_size_h, input_size_w)),
+            #transforms.ToTensor(),
+            #transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
         ])
 
     target_scaler = MinMaxScaler()
@@ -183,7 +184,7 @@ if __name__ == '__main__':
     pca_components = np.sqrt(pca_model.explained_variance_[:, np.newaxis]) * pca_model.components_
     pca_components = torch.Tensor(pca_components.T).cuda()
 
-    #criterion = nn.BCEWithLogitsLoss()
+    criterion = nn.BCEWithLogitsLoss()
     #criterion = nn.MSELoss()
     # optimizer = torch.optim.SGD(joint_net.parameters(), args.lr,
     #                             momentum=args.momentum,

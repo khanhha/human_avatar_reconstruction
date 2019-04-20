@@ -262,6 +262,15 @@ def set_parameter_requires_grad(model, feature_extracting):
         for param in model.parameters():
             param.requires_grad = False
 
+def load_single_net(model_path, num_classes=50):
+    model = densenet121(pretrained=False, num_classes=num_classes)
+
+    if Path(model_path).exists():
+        state = torch.load(model_path)
+        model.load_state_dict(state['model'])
+
+    return model
+
 def load_joint_net_161_train(model_f_path, model_s_path, num_classes=100):
     model_f = densenet121(pretrained=False, num_classes=num_classes)
     model_s = densenet121(pretrained=False, num_classes=num_classes)
@@ -269,11 +278,16 @@ def load_joint_net_161_train(model_f_path, model_s_path, num_classes=100):
         state = torch.load(model_f_path)
         model_f.load_state_dict(state['model'])
         set_parameter_requires_grad(model_f, feature_extracting=True)
+    else:
+        assert False, f'missing model_f. path {model_f_path} does not exist'
+
 
     if Path(model_s_path).exists():
         state = torch.load(model_s_path)
         model_s.load_state_dict(state['model'])
         set_parameter_requires_grad(model_s, feature_extracting=True)
+    else:
+        assert False, f'missing model_s. path {model_s_path} does not exist'
 
     joint_net = JointMask(model_f=model_f, model_s=model_s, num_classes=num_classes)
     print(joint_net)

@@ -19,7 +19,7 @@ from os.path import join
 import scipy.io as io
 from common.obj_util import export_mesh, import_mesh
 from pca.dense_net import load_joint_net_161_test
-from pca.nn_util import load_pca_model, reconstruct_mesh_from_pca, create_pair_loader, create_pair_loader_inference
+from pca.nn_util import load_pca_model, reconstruct_mesh_from_pca, create_pair_loader, create_pair_loader_inference, network_input_size, crop_silhouette
 
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
@@ -28,6 +28,7 @@ if __name__ == '__main__':
     ap.add_argument("-vic_mesh_path", type=str, required=True)
     ap.add_argument("-model_path", type=str, required=True)
     ap.add_argument("-target_transform_path", type=str, required=False, default='')
+    ap.add_argument("-target_dir", type=str, required=False, default='')
     ap.add_argument("-pca_model_path", type=str, required=True)
     ap.add_argument("-out_dir", type=str, required=True)
     ap.add_argument("-n_tries", type=int, required=False, default=-1)
@@ -45,15 +46,13 @@ if __name__ == '__main__':
     model = model.to(device)
     model.eval()
 
-    input_size = 224
+    input_size = network_input_size
     transform = transforms.Compose([
-            transforms.Resize((input_size, input_size)),
-            #transforms.CenterCrop(input_size),
+            transforms.Resize(input_size),
             transforms.ToTensor(),
-            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+            #transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
     ])
 
-    loader = create_pair_loader_inference(args.sil_f_dir, args.sil_s_dir, transform, batch_size=1)
 
     pca_model = joblib.load(filename=args.pca_model_path)
 
@@ -64,7 +63,9 @@ if __name__ == '__main__':
 
     os.makedirs(args.out_dir, exist_ok=True)
 
-    #IncrementalPCA
+    target_dir = None if args.target_dir == '' else args.target_dir
+    loader = create_pair_loader_inference(args.sil_f_dir, args.sil_s_dir, transform, batch_size=1, target_dir=target_dir)
+    #loader = create_pair_loader(args.sil_f_dir, args.sil_s_dir, args.target_dir, transform, target_transform)
 
     if args.n_tries == -1:
         n_tries = len(loader.dataset)
@@ -73,7 +74,7 @@ if __name__ == '__main__':
 
     bar = tqdm(total=n_tries)
     cnt = 0
-    for i, (input_f, input_s) in enumerate(loader):
+    for i, (input_f, input_s, _) in enumerate(loader):
         input_f_var = Variable(input_f).cuda()
         input_s_var = Variable(input_s).cuda()
 

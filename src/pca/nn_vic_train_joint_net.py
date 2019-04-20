@@ -17,7 +17,7 @@ from sklearn.preprocessing import StandardScaler, Normalizer, MinMaxScaler
 from sklearn.externals import joblib
 from pca.dense_net import JointMask
 from pca.nn_util import  ImgPairDataSet, AverageMeter, load_target
-from pca.nn_util import create_pair_loader, find_latest_model_path, load_pca_model, adjust_learning_rate
+from pca.nn_util import create_pair_loader, find_latest_model_path, load_pca_model, adjust_learning_rate, network_input_size
 from pca.losses import SMPLLoss
 
 def train(train_loader, valid_loader, model, criterion, optimizer, validation, args):
@@ -140,27 +140,23 @@ if __name__ == '__main__':
     ap.add_argument('-momentum', default=0.9, type=float, metavar='M', help='momentum')
     ap.add_argument('-print_freq', default=20, type=int, metavar='N', help='print frequency (default: 10)')
     ap.add_argument('-weight_decay', default=1e-4, type=float, metavar='W', help='weight decay (default: 1e-4)')
-    ap.add_argument("--batch_size", default=16, required=False)
+    ap.add_argument("-batch_size", type=int, default=16, required=False)
     ap.add_argument('-num_workers', default=4, type=int, help='output dataset directory')
     ap.add_argument('-num_classes', default=50, type=int, required=False, help='output dataset directory')
     args = ap.parse_args()
-
-    input_size = 224
 
     num_classes = args.num_classes
 
     os.makedirs(args.model_dir, exist_ok=True)
 
     train_transform = transforms.Compose([
-            transforms.Resize((input_size, input_size)),
             transforms.ToTensor(),
-            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+            #transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
         ])
 
     valid_transform = transforms.Compose([
-            transforms.Resize((input_size, input_size)),
             transforms.ToTensor(),
-            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+            #transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
         ])
 
     target_transform = None

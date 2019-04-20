@@ -10,6 +10,13 @@ import multiprocessing
 from deformation.ffdt_deformation_lib import TemplateMeshDeform
 from random import shuffle
 import gc
+from functools import partial
+
+def export(out_dir, faces, path):
+    with open(str(path), 'rb') as file:
+        verts = pickle.load(file)
+    opath = join(*[args.out_dir, f'{path.stem}.obj'])
+    export_mesh(fpath=str(opath), verts=verts, faces=tpl_faces)
 
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
@@ -20,9 +27,19 @@ if __name__ == '__main__':
 
     _, tpl_faces = import_mesh(args.vic_mesh_path)
 
+    for path in Path(args.out_dir).glob('*.obj'):
+        os.remove(str(path))
 
-    for v_path in tqdm(enumerate(Path(args.vert_dir).glob('*.pkl'))):
-        with open(str(v_path), 'rb') as file:
-            verts = pickle.load(file)
-        opath = join(*[args.out_dir, f'{v_path.stem}.obj'])
-        export_mesh(fpath=str(opath), verts=verts, faces=tpl_faces)
+    paths = [path for path in Path(args.vert_dir).glob('*.pkl')]
+
+    pool = multiprocessing.Pool(12)
+    for _ in tqdm(pool.imap_unordered(partial(export, args.out_dir, tpl_faces), paths)):
+        pass
+    pool.join()
+    pool.close()
+
+    # for idx, v_path in tqdm(enumerate()):
+    #     with open(str(v_path), 'rb') as file:
+    #         verts = pickle.load(file)
+    #     opath = join(*[args.out_dir, f'{v_path.stem}.obj'])
+    #     export_mesh(fpath=str(opath), verts=verts, faces=tpl_faces)
