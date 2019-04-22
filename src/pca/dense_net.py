@@ -69,7 +69,7 @@ class DenseNet(nn.Module):
     """
 
     def __init__(self, growth_rate=32, block_config=(6, 12, 24, 16),
-                 num_init_features=64, bn_size=4, drop_rate=0, num_classes=1000):
+                 num_init_features=64, bn_size=4, drop_rate=0, num_classes=1000, n_aux_input_feature = 0):
 
         super(DenseNet, self).__init__()
 
@@ -96,6 +96,16 @@ class DenseNet(nn.Module):
         # Final batch norm
         self.features.add_module('norm5', nn.BatchNorm2d(num_features))
 
+        self.n_aux_input_feature = n_aux_input_feature
+        self.n_aux_output_feature = 32
+        if self.n_aux_input_feature > 0:
+            self.aux_features = nn.Sequential(nn.Linear(self.n_aux_input_feature, 16),
+                                               nn.ReLU(),
+                                               nn.Linear(16, self.n_aux_output_feature),
+                                               nn.ReLU())
+
+            num_features += self.n_aux_output_feature
+
         # Linear layer
         #self.classifier = nn.Linear(num_features, num_classes)
         self.classifier = nn.Sequential(nn.Linear(num_features, 512),
@@ -112,11 +122,18 @@ class DenseNet(nn.Module):
             elif isinstance(m, nn.Linear):
                 nn.init.constant_(m.bias, 0)
 
-    def forward(self, x):
-        features = self.features(x)
-        out = F.relu(features, inplace=True)
-        out = F.adaptive_avg_pool2d(out, (1, 1)).view(features.size(0), -1)
-        out = self.classifier(out)
+    def forward(self, x, h = None):
+        img_features = self.features(x)
+        img_features = F.relu(img_features, inplace=True)
+        img_features = F.adaptive_avg_pool2d(img_features, (1, 1)).view(img_features.size(0), -1)
+
+        if self.n_aux_input_feature > 0:
+            aux_features = self.aux_features(h)
+            final_features = torch.cat((img_features, aux_features),dim=1)
+        else:
+            final_features = img_features
+
+        out = self.classifier(final_features)
         return out
 
 
@@ -230,28 +247,43 @@ class JointMask(nn.Module):
         self.model_f = model_f
         self.model_s = model_s
 
-        # self.feature_f = nn.Sequential(*list(self.model_f.classifier.children())[:-1])
-        # self.feature_s = nn.Sequential(*list(self.model_f.classifier.children())[:-1])
-        # num_features = self.feature_f[-2].out_features + self.feature_s[-2].out_features
-
         self.feature_f = self.model_f.features
         self.feature_s = self.model_s.features
+        self.aux_features_f = self.model_f.aux_features
+        self.aux_features_s = self.model_s.aux_features
 
-        num_features = 1024*2
-        self.classifier = nn.Sequential(nn.Linear(num_features, int(num_features/2)),
+        assert self.model_f.n_aux_input_feature == self.model_s.n_aux_input_feature, 'different auxiliary input configuration'
+        assert self.model_f.n_aux_output_feature == self.model_s.n_aux_output_feature, 'different auxiliary input configuration'
+
+        self.n_aux_input_feature = self.model_f.n_aux_input_feature
+        self.n_aux_output_feature = self.model_f.n_aux_output_feature
+
+        num_features =   1024*2
+        if self.n_aux_input_feature > 0:
+            num_features += self.n_aux_output_feature
+
+        self.classifier = nn.Sequential(nn.Linear(num_features, 512),
                                          nn.ReLU(),
-                                         nn.Linear(int(num_features/2), num_classes))
+                                         nn.Linear(512, num_classes))
 
-    def forward(self, x1, x2):
-        x1 = self.feature_f(x1)
-        x1 = F.relu(x1, inplace=True)
-        x1 = F.adaptive_avg_pool2d(x1, (1, 1)).view(x1.size(0), -1)
+    def forward(self, x_f, x_s, h = None):
+        x_f = self.feature_f(x_f)
+        x_f = F.relu(x_f, inplace=True)
+        x_f = F.adaptive_avg_pool2d(x_f, (1, 1)).view(x_f.size(0), -1)
 
-        x2 = self.feature_s(x2)
-        x2 = F.relu(x2, inplace=True)
-        x2 = F.adaptive_avg_pool2d(x2, (1, 1)).view(x2.size(0), -1)
 
-        x = torch.cat((x1, x2), dim=1)
+        x_s = self.feature_s(x_s)
+        x_s = F.relu(x_s, inplace=True)
+        x_s = F.adaptive_avg_pool2d(x_s, (1, 1)).view(x_s.size(0), -1)
+
+        x = torch.cat((x_f, x_s), dim=1)
+
+        if self.n_aux_input_feature > 0:
+            aux_x1 = self.aux_features_f(h)
+            aux_x2 = self.aux_features_s(h)
+            aux_x = torch.max(aux_x1, aux_x2)
+
+            x = torch.cat((x, aux_x), dim=1)
 
         x = self.classifier(F.relu(x))
 
@@ -262,21 +294,28 @@ def set_parameter_requires_grad(model, feature_extracting):
         for param in model.parameters():
             param.requires_grad = False
 
-def load_single_net(model_path, num_classes=50):
-    model = densenet121(pretrained=False, num_classes=num_classes)
+def load_single_net(model_path, num_classes=50, n_aux_input_feature = 0):
+    model = densenet121(pretrained=False, num_classes=num_classes, n_aux_input_feature = n_aux_input_feature)
 
     if Path(model_path).exists():
         state = torch.load(model_path)
-        model.load_state_dict(state['model'])
+        if 'model' in state:
+            model.load_state_dict(state['model'])
+        else:
+            model.load_state_dict(state)
+        print(f'no pre-trained weights loaded')
 
     return model
 
-def load_joint_net_161_train(model_f_path, model_s_path, num_classes=100):
-    model_f = densenet121(pretrained=False, num_classes=num_classes)
-    model_s = densenet121(pretrained=False, num_classes=num_classes)
+def load_joint_net_161_train(model_f_path, model_s_path, num_classes=100, n_aux_input_feature = 0):
+    model_f = densenet121(pretrained=False, num_classes=num_classes, n_aux_input_feature = n_aux_input_feature)
+    model_s = densenet121(pretrained=False, num_classes=num_classes, n_aux_input_feature = n_aux_input_feature)
     if Path(model_f_path).exists():
         state = torch.load(model_f_path)
-        model_f.load_state_dict(state['model'])
+        if 'model' in state:
+            model_f.load_state_dict(state['model'])
+        else:
+            model_f.load_state_dict(state)
         set_parameter_requires_grad(model_f, feature_extracting=True)
     else:
         assert False, f'missing model_f. path {model_f_path} does not exist'
@@ -284,21 +323,28 @@ def load_joint_net_161_train(model_f_path, model_s_path, num_classes=100):
 
     if Path(model_s_path).exists():
         state = torch.load(model_s_path)
-        model_s.load_state_dict(state['model'])
+        if 'model' in state:
+            model_s.load_state_dict(state['model'])
+        else:
+            model_s.load_state_dict(state)
         set_parameter_requires_grad(model_s, feature_extracting=True)
     else:
         assert False, f'missing model_s. path {model_s_path} does not exist'
 
     joint_net = JointMask(model_f=model_f, model_s=model_s, num_classes=num_classes)
-    print(joint_net)
+    #print(joint_net)
 
     return joint_net
 
-def load_joint_net_161_test(model_path, num_classes=100):
-    model_f = densenet121(pretrained=False, num_classes=num_classes)
-    model_s = densenet121(pretrained=False, num_classes=num_classes)
+def load_joint_net_161_test(model_path, num_classes=100,  n_aux_input_feature = 0):
+    model_f = densenet121(pretrained=False, num_classes=num_classes, n_aux_input_feature=n_aux_input_feature)
+    model_s = densenet121(pretrained=False, num_classes=num_classes, n_aux_input_feature=n_aux_input_feature)
     joint_net = JointMask(model_f=model_f, model_s=model_s, num_classes=num_classes)
     if Path(model_path).exists():
         state = torch.load(model_path)
-        joint_net.load_state_dict(state['model'])
+        if 'model' in state:
+            joint_net.load_state_dict(state['model'])
+        else:
+            joint_net.load_state_dict(state)
+
     return joint_net

@@ -9,6 +9,8 @@ import cv2 as cv
 from pca.nn_util import crop_silhouette_pair
 from tqdm import tqdm
 import matplotlib.pyplot as plt
+from multiprocessing import Pool
+from functools import partial
 
 def copy_files(paths, out_dir, args):
     for path in Path(out_dir).glob('*.*'):
@@ -29,6 +31,29 @@ def copy_train_valid_test(name_ids, id_to_path_dict, train_idxs, valid_idxs, tes
     copy_files([id_to_path_dict[name_ids[idx]] for idx in valid_idxs], valid_dir, args)
     copy_files([id_to_path_dict[name_ids[idx]] for idx in test_idxs], test_dir, args)
 
+def crop_a_pair(size, path_pair):
+    fpath = path_pair[0]
+    spath = path_pair[1]
+
+    sil_f = cv.imread(str(fpath), cv.IMREAD_GRAYSCALE)
+    sil_s = cv.imread(str(spath), cv.IMREAD_GRAYSCALE)
+
+    th3, sil_f = cv.threshold(sil_f, 0, 255, cv.THRESH_BINARY_INV + cv.THRESH_OTSU)
+    th3, sil_s = cv.threshold(sil_s, 0, 255, cv.THRESH_BINARY_INV + cv.THRESH_OTSU)
+
+    sil_f, sil_s = crop_silhouette_pair(sil_f, sil_s, mask_f=sil_f, mask_s=sil_s, target_h=size[0], target_w=size[1],
+                                        px_height=int(0.9 * size[0]))
+
+    th3, sil_f = cv.threshold(sil_f, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU)
+    th3, sil_s = cv.threshold(sil_s, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU)
+
+    # plt.subplot(121), plt.imshow(sil_f)
+    # plt.subplot(122), plt.imshow(sil_s)
+    # plt.show()
+
+    cv.imwrite(str(fpath), img=sil_f)
+    cv.imwrite(str(spath), img=sil_s)
+
 def crop_pairs(sil_f_dir, sil_s_dir, size):
     fpaths = sorted([path for path in Path(sil_f_dir).glob('*.*')])
     spaths = sorted([path for path in Path(sil_s_dir).glob('*.*')])
@@ -37,24 +62,29 @@ def crop_pairs(sil_f_dir, sil_s_dir, size):
 
     path_pairs = [(fpath, spath) for fpath, spath in zip(fpaths, spaths)]
 
-    for fpath, spath in tqdm(path_pairs , desc=f'crop silhouette pairs {Path(sil_f_dir).name} - {Path(sil_s_dir).name}'):
-        sil_f = cv.imread(str(fpath), cv.IMREAD_GRAYSCALE)
-        sil_s = cv.imread(str(spath), cv.IMREAD_GRAYSCALE)
+    with Pool(10) as p:
+        with tqdm(total=len(path_pairs)) as pbar:
+            for i, _ in tqdm(enumerate(p.imap_unordered(partial(crop_a_pair, size), path_pairs))):
+                pbar.update()
 
-        th3, sil_f  = cv.threshold(sil_f, 0, 255, cv.THRESH_BINARY_INV + cv.THRESH_OTSU)
-        th3, sil_s  = cv.threshold(sil_s, 0, 255, cv.THRESH_BINARY_INV + cv.THRESH_OTSU)
-
-        sil_f, sil_s = crop_silhouette_pair(sil_f, sil_s, mask_f=sil_f, mask_s=sil_s, target_h=size[0], target_w=size[1], px_height=int(0.9*size[0]))
-
-        th3, sil_f  = cv.threshold(sil_f, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU)
-        th3, sil_s  = cv.threshold(sil_s, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU)
-
-        # plt.subplot(121), plt.imshow(sil_f)
-        # plt.subplot(122), plt.imshow(sil_s)
-        # plt.show()
-
-        cv.imwrite(str(fpath), img=sil_f)
-        cv.imwrite(str(spath), img=sil_s)
+    # for fpath, spath in tqdm(path_pairs , desc=f'crop silhouette pairs {Path(sil_f_dir).name} - {Path(sil_s_dir).name}'):
+    #     sil_f = cv.imread(str(fpath), cv.IMREAD_GRAYSCALE)
+    #     sil_s = cv.imread(str(spath), cv.IMREAD_GRAYSCALE)
+    #
+    #     th3, sil_f  = cv.threshold(sil_f, 0, 255, cv.THRESH_BINARY_INV + cv.THRESH_OTSU)
+    #     th3, sil_s  = cv.threshold(sil_s, 0, 255, cv.THRESH_BINARY_INV + cv.THRESH_OTSU)
+    #
+    #     sil_f, sil_s = crop_silhouette_pair(sil_f, sil_s, mask_f=sil_f, mask_s=sil_s, target_h=size[0], target_w=size[1], px_height=int(0.9*size[0]))
+    #
+    #     th3, sil_f  = cv.threshold(sil_f, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU)
+    #     th3, sil_s  = cv.threshold(sil_s, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU)
+    #
+    #     # plt.subplot(121), plt.imshow(sil_f)
+    #     # plt.subplot(122), plt.imshow(sil_s)
+    #     # plt.show()
+    #
+    #     cv.imwrite(str(fpath), img=sil_f)
+    #     cv.imwrite(str(spath), img=sil_s)
 
 def crop_train_test_valid(base_sil_f_dir, base_sil_s_dir, size):
     names = ['train', 'test', 'valid']
@@ -89,8 +119,8 @@ if __name__ == '__main__':
     os.makedirs(sil_s_dir, exist_ok=True)
 
     np.random.seed(100)
-    train_idxs, test_idxs  = train_test_split(np.arange(n), test_size=0.05)
-    train_idxs, valid_idxs = train_test_split(train_idxs, test_size=0.1)
+    train_idxs, test_idxs  = train_test_split(np.arange(n), test_size=0.1)
+    train_idxs, valid_idxs = train_test_split(train_idxs, test_size=0.15)
     copy_train_valid_test(name_ids, sil_f_paths, train_idxs=train_idxs, valid_idxs=valid_idxs, test_idxs=test_idxs, out_dir=sil_f_dir, args=args)
     copy_train_valid_test(name_ids, sil_s_paths, train_idxs=train_idxs, valid_idxs=valid_idxs, test_idxs=test_idxs, out_dir=sil_s_dir, args=args)
 

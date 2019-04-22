@@ -18,7 +18,6 @@ def main():
     ap.add_argument("-vic_mesh_path", type=str, required=True, help="")
     ap.add_argument("-tmp_data_path", type=str, required=True, help="")
     ap.add_argument("-out_pca_path",  type=str, required=True, help="")
-    ap.add_argument("-out_pca_co_dir", type=str, required=False, default="")
     ap.add_argument("-pca_k", type=int, required=False, default=50)
     ap.add_argument("-scale_factor", type=float, required=False, default=0.001)
 

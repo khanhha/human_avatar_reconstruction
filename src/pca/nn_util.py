@@ -13,6 +13,8 @@ from os.path import join
 import os
 import matplotlib.pyplot as plt
 import cv2 as cv
+from sklearn.externals import joblib
+import re
 
 network_input_size = (384, 256)
 
@@ -62,8 +64,95 @@ class ImgDataSet(Dataset):
     def __len__(self):
         return len(self.img_paths)
 
+class ImgFullDataSet(Dataset):
+    def __init__(self, img_transform, dir_f, dir_s, dir_target, id_to_heights, target_transform = None, height_transform = None):
+
+        paths_f, paths_s, paths_target = self._load_names(dir_f=dir_f, dir_s=dir_s, dir_target=dir_target)
+
+        self.img_transform = img_transform
+        self.img_paths_f = paths_f
+        self.img_paths_s = paths_s
+        self.target_paths = paths_target
+        self.target_transform = target_transform
+
+        self.heights = []
+        for path in self.img_paths_f:
+            assert path.stem in id_to_heights, 'missing height'
+            h = id_to_heights[path.stem]
+            self.heights.append(h)
+
+        self.heights = np.array(self.heights).astype(np.float32)
+        self.height_transform = height_transform
+
+    def _load_names(self, dir_f, dir_s, dir_target):
+        names = set([path.name for path in Path(dir_f).glob('*.*')])
+        s_paths = []
+        f_paths = []
+        for name in names:
+            f_path = os.path.join(*[dir_f, name])
+            s_path = os.path.join(*[dir_s, name])
+            if Path(f_path).exists() == True and Path(s_path).exists() == True:
+                f_paths.append(Path(f_path))
+                s_paths.append(Path(s_path))
+            else:
+                assert False, f'missing front or side silhouette : {name}'
+
+        # debug. for faster epoch. comment the code after finish
+        # s_paths = s_paths[:500]
+        # f_paths = f_paths[:500]
+
+        y_paths = []
+        if dir_target is not None:
+            all_y_paths = dict([(path.stem, path) for path in Path(dir_target).glob('*.*')])
+            for x_path in f_paths:
+                assert x_path.stem in all_y_paths, f'missing target {x_path}'
+                y_paths.append(all_y_paths[x_path.stem])
+
+        return f_paths, s_paths, y_paths
+
+    def __getitem__(self, i):
+        fpath= self.img_paths_f[i]
+        img_f = Image.open(fpath)
+        #plt.subplot(121)
+        #plt.imshow(np.asarray(img_f))
+        img_f = self.img_transform(img_f)
+
+        spath = self.img_paths_s[i]
+
+        img_s = Image.open(spath)
+        # plt.subplot(122)
+        # plt.imshow(np.asarray(img_s))
+        # plt.show()
+        img_s = self.img_transform(img_s)
+
+        if len(self.target_paths) > 0:
+            target = np.load(self.target_paths[i]).astype(np.float32)
+            if self.target_transform is not None:
+                target = self.target_transform.transform(target.reshape(1,-1))
+            target = target.flatten()
+        else:
+            #dummy value
+            target = -1
+
+        if len(self.heights) > 0:
+            h = self.heights[i]
+            if self.height_transform is not None:
+                h = self.height_transform.transform(h.reshape(1, -1))
+                h = h.flatten()
+        else:
+            h = -1
+        #print(target.min(), target.max())
+        return img_f, img_s, target, h
+
+    def get_filepath(self, i):
+        return self.img_paths_f[i]
+
+    def __len__(self):
+        return len(self.img_paths_f)
+
 
 class ImgPairDataSet(Dataset):
+
     def __init__(self, img_transform, img_paths_f, img_paths_s, target_paths, target_transform):
         self.img_transform = img_transform
         self.img_paths_f = img_paths_f
@@ -73,7 +162,6 @@ class ImgPairDataSet(Dataset):
 
         assert len(self.img_paths_f) == len(self.img_paths_s)
         assert len(self.img_paths_f) == len(self.target_paths)
-
 
     def __getitem__(self, i):
         fpath= self.img_paths_f[i]
@@ -149,36 +237,6 @@ class ImgPairDataSetInfer(Dataset):
         return len(self.img_paths_f)
 
 
-class ImgPairDataSet_FName(Dataset):
-    def __init__(self, img_transform, img_paths_f, img_paths_s, target_paths, target_transform):
-        self.img_transform = img_transform
-        self.img_paths_f = img_paths_f
-        self.img_paths_s = img_paths_s
-        self.target_paths = target_paths
-        self.target_transform = target_transform
-
-        assert len(self.img_paths_f) == len(self.img_paths_s)
-        assert len(self.img_paths_f) == len(self.target_paths)
-
-
-    def __getitem__(self, i):
-        fpath= self.img_paths_f[i]
-        img_f = Image.open(fpath)
-        img_f = self.img_transform(img_f)
-
-        spath = self.img_paths_s[i]
-        img_s = Image.open(spath)
-        img_s = self.img_transform(img_s)
-
-        target = np.load(self.target_paths[i]).astype(np.float32)
-        target = self.target_transform.transform(target.reshape(1,-1))
-        target = target.flatten()
-        #print(target.min(), target.max())
-        return img_f, img_s, target, i #torch.from_numpy(np.array(mask, dtype=np.int64))
-
-    def __len__(self):
-        return len(self.img_paths_f)
-
 def adjust_learning_rate(optimizer, epoch, lr):
     """Sets the learning rate to the initial LR decayed by 10 every 30 epochs"""
     lr = lr * (0.1 ** (epoch // 30))
@@ -192,6 +250,16 @@ def load_target(target_dir):
     for path in Path(target_dir).glob('*.npy'):
         data.append(np.load(path))
     return data
+
+def load_height(path):
+    results = {}
+    with open(path, 'r') as file:
+        for l in file.readlines():
+            name, h = l.split(' ')
+            h = h.replace('\n', '')
+            h = float(h)
+            results[name] = h
+    return results
 
 def create_pair_loader(input_dir_f, input_dir_s, target_dir, transforms, target_transform = None, batch_size = 16, shuffle=False):
     names = set([path.name for path in Path(input_dir_f).glob('*.*')])
