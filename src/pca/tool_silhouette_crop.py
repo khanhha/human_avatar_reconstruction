@@ -5,7 +5,7 @@ from pathlib import Path
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 import cv2 as cv
-from pca.nn_util import crop_silhouette_pair
+from pca.nn_util import crop_silhouette_pair_blender
 import numpy as np
 
 def find_largest_contour(img_bi, app_type=cv.CHAIN_APPROX_TC89_L1):
@@ -28,10 +28,10 @@ if __name__ == '__main__':
     ap.add_argument("-sil_f_dir", type=str, required=True)
     ap.add_argument("-sil_s_dir", type=str, required=True)
     ap.add_argument("-out_dir",   type=str, required=True)
-    ap.add_argument("-size",   type=str, required=False, default='224x224')
+    ap.add_argument("-resize_size",   type=str, required=False, default='224x224')
     args = ap.parse_args()
 
-    size = args.size.split('x')
+    size = args.resize_size.split('x')
     size = (int(size[0]), int(size[1]))
 
     sil_f_dir_out = join(*[args.out_dir, 'sil_f'])
@@ -50,12 +50,11 @@ if __name__ == '__main__':
     for name in tqdm(fnames):
         f_path = join(*[args.sil_f_dir, name])
         s_path = join(*[args.sil_s_dir, name])
+
         sil_f_org = cv.imread(str(f_path), cv.IMREAD_GRAYSCALE)
         sil_s_org = cv.imread(str(s_path), cv.IMREAD_GRAYSCALE)
 
-        sil_f_1, sil_s_1 = crop_silhouette_pair(sil_f_org, sil_s_org, mask_f=sil_f_org, mask_s=sil_s_org, target_h=size[0], target_w=size[1], px_height=int(0.9*size[0]))
-        sil_f_1 = (sil_f_1 > 10).astype(np.uint8)*255
-        sil_s_1 = (sil_s_1 > 10).astype(np.uint8)*255
+        sil_f_1, sil_s_1 = crop_silhouette_pair_blender(sil_f_org, sil_s_org, size)
 
         #plt.subplot(121), plt.imshow(sil_f_org)
         #plt.subplot(122), plt.imshow(sil_s_org)

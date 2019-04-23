@@ -3,6 +3,11 @@ from pathlib import Path
 import cv2 as cv
 import numpy as np
 from os.path import join
+from sklearn.externals import joblib
+from sklearn.decomposition import IncrementalPCA
+from sklearn.preprocessing import StandardScaler, Normalizer, MinMaxScaler, RobustScaler
+from tqdm import tqdm
+
 def plot_silhouettes():
     dir_f = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/cnn_data/sil_f_cropped/train'
     dir_s = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/cnn_data/sil_s_cropped/train'
@@ -55,7 +60,42 @@ def plot_diff_camera_sil():
     fig.set_facecolor("white")
     plt.show()
 
+def export_vic_pca_height():
+    pca_dir = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/pca_vic_coords/'
+    model_path = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/vic_pca_model.jlb'
+    height_path = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/height_syn.txt'
+    pca_model = joblib.load(filename=model_path)
+
+    paths = [path for path in Path(pca_dir).glob('*.npy')]
+    heights = []
+    for path in tqdm(paths):
+        p = np.load(path)
+        verts = pca_model.inverse_transform(p)
+        verts = verts.reshape(verts.shape[0]//3, 3)
+        h = verts[:,2].max() - verts[:,2].min()
+        heights.append((path.stem, h))
+
+    with open(height_path, 'wt') as file:
+         file.writelines(f"{l[0]} {l[1]}\n" for l in heights)
+
+def test_pca_max_min():
+    pca_dir = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/pca_vic_coords/'
+    model_path = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/vic_pca_model.jlb'
+    height_path = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/height_syn.txt'
+    pca_model = joblib.load(filename=model_path)
+
+    paths = [path for path in Path(pca_dir).glob('*.npy')]
+    pca_vals = []
+    for path in tqdm(paths):
+        p = np.load(path)
+        pca_vals.append(p)
+
+    pca_vals = np.array(pca_vals)
+    scale = RobustScaler()
+    pca_vals_1 = scale.fit_transform(pca_vals)
+    print(pca_vals.min(), pca_vals.max())
+    print(pca_vals_1.min(), pca_vals_1.max())
+
 if __name__ == '__main__':
 
-    plot_diff_camera_sil()
-
+    test_pca_max_min()

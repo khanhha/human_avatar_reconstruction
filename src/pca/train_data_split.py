@@ -6,7 +6,7 @@ from os.path import join
 import os
 import shutil
 import cv2 as cv
-from pca.nn_util import crop_silhouette_pair
+from pca.nn_util import crop_silhouette_pair_blender
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 from multiprocessing import Pool
@@ -38,14 +38,7 @@ def crop_a_pair(size, path_pair):
     sil_f = cv.imread(str(fpath), cv.IMREAD_GRAYSCALE)
     sil_s = cv.imread(str(spath), cv.IMREAD_GRAYSCALE)
 
-    th3, sil_f = cv.threshold(sil_f, 0, 255, cv.THRESH_BINARY_INV + cv.THRESH_OTSU)
-    th3, sil_s = cv.threshold(sil_s, 0, 255, cv.THRESH_BINARY_INV + cv.THRESH_OTSU)
-
-    sil_f, sil_s = crop_silhouette_pair(sil_f, sil_s, mask_f=sil_f, mask_s=sil_s, target_h=size[0], target_w=size[1],
-                                        px_height=int(0.9 * size[0]))
-
-    th3, sil_f = cv.threshold(sil_f, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU)
-    th3, sil_s = cv.threshold(sil_s, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU)
+    sil_f, sil_s = crop_silhouette_pair_blender(sil_f, sil_s, size)
 
     # plt.subplot(121), plt.imshow(sil_f)
     # plt.subplot(122), plt.imshow(sil_s)

@@ -68,7 +68,7 @@ class ImgFullDataSet(Dataset):
     def __init__(self, img_transform, dir_f, dir_s, dir_target, id_to_heights, target_transform = None, height_transform = None):
 
         paths_f, paths_s, paths_target = self._load_names(dir_f=dir_f, dir_s=dir_s, dir_target=dir_target)
-
+        assert len(paths_f) > 0 and len(paths_s)>0, f'empty folder {dir_f}, {dir_s}'
         self.img_transform = img_transform
         self.img_paths_f = paths_f
         self.img_paths_s = paths_s
@@ -81,8 +81,11 @@ class ImgFullDataSet(Dataset):
             h = id_to_heights[path.stem]
             self.heights.append(h)
 
-        self.heights = np.array(self.heights).astype(np.float32)
+        self.heights = np.array(self.heights).astype(np.float32).reshape(-1, 1)
         self.height_transform = height_transform
+
+        self.dummy_target = np.zeros(50)
+        self.dummy_height = np.zeros(1)
 
     def _load_names(self, dir_f, dir_s, dir_target):
         names = set([path.name for path in Path(dir_f).glob('*.*')])
@@ -97,9 +100,9 @@ class ImgFullDataSet(Dataset):
             else:
                 assert False, f'missing front or side silhouette : {name}'
 
-        # debug. for faster epoch. comment the code after finish
-        # s_paths = s_paths[:500]
-        # f_paths = f_paths[:500]
+        #TODO debug. for faster epoch. comment the code after finish
+        # s_paths = s_paths[:3000]
+        # f_paths = f_paths[:3000]
 
         y_paths = []
         if dir_target is not None:
@@ -118,7 +121,6 @@ class ImgFullDataSet(Dataset):
         img_f = self.img_transform(img_f)
 
         spath = self.img_paths_s[i]
-
         img_s = Image.open(spath)
         # plt.subplot(122)
         # plt.imshow(np.asarray(img_s))
@@ -126,22 +128,22 @@ class ImgFullDataSet(Dataset):
         img_s = self.img_transform(img_s)
 
         if len(self.target_paths) > 0:
-            target = np.load(self.target_paths[i]).astype(np.float32)
+            target = np.load(self.target_paths[i]).astype(np.float32).reshape(1,-1)
             if self.target_transform is not None:
-                target = self.target_transform.transform(target.reshape(1,-1))
+                target = self.target_transform.transform(target)
             target = target.flatten()
         else:
             #dummy value
-            target = -1
+            target = self.dummy_target
 
         if len(self.heights) > 0:
-            h = self.heights[i]
+            h = self.heights[i].reshape(1, -1)
             if self.height_transform is not None:
-                h = self.height_transform.transform(h.reshape(1, -1))
+                h = self.height_transform.transform(h)
                 h = h.flatten()
         else:
-            h = -1
-        #print(target.min(), target.max())
+            h = self.dummy_height
+
         return img_f, img_s, target, h
 
     def get_filepath(self, i):
@@ -178,8 +180,9 @@ class ImgPairDataSet(Dataset):
         img_s = self.img_transform(img_s)
 
         target = np.load(self.target_paths[i]).astype(np.float32)
+        target = target.reshape(1, -1)
         if self.target_transform is not None:
-            target = self.target_transform.transform(target.reshape(1,-1))
+            target = self.target_transform.transform(target)
         target = target.flatten()
         #print(target.min(), target.max())
         return img_f, img_s, target #torch.from_numpy(np.array(mask, dtype=np.int64))
@@ -407,6 +410,19 @@ def crop_silhouette_width(sil, mask):
     sil = sil[:, left_x:right_x]
 
     return sil
+
+def crop_silhouette_pair_blender(sil_f, sil_s, size):
+
+    th3, sil_f = cv.threshold(sil_f, 0, 255, cv.THRESH_BINARY_INV + cv.THRESH_OTSU)
+    th3, sil_s = cv.threshold(sil_s, 0, 255, cv.THRESH_BINARY_INV + cv.THRESH_OTSU)
+
+    sil_f, sil_s = crop_silhouette_pair(sil_f, sil_s, mask_f=sil_f, mask_s=sil_s, target_h=size[0], target_w=size[1],
+                                        px_height=int(0.9 * size[0]))
+
+    th3, sil_f = cv.threshold(sil_f, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU)
+    th3, sil_s = cv.threshold(sil_s, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU)
+
+    return sil_f, sil_s
 
 def crop_silhouette_pair(img_f, img_s, mask_f, mask_s, px_height = 364, target_h = 384, target_w = 256):
     img_f = crop_silhouette_height(img_f, mask_f)

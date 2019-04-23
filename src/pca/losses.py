@@ -2,11 +2,12 @@ import torch
 
 class SMPLLoss(torch.nn.Module):
 
-    def __init__(self, pca, pca_weight = 0.0):
+    def __init__(self, pca, pca_weight = 0.0, use_pca_loss = True):
         super(SMPLLoss, self).__init__()
         self.mse = torch.nn.MSELoss()
         self.pca = pca.transpose(0,1)
         self.pca_weight = pca_weight
+        self.use_pca_loss = use_pca_loss
 
     def decay_pca_weight(self, epoch):
         start = 0.05
@@ -15,11 +16,12 @@ class SMPLLoss(torch.nn.Module):
 
     def forward(self, pred, target):
         mse_lss = self.mse(pred, target)
-        #return mse_lss
-        res_lss = torch.mm(pred, self.pca) - torch.mm(target, self.pca)
-        res_lss = torch.mean(torch.mean(res_lss**2, dim=1))
-        return (1.0-self.pca_weight) * mse_lss + self.pca_weight*res_lss
-
+        if self.use_pca_loss:
+            res_lss = torch.mm(pred, self.pca) - torch.mm(target, self.pca)
+            res_lss = torch.mean(torch.mean(res_lss**2, dim=1))
+            return (1.0-self.pca_weight) * mse_lss + self.pca_weight*res_lss
+        else:
+            return mse_lss
 
 class SMPLLoss_1(torch.nn.Module):
     def __init__(self, pca_components, pca_explained_std, pca_weight = 0.0):

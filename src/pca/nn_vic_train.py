@@ -6,7 +6,7 @@ import torchvision
 from torchvision import datasets, transforms
 from torch.utils.data import DataLoader, Dataset
 from torch.autograd import Variable
-from pca.dense_net import densenet121, load_joint_net_161_train
+from pca.dense_net import densenet121
 import argparse
 import os
 from pathlib import Path
@@ -26,6 +26,7 @@ from ignite.handlers import ModelCheckpoint, EarlyStopping
 from tensorboardX import SummaryWriter
 import logging
 import sys
+from pca.nn_vic_model import NNModelWrapper
 
 def train(train_loader, valid_loader, model, criterion, optimizer, validation, args, model_dir):
     # switch to train mode
@@ -155,44 +156,18 @@ def create_summary_writer(args, model, data_loader, log_dir, clean_old_log = Tru
     input_f, input_s, target, height = next(data_loader_iter)
     try:
         if args.model_type == 'f':
-            input = input_f, height
+            input = (input_f, height)
         elif args.model_type == 's':
-            input = input_s, height
+            input = (input_s, height)
         else:
             input = input_f, input_s, height
-        writer.add_graph(model, input)
+        writer.add_graph(model, input, verbose=False)
     except Exception as e:
         print("Failed to save model graph: {}".format(e))
     return writer
 
-def create_loaders(args):
+def create_loaders(args, target_trans = None, height_trans = None):
     sil_transform = transforms.Compose([transforms.ToTensor()])
-
-    #todo: not sure if target scaling affect the target loss. don't use it now
-    if args.is_scale_target:
-        target_trans_path = os.path.join(*[args.root_dir, 'target_transform.jlb'])
-        if not Path(target_trans_path).exists():
-            target_data = load_target(args.target_dir)
-            #target_trans = MinMaxScaler()
-            target_trans = RobustScaler()
-            target_trans.fit(target_data)
-            joblib.dump(value=target_trans, filename=target_trans_path)
-        target_trans = joblib.load(filename=target_trans_path)
-    else:
-        target_trans = None
-
-    if args.is_scale_height:
-        height_trans_path = os.path.join(*[args.root_dir, 'height_transform.jlb'])
-        if not Path(height_trans_path).exists():
-            height_data = load_height(args.height_path)
-            height_data = np.array([item[1] for item in height_data.items()])
-            height_data = height_data.reshape(-1, 1)
-            height_trans = MinMaxScaler() #the same scale as the input silhouete
-            height_trans.fit(height_data)
-            joblib.dump(value=height_trans, filename=height_trans_path)
-        height_trans = joblib.load(filename=height_trans_path)
-    else:
-        height_trans = None
 
     dir_sil_f = os.path.join(*[args.root_dir, 'sil_f'])
     dir_sil_s = os.path.join(*[args.root_dir, 'sil_s'])
@@ -223,7 +198,7 @@ def create_loaders(args):
 
     train_loader= torch.utils.data.DataLoader(train_ds, batch_size=args.batch_size, shuffle=True, num_workers=4)
     valid_loader= torch.utils.data.DataLoader(valid_ds, batch_size=args.batch_size, shuffle=True, num_workers=4)
-    test_loader= torch.utils.data.DataLoader(test_ds, batch_size=args.batch_size, shuffle=True, num_workers=4)
+    test_loader= torch.utils.data.DataLoader(test_ds,   batch_size=args.batch_size, shuffle=True, num_workers=4)
 
     return train_loader, valid_loader, test_loader
 
@@ -342,6 +317,28 @@ def find_model_path(dir, hint):
             return path
     assert False, f'no find path found with pattern {hint} found'
 
+def load_transformations():
+    #Todo: not sure if target scaling affect the target loss. don't use it now
+    if args.is_scale_target:
+        target_data = load_target(args.target_dir)
+        target_trans = MinMaxScaler()
+        target_trans.fit(target_data)
+        print(f'fit target transformation. {target_trans}: min = {target_trans.data_min_}, range={target_trans.data_range_}')
+    else:
+        target_trans = None
+
+    if args.is_scale_height:
+        height_data = load_height(args.height_path)
+        height_data = np.array([item[1] for item in height_data.items()])
+        height_data = height_data.reshape(-1, 1)
+        height_trans = MinMaxScaler() #the same scale as the input silhouete
+        height_trans.fit(height_data)
+        print(f'fit  height transform. {height_trans}: min = {height_trans.data_min_}, range= {height_trans.data_range_}')
+    else:
+        height_trans = None
+
+    return target_trans, height_trans
+
 def run(args):
     model_root_dir = os.path.join(*[args.root_dir, 'models'])
     model_dir = os.path.join(*[model_root_dir, args.model_type])
@@ -349,13 +346,17 @@ def run(args):
     if args.model_type in ['f', 's']:
         model = densenet121(pretrained=False, num_classes=args.num_classes, n_aux_input_feature=1)
     else:
-        model_f_path = find_model_path(os.path.join(*[model_root_dir, 'f']), 'best')
-        model_s_path = find_model_path(os.path.join(*[model_root_dir, 's']), 'best')
+        model_f_path = find_model_path(os.path.join(*[model_root_dir, 'f']), 'final_model')
+        model_s_path = find_model_path(os.path.join(*[model_root_dir, 's']), 'final_model')
         assert Path(model_f_path).exists(), 'missing front model'
         assert Path(model_s_path).exists(), 'missing side model'
-        model = load_joint_net_161_train(model_f_path, model_s_path, num_classes=args.num_classes, n_aux_input_feature=1)
+        model_f_wrap = NNModelWrapper.load(model_f_path)
+        model_s_wrap = NNModelWrapper.load(model_s_path)
+        model = JointMask(model_f=model_f_wrap.model, model_s=model_s_wrap.model, num_classes=args.num_classes)
 
-    train_loader, valid_loader, test_loader = create_loaders(args)
+    target_trans, height_trans = load_transformations()
+
+    train_loader, valid_loader, test_loader = create_loaders(args, target_trans=target_trans, height_trans=height_trans)
 
     log_dir = os.path.join(*[args.root_dir, 'log', args.model_type])
     writer = create_summary_writer(args, model, train_loader, log_dir)
@@ -366,7 +367,8 @@ def run(args):
     else:
         pca_components = pca_model.components_
     pca_components = torch.Tensor(pca_components.T).cuda()
-    criterion = SMPLLoss(pca_components)
+
+    criterion = SMPLLoss(pca_components, use_pca_loss = args.use_pca_loss)
 
     optimizer = torch.optim.RMSprop(model.parameters(), lr = args.lr)
     device = 'cuda'
@@ -382,9 +384,17 @@ def run(args):
         desc=desc.format(0)
     )
 
+    print(f'start traininig: pca_target_transform')
+    print(f'\tmodel_type = {args.model_type}')
+    print(f'\tpca_target_transform: {target_trans is not None}')
+    print(f'\theight_transform: {height_trans is not None}')
+    print(f'\tuse pca loss: {args.use_pca_loss}')
+    print(f'\tuse height input: {args.use_height}')
+
     @trainer.on(Events.EPOCH_STARTED)
     def training_epoch_start(engine):
-        criterion.decay_pca_weight(engine.state.epoch)
+        if args.use_pca_loss:
+            criterion.decay_pca_weight(engine.state.epoch)
 
     @trainer.on(Events.ITERATION_COMPLETED)
     def log_training_loss(engine):
@@ -425,6 +435,17 @@ def run(args):
 
         pbar.n = pbar.last_print_n = 0
 
+        #save final model
+        best_model_path = find_model_path(model_dir, hint='model_best')
+        core_model = torch.load(best_model_path)
+
+        to_save = NNModelWrapper(model=core_model, model_type=args.model_type, pca_model = pca_model,
+                                 use_pca_loss=args.use_pca_loss, use_height=args.use_height,
+                                 pca_target_transform=target_trans, height_transform=height_trans)
+        final_path = os.path.join(*[model_dir, 'final_model.pt'])
+        to_save.dump(final_path)
+        print(f'dump final model wrapper to {final_path}')
+
     def score_function(engine):
         val_loss = evaluator.state.metrics['loss']
         # Objects with highest scores will be retained.
@@ -442,7 +463,7 @@ def run(args):
                                        score_function=score_function,
                                        n_saved=1,
                                        atomic=True,
-                                       create_dir=True)
+                                       create_dir=True, save_as_state_dict=False)
     evaluator.add_event_handler(Events.COMPLETED, best_model_saver, {'model': model})
 
     last_model_saver = ModelCheckpoint(model_dir,
@@ -450,7 +471,7 @@ def run(args):
                                        save_interval=1,
                                        n_saved=1,
                                        atomic=True,
-                                       create_dir=True)
+                                       create_dir=True, save_as_state_dict=False)
     trainer.add_event_handler(Events.COMPLETED, last_model_saver, {'model': model})
 
     try:
@@ -458,6 +479,7 @@ def run(args):
     except KeyboardInterrupt:
         print("Catched KeyboardInterrupt -> exit")
     except Exception as e:
+        print(e)
         try:
             # open an ipython shell if possible
             import IPython
@@ -468,6 +490,7 @@ def run(args):
     writer.close()
     pbar.close()
 
+import distutils
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
     ap.add_argument("-root_dir", type=str, required=True)
@@ -481,16 +504,18 @@ if __name__ == '__main__':
     ap.add_argument('-momentum', default=0.9, type=float, metavar='M', help='momentum')
     ap.add_argument('-print_freq', default=20, type=int, metavar='N', help='print frequency (default: 10)')
     ap.add_argument('-weight_decay', default=1e-4, type=float, metavar='W', help='weight decay (default: 1e-4)')
-    ap.add_argument("-batch_size", type=int, default=32, required=False)
+    ap.add_argument("-batch_size", type=int, default=16, required=False)
     ap.add_argument('-num_workers', default=4, type=int, help='output dataset directory')
     ap.add_argument('-num_classes', default=50, type=int, required=False, help='output dataset directory')
     ap.add_argument('-log_interval', default=1, type=int, required=False, help='output dataset directory')
-    ap.add_argument('-early_stop_patient', default=5, type=int, required=False, help='output dataset directory')
-    ap.add_argument("-is_scale_target", type=bool, required=False, default=False)
-    ap.add_argument("-is_scale_height", type=bool, required=False, default=True)
+    ap.add_argument('-early_stop_patient', default=10, type=int, required=False, help='output dataset directory')
+    ap.add_argument("-is_scale_target",  default=0, type=int, required=True)
+    ap.add_argument("-is_scale_height",  default=0, type=int, required=True)
+    ap.add_argument('-use_pca_loss',  default=0, type=int, required=True)
+    ap.add_argument('-use_height',  default=1, type=int, required=True)
 
     args = ap.parse_args()
-
+    assert args.use_height == True, 'only support height input currently'
     run(args)
     exit()
 

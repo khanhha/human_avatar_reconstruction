@@ -242,21 +242,23 @@ def densenet161(pretrained=False, **kwargs):
 
 
 class JointMask(nn.Module):
-    def __init__(self, model_f, model_s, num_classes=100):
+    def __init__(self, model_f, model_s, num_classes=50):
         super(JointMask, self).__init__()
         self.model_f = model_f
         self.model_s = model_s
 
         self.feature_f = self.model_f.features
         self.feature_s = self.model_s.features
-        self.aux_features_f = self.model_f.aux_features
-        self.aux_features_s = self.model_s.aux_features
 
         assert self.model_f.n_aux_input_feature == self.model_s.n_aux_input_feature, 'different auxiliary input configuration'
         assert self.model_f.n_aux_output_feature == self.model_s.n_aux_output_feature, 'different auxiliary input configuration'
 
-        self.n_aux_input_feature = self.model_f.n_aux_input_feature
+        self.n_aux_input_feature  = self.model_f.n_aux_input_feature
         self.n_aux_output_feature = self.model_f.n_aux_output_feature
+
+        if self.model_s.n_aux_input_feature > 0 and self.model_f.n_aux_input_feature > 0:
+            self.aux_features_f = self.model_f.aux_features
+            self.aux_features_s = self.model_s.aux_features
 
         num_features =   1024*2
         if self.n_aux_input_feature > 0:
@@ -303,38 +305,11 @@ def load_single_net(model_path, num_classes=50, n_aux_input_feature = 0):
             model.load_state_dict(state['model'])
         else:
             model.load_state_dict(state)
+    else:
         print(f'no pre-trained weights loaded')
 
     return model
 
-def load_joint_net_161_train(model_f_path, model_s_path, num_classes=100, n_aux_input_feature = 0):
-    model_f = densenet121(pretrained=False, num_classes=num_classes, n_aux_input_feature = n_aux_input_feature)
-    model_s = densenet121(pretrained=False, num_classes=num_classes, n_aux_input_feature = n_aux_input_feature)
-    if Path(model_f_path).exists():
-        state = torch.load(model_f_path)
-        if 'model' in state:
-            model_f.load_state_dict(state['model'])
-        else:
-            model_f.load_state_dict(state)
-        set_parameter_requires_grad(model_f, feature_extracting=True)
-    else:
-        assert False, f'missing model_f. path {model_f_path} does not exist'
-
-
-    if Path(model_s_path).exists():
-        state = torch.load(model_s_path)
-        if 'model' in state:
-            model_s.load_state_dict(state['model'])
-        else:
-            model_s.load_state_dict(state)
-        set_parameter_requires_grad(model_s, feature_extracting=True)
-    else:
-        assert False, f'missing model_s. path {model_s_path} does not exist'
-
-    joint_net = JointMask(model_f=model_f, model_s=model_s, num_classes=num_classes)
-    #print(joint_net)
-
-    return joint_net
 
 def load_joint_net_161_test(model_path, num_classes=100,  n_aux_input_feature = 0):
     model_f = densenet121(pretrained=False, num_classes=num_classes, n_aux_input_feature=n_aux_input_feature)
