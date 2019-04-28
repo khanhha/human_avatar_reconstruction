@@ -499,7 +499,7 @@ if __name__ == '__main__':
     ap.add_argument("-pca_model_path", type=str, required=True)
     ap.add_argument("-height_path", type=str, required=False, default='')
 
-    ap.add_argument('-n_epoch', default=150, type=int, metavar='N', help='number of total epochs to run')
+    ap.add_argument('-n_epoch', default=25, type=int, metavar='N', help='number of total epochs to run')
     ap.add_argument('-lr', default=0.001, type=float, metavar='LR', help='initial learning rate')
     ap.add_argument('-momentum', default=0.9, type=float, metavar='M', help='momentum')
     ap.add_argument('-print_freq', default=20, type=int, metavar='N', help='print frequency (default: 10)')
@@ -508,7 +508,7 @@ if __name__ == '__main__':
     ap.add_argument('-num_workers', default=4, type=int, help='output dataset directory')
     ap.add_argument('-num_classes', default=50, type=int, required=False, help='output dataset directory')
     ap.add_argument('-log_interval', default=1, type=int, required=False, help='output dataset directory')
-    ap.add_argument('-early_stop_patient', default=10, type=int, required=False, help='output dataset directory')
+    ap.add_argument('-early_stop_patient', default=7, type=int, required=False, help='output dataset directory')
     ap.add_argument("-is_scale_target",  default=0, type=int, required=True)
     ap.add_argument("-is_scale_height",  default=0, type=int, required=True)
     ap.add_argument('-use_pca_loss',  default=0, type=int, required=True)

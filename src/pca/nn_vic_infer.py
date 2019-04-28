@@ -71,7 +71,7 @@ if __name__ == '__main__':
     model = model.to(device)
     model.eval()
 
-    n_tries = 1
+    n_tries = 10
     bar = tqdm(total=n_tries)
     cnt = 0
     for i, (input_f, input_s, target, height) in enumerate(test_loader):
@@ -98,7 +98,7 @@ if __name__ == '__main__':
         pred = pred.data.cpu().numpy()
 
         if model_wrapper.pca_target_transform is not None:
-            pred = model.pca_target_transform.inverse_transform(pred)
+            pred = model_wrapper.pca_target_transform.inverse_transform(pred.reshape(1,-1))
 
         verts = model_wrapper.pca_model.inverse_transform(pred)
         verts = verts.reshape((NV, 3))
