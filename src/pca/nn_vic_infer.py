@@ -31,10 +31,11 @@ def create_test_loader(args, target_transform, height_transform):
 
     #target_dir = None if args.target_dir == '' else args.target_dir
 
+    #TODO: take the flag use_input_gender from model
     heights = load_height(args.height_path)
     test_ds= ImgFullDataSet(img_transform=sil_transform,
                                   dir_f=dir_sil_f, dir_s=dir_sil_s,
-                                  dir_target=args.target_dir, id_to_heights=heights,  target_transform=target_transform, height_transform=height_transform)
+                                  dir_target=args.target_dir, id_to_heights=heights,  target_transform=target_transform, height_transform=height_transform, use_input_gender=True)
 
     test_loader= torch.utils.data.DataLoader(test_ds, batch_size=1, shuffle=False, num_workers=4)
 
@@ -74,7 +75,7 @@ if __name__ == '__main__':
     n_tries = 10
     bar = tqdm(total=n_tries)
     cnt = 0
-    for i, (input_f, input_s, target, height) in enumerate(test_loader):
+    for i, (input_f, input_s, target, aux_input) in enumerate(test_loader):
 
         fpath= test_loader.dataset.get_filepath(i)
 
@@ -82,7 +83,7 @@ if __name__ == '__main__':
             continue
 
         target_var = Variable(target).cuda()
-        height_var = Variable(height).cuda()
+        height_var = Variable(aux_input).cuda()
 
         if model_wrapper.model_type == 'f':
             input_f_var = Variable(input_f).cuda()

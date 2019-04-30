@@ -65,7 +65,7 @@ class ImgDataSet(Dataset):
         return len(self.img_paths)
 
 class ImgFullDataSet(Dataset):
-    def __init__(self, img_transform, dir_f, dir_s, dir_target, id_to_heights, target_transform = None, height_transform = None):
+    def __init__(self, img_transform, dir_f, dir_s, dir_target, id_to_heights, target_transform = None, height_transform = None, use_input_gender = False):
 
         paths_f, paths_s, paths_target = self._load_names(dir_f=dir_f, dir_s=dir_s, dir_target=dir_target)
         assert len(paths_f) > 0 and len(paths_s)>0, f'empty folder {dir_f}, {dir_s}'
@@ -74,6 +74,17 @@ class ImgFullDataSet(Dataset):
         self.img_paths_s = paths_s
         self.target_paths = paths_target
         self.target_transform = target_transform
+
+        self.use_input_gender = use_input_gender
+        if use_input_gender:
+            self.genders = np.zeros(len(self.img_paths_f), np.uint8)
+            for idx, path in enumerate(self.img_paths_f):
+                if '_male' in path.stem:
+                    self.genders[idx] = 1
+                elif '_female' in path.stem:
+                    self.genders[idx] = 0
+                else:
+                    assert f'no gender hint in the file name. {path.stem}'
 
         self.heights = []
         for path in self.img_paths_f:
@@ -101,8 +112,8 @@ class ImgFullDataSet(Dataset):
                 assert False, f'missing front or side silhouette : {name}'
 
         #TODO debug. for faster epoch. comment the code after finish
-        # s_paths = s_paths[:3000]
-        # f_paths = f_paths[:3000]
+        # s_paths = s_paths[:100]
+        # f_paths = f_paths[:100]
 
         y_paths = []
         if dir_target is not None:
@@ -137,14 +148,17 @@ class ImgFullDataSet(Dataset):
             target = self.dummy_target
 
         if len(self.heights) > 0:
-            h = self.heights[i].reshape(1, -1)
+            aux = self.heights[i].reshape(1, -1)
             if self.height_transform is not None:
-                h = self.height_transform.transform(h)
-                h = h.flatten()
+                aux = self.height_transform.transform(aux)
+                aux = aux.flatten()
         else:
-            h = self.dummy_height
+            aux = self.dummy_height
 
-        return img_f, img_s, target, h
+        if self.use_input_gender:
+            aux = np.hstack([aux, self.genders[i]])
+
+        return img_f, img_s, target, aux
 
     def get_filepath(self, i):
         return self.img_paths_f[i]

@@ -104,13 +104,13 @@ def transform_obj_caesar(obj, ld_idxs, s=0.01):
     select_single_obj(obj)
     bpy.ops.object.transform_apply(location=True, scale=True, rotation=True)
 
-def transform_obj_caesar_pca(obj, ld_idxs, s=0.01):
-    mesh = obj.data
+def transform_obj_caesar_pca(obj, s=0.01):
 
     bpy.ops.transform.resize(value=(s, s, s))
     bpy.ops.object.transform_apply(location=True, scale=True, rotation=True)
 
-    org = Vector(mesh.vertices[ld_idxs[72]].co[:])
+    mesh = obj.data
+    org = Vector(mesh.vertices[7652].co[:])
     org[2] = 0.0
     org[0] = 0.0
     bpy.ops.transform.translate(value=-org)
@@ -329,30 +329,20 @@ def project_front_side(DIR_IN_OBJ, DIR_SIL_F,  DIR_SIL_S, DIR_OUT_IMG = None, te
         # break
 
 def project_synthesized():
-    global ld_idxs
-
-    pca_path     = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/vic_pca_model.jlb'
-    out_test_dir = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/pca_vic_synthesized/'
-    out_pca_co_dir = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/pca_vic_coords/'
     vic_mesh_path = '/home/khanhhh/data_1/projects/Oh/codes/human_estimation/data/meta_data/align_source_vic_mpii.obj'
-    org_mesh_vert_dir = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/victoria_caesar/'
 
-    ROOT_DIR = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/caesar_images_iphone_syn/'
-    sil_f_dir = os.path.join(*[ROOT_DIR , 'sil_f_raw'])
-    sil_s_dir = os.path.join(*[ROOT_DIR , 'sil_s_raw'])
+    pca_path     = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/vic_pca_models/pca_model_vic_male.jlb'
+    pca_co_dir = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/vic_pca_models/pca_coords/male/'
+    sil_root_dir = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/caesar_images_iphone_male/'
+
+    sil_f_dir = os.path.join(*[sil_root_dir , 'sil_f_raw'])
+    sil_s_dir = os.path.join(*[sil_root_dir , 'sil_s_raw'])
     os.makedirs(sil_f_dir, exist_ok=True)
     os.makedirs(sil_s_dir, exist_ok=True)
     for path in Path(sil_f_dir).glob('*.*'):
         os.remove(str(path))
     for path in Path(sil_s_dir).glob('*.*'):
         os.remove(str(path))
-    for path in Path(out_pca_co_dir).glob('*.*'):
-        os.remove(str(path))
-    for path in Path(out_test_dir).glob('*.*'):
-        os.remove(str(path))
-
-    n_samples = 60000
-    n_test_samples = 200
 
     pca_model = joblib.load(pca_path)
 
@@ -362,62 +352,28 @@ def project_synthesized():
     vic_tpl_mesh = vic_tpl_obj.data
     n_v = len(vic_tpl_mesh.vertices)
 
-    ld_idxs = ld_idxs.flatten()
-
     rarm_sample_v_idx = 5245 #a sample vertex on right arm to collapse arm
     larm_sample_v_idx = 3876 #a sample vertex on left arm to collapse arm
     larm_v_idxs = collect_vertex_group_idxs(vic_tpl_obj, 'larm')
     rarm_v_idxs = collect_vertex_group_idxs(vic_tpl_obj, 'rarm')
 
-    #caculate pca params of origin mesh
-    print('start transform origin mesh to pca co', file=sys.stderr)
-    scale_factor = 0.001
-    vpaths = [path for path in Path(org_mesh_vert_dir).glob('*.pkl')]
-    org_pca_params = []
-    n_org_mesh = 0
-    log_inteveral = 200
-    for i, path in enumerate(vpaths):
-        if i % log_inteveral == 0:
-            print('progress: ', i, ' / ', len(vpaths))
-        with open(str(path), 'rb') as file:
-            verts = pickle.load(file)
-            verts = (verts*scale_factor).flatten()
-            pca_co = pca_model.transform(np.expand_dims(verts, axis=0))
-            pca_co = pca_co[0]
-            org_pca_params.append(pca_co)
-            del verts
-        n_org_mesh += 1
+    paths = sorted([path for path in Path(pca_co_dir).glob('*.npy')])
+    n = len(paths)
 
-    assert n_org_mesh == len(vpaths)
-    print('\t transformed ', n_org_mesh, ' origin meshes to pca co', file=sys.stderr)
+    #multiple blender instances for performance
+    mid_idx = int(n/4)
+    segments = [range(0, mid_idx), range(mid_idx, 2*mid_idx), range(2*mid_idx, 3*mid_idx), range(3*mid_idx, n)]
 
-    #merge all origin and synthesized pca parma into a single array
-    org_pca_params = np.array(org_pca_params)
+    blender_id = 0  #start blender instances with id in range [0,len(segments)]
+    assert blender_id <= len(segments)
 
-    cov_mat = np.diag(2.0*pca_model.explained_variance_)
-    params = np.random.multivariate_normal(np.zeros(shape=pca_model.n_components), cov=cov_mat, size=n_samples)
+    for i in segments[blender_id]:
+        if i >= n:
+            continue
 
-    params = np.concatenate((org_pca_params, params), axis=0)
-
-    n_samples = params.shape[0]
-
-    #sanity check to make sure the order is correct after two arrays are merged
-    assert np.mean(np.abs(params[0,:]-org_pca_params[0,:])) < 0.0001
-
-    log_inteveral = 200
-    debug_test_count = 0
-    for i in range(n_samples):
-
-        if i % log_inteveral == 0:
-            print('progress: ', i, ' / ', n_samples, file=sys.stderr)
-        if i < n_org_mesh:
-            name = vpaths[i].stem
-        else:
-            name = 'syn_'+str(i)
-
-        p = params[i,:]
-        opath = os.path.join(*[out_pca_co_dir, name +'.npy'])
-        np.save(file=opath, arr=p.flatten())
+        path = paths[i]
+        name = path.stem
+        p = np.load(str(path))
 
         verts = pca_model.inverse_transform(p)
         verts = verts.reshape(n_v, 3)
@@ -425,7 +381,7 @@ def project_synthesized():
         for vi in range(n_v):
             vic_tpl_mesh.vertices[vi].co[:] = verts[vi,:]
 
-        transform_obj_caesar_pca(vic_tpl_obj, ld_idxs, s = 10.0)
+        transform_obj_caesar_pca(vic_tpl_obj, s = 10.0)
 
         set_silhouette_silhouette_mode()
         front_sil_path = os.path.join(*[sil_f_dir, name])
@@ -440,6 +396,7 @@ def project_synthesized():
         larm_co = vic_tpl_mesh.vertices[larm_sample_v_idx].co[:]
         for vi in larm_v_idxs:
             vic_tpl_mesh.vertices[vi].co[:] = larm_co
+
         rarm_co = vic_tpl_mesh.vertices[rarm_sample_v_idx].co[:]
         for vi in rarm_v_idxs:
             vic_tpl_mesh.vertices[vi].co[:] = rarm_co
@@ -447,11 +404,6 @@ def project_synthesized():
         side_sil_path = os.path.join(*[sil_s_dir, name])
         bpy.data.scenes['Scene'].render.filepath = side_sil_path
         bpy.ops.render.opengl(write_still=True, view_context=True)
-
-        if debug_test_count < n_test_samples and np.random.randint(0, n_samples) < n_test_samples:
-            opath = os.path.join(*[out_test_dir, str(i)+'.obj'])
-            export_mesh(fpath=opath, verts=verts, faces=tpl_faces)
-            debug_test_count += 1
 
 project_synthesized()
 

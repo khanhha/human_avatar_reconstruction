@@ -60,25 +60,6 @@ def crop_pairs(sil_f_dir, sil_s_dir, size):
             for i, _ in tqdm(enumerate(p.imap_unordered(partial(crop_a_pair, size), path_pairs))):
                 pbar.update()
 
-    # for fpath, spath in tqdm(path_pairs , desc=f'crop silhouette pairs {Path(sil_f_dir).name} - {Path(sil_s_dir).name}'):
-    #     sil_f = cv.imread(str(fpath), cv.IMREAD_GRAYSCALE)
-    #     sil_s = cv.imread(str(spath), cv.IMREAD_GRAYSCALE)
-    #
-    #     th3, sil_f  = cv.threshold(sil_f, 0, 255, cv.THRESH_BINARY_INV + cv.THRESH_OTSU)
-    #     th3, sil_s  = cv.threshold(sil_s, 0, 255, cv.THRESH_BINARY_INV + cv.THRESH_OTSU)
-    #
-    #     sil_f, sil_s = crop_silhouette_pair(sil_f, sil_s, mask_f=sil_f, mask_s=sil_s, target_h=size[0], target_w=size[1], px_height=int(0.9*size[0]))
-    #
-    #     th3, sil_f  = cv.threshold(sil_f, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU)
-    #     th3, sil_s  = cv.threshold(sil_s, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU)
-    #
-    #     # plt.subplot(121), plt.imshow(sil_f)
-    #     # plt.subplot(122), plt.imshow(sil_s)
-    #     # plt.show()
-    #
-    #     cv.imwrite(str(fpath), img=sil_f)
-    #     cv.imwrite(str(spath), img=sil_s)
-
 def crop_train_test_valid(base_sil_f_dir, base_sil_s_dir, size):
     names = ['train', 'test', 'valid']
     for name in names:

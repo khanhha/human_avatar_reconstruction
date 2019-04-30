@@ -123,6 +123,7 @@ class DenseNet(nn.Module):
                 nn.init.constant_(m.bias, 0)
 
     def forward(self, x, h = None):
+        #print(x.shape, h.shape)
         img_features = self.features(x)
         img_features = F.relu(img_features, inplace=True)
         img_features = F.adaptive_avg_pool2d(img_features, (1, 1)).view(img_features.size(0), -1)
