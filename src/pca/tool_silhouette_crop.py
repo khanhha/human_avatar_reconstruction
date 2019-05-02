@@ -51,6 +51,8 @@ if __name__ == '__main__':
         f_path = join(*[args.sil_f_dir, name])
         s_path = join(*[args.sil_s_dir, name])
 
+        #print(f'{Path(f_path).name} - {Path(s_path).name}')
+
         sil_f_org = cv.imread(str(f_path), cv.IMREAD_GRAYSCALE)
         sil_s_org = cv.imread(str(s_path), cv.IMREAD_GRAYSCALE)
 
