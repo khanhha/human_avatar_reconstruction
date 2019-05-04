@@ -2,21 +2,26 @@
 - caesar meshes with maxplank topology: mpii-caesar mesh
 - caesar meshes with victoria topology: vic-caesar mesh
 
-# training data preparation
-- what is a victoria-based PCA model?
-    - a victoria-based PCA model of 50 principal components has dimension of 50x72576x3 where 72576 is the number of victoria vertices and 3 represents 3 dimension x,y,z
-    - each component of 72675x3 represents vertex devications from the mean victoria, which is averaged over all training instances.   
+# pipeline overview
 
-- PCA models training
+# training data preparation
+- __what is a victoria-based PCA model?__
+    - a victoria-based PCA model of 50 principal components has dimension of 50x72576x3 where 72576 is the number of victoria vertices and 3 represents 3 dimension x,y,z
+    - each component of 72675x3 represents vertex devications from the mean victoria
+- __PCA models training__
     - the PCA model is trained using [IncrementalPCA](https://scikit-learn.org/stable/auto_examples/decomposition/plot_incremental_pca.html#sphx-glr-auto-examples-decomposition-plot-incremental-pca-py) in sklearn.
    The incremental PCA model is chosen because the normal PCA model requires the whole training data to be loaded on memory, which is impossible with a PC of 16GB Ram.
 
+&NewLine;
+   - <img src='https://g.gravizo.com/svg?%20digraph%20G%20{%20ml_mesh[label=%22male%20meshes:%202150x72576x3%22%20shape=box]%20fml_mesh[label=%22female%20meshes::%202150x72576x3%22%20shape=box]%20ml_pca_train[label=%22male%20pca%20training%22%20shape=box]%20fml_pca_train[label=%22female%20pca%20training%22%20shape=box]%20ml_pca[label=%22male%20PCA%20model:%2050x72576x3%22%20shape=box]%20fml_pca[label=%22female%20PCA%20model:%2050x72576x3%22%20shape=box]%20syn_ml_mesh[label=%22synthesized%20male%20mesh:%2030000x72576x3%22%20shape=box]%20syn_fml_mesh[label=%22synthesized%20male%20mesh:%2030000x72576x3%22%20shape=box]%20syn_ml_pca[label=%22male%20pca%20values:%2030000x50%22%20shape=box]%20syn_fml_pca[label=%22female%20pca%20values:%2030000x50%22%20shape=box]%20final_ds[label=%22final%20pca%20dataset:%2060000x51%20\n%20(+1%20indicator%20for%20male%20or%20female)%22%20shape=box]%20ml_mesh-%3Eml_pca_train%20fml_mesh-%3Efml_pca_train%20ml_pca_train%20-%3E%20ml_pca%20fml_pca_train%20-%3E%20fml_pca%20ml_pca%20-%3E%20syn_ml_mesh%20fml_pca%20-%3E%20syn_fml_mesh%20syn_ml_mesh%20-%3E%20syn_ml_pca%20syn_fml_mesh%20-%3E%20syn_fml_pca%20syn_ml_pca%20-%3E%20final_ds%20syn_fml_pca%20-%3E%20final_ds%20}'/>
 
-|`pca models` | `training data` | `principal components` |
-|:-----------:|:---------------:|:----------------------:|
-| male model | 2150 vic-caesar male meshes | 50 |
-|female model| 2150 vic-caesar female meshes | 50|
-|joint model| 4300 vic-caesar meshes| 50 |
+
+&NewLine;
+
+  - __silhouette generation__
+    - <img src = 'https://g.gravizo.com/svg?%20digraph%20G%20{%20syn_ml_mesh[label=%22synthesized%20male%20mesh:%2030000x72576x3%22%20shape=box]%20syn_fml_mesh[label=%22synthesized%20female%20mesh:%2030000x72576x3%22%20shape=box]%20bl_ml_sil[label=%22blender:%20male%20sil%20projection%22%20shape=box]%20bl_fml_sil[label=%22blender:%20female%20sil%20projection%22%20shape=box]%20sil_fml_post[label=%22female%20sil%20post-processing%20\n%20binarization,%20height%20normalization%22%20shape=box]%20sil_ml_post[label=%22male%20sil%20post-processing%20\n%20binarization,%20height%20normalization%22%20shape=box]%20final_sil_ds[label=%22final%20sil%20dataset:%20\n%20male:%2030000x2x384x256%20\n%20female:%2030000x2x384x256%22%20shape=box]%20syn_ml_mesh%20-%3E%20bl_ml_sil%20syn_fml_mesh%20-%3E%20bl_fml_sil%20bl_ml_sil%20-%3E%20sil_ml_post%20bl_fml_sil%20-%3E%20sil_fml_post%20sil_ml_post%20-%3E%20final_sil_ds%20sil_fml_post%20-%3E%20final_sil_ds%20}'/>
+
+
 
 
 # CNN architectures
@@ -35,7 +40,8 @@
  &NewLine;
 
 # Training
-training consists of two main steps:
+Training consists of two main steps. First we train the front and side CNN models and then we train the joint model with the pre-trained weights from the front and side models. Training front and side model separately is required because it would help create better than models that learn distinctive features in front and side silhouettes. If we group all the training into one step, the model will bias toward the front silhouette while ignore the side silhouettes.
+
 - train front model
   - input:
     - Nx384x256: N front silhouettes of size 384x256
