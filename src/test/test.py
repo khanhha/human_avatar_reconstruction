@@ -8,6 +8,9 @@ from sklearn.decomposition import IncrementalPCA
 from sklearn.preprocessing import StandardScaler, Normalizer, MinMaxScaler, RobustScaler
 from tqdm import tqdm
 from common.obj_util import export_mesh, import_mesh
+from os.path import join
+from pca.nn_util import crop_silhouette_pair_blender
+import tempfile
 
 def plot_silhouettes():
     dir_f = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/cnn_data/sil_f_cropped/train'
@@ -61,6 +64,38 @@ def plot_diff_camera_sil():
     fig.set_facecolor("white")
     plt.show()
 
+def analyze_dif_cam():
+    dir_f = "/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/caesar_silhouette_diff_cam/sil_f_fc"
+    dir_s = "/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/caesar_silhouette_diff_cam/sil_s_fc"
+    names = sorted([path.name for path in Path(dir_f).glob('*.*')])
+
+    size = (1024, 768)
+    avg_sil_f = np.zeros(size, dtype=np.float)
+    avg_sil_s = np.zeros(size, dtype=np.float)
+    for idx, name in enumerate(names):
+        #if idx != 0  and idx != len(names)-1:
+        #      continue
+        path_f = join(*[dir_f, name])
+        path_s = join(*[dir_s, name])
+        img_f = cv.imread(path_f, cv.IMREAD_GRAYSCALE)
+        img_s = cv.imread(path_s, cv.IMREAD_GRAYSCALE)
+        sil_f, sil_s = crop_silhouette_pair_blender(img_f, img_s, size=size)
+        assert sil_f.max() == 255 and sil_s.max() == 255
+        sil_f = sil_f.astype(np.float)/255.0
+        sil_s = sil_s.astype(np.float)/255.0
+        avg_sil_f += sil_f
+        avg_sil_s += sil_s
+
+    avg_sil_f /= float(len(names))
+    avg_sil_s /= float(len(names))
+    #avg_sil_f /= 2.0
+    #avg_sil_s /= 2.0
+    fig, axes = plt.subplots(1, 2, facecolor='red')
+    axes[0].imshow(avg_sil_f)
+    axes[1].imshow(avg_sil_s)
+    fig.set_facecolor("white")
+    plt.show()
+
 def export_vic_pca_height():
     pca_dir = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/pca_vic_coords/'
     model_path = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/vic_pca_model.jlb'
@@ -108,4 +143,5 @@ def test_export_caesar_vic_mesh():
 if __name__ == '__main__':
 
     #test_pca_max_min()
-    test_export_caesar_vic_mesh()
+    #test_export_caesar_vic_mesh()
+    analyze_dif_cam()
