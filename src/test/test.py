@@ -11,6 +11,8 @@ from common.obj_util import export_mesh, import_mesh
 from os.path import join
 from pca.nn_util import crop_silhouette_pair_blender
 import tempfile
+from pca.nn_vic_model import  NNModelWrapper
+from pca.dense_net import densenet121, JointMask
 
 def plot_silhouettes():
     dir_f = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/cnn_data/sil_f_cropped/train'
@@ -140,8 +142,107 @@ def test_export_caesar_vic_mesh():
     verts = joblib.load(vert_path)
     export_mesh(fpath=out_mesh_path, verts=verts, faces=tpl_faces)
 
+import torch
+from torch.autograd import Variable
+import onnx
+from onnx_tf.backend import prepare
+from onnx_tf.pb_wrapper import TensorflowGraph
+from tensorflow.core.framework import graph_pb2
+import tensorflow as tf
+
+def test_convert_pytorch_to_tensorflow():
+    dir = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/cnn_data/sil_384_256_ml_fml/models/joint/'
+    model_path = join(*[dir, 'final_model.pt'])
+    model_wrapper = NNModelWrapper.load(model_path)
+
+    #TODO: replace by trained model
+    # n_classes = 51
+    # model_f = densenet121(pretrained=False, num_classes=n_classes, n_aux_input_feature=2)
+    # model_s = densenet121(pretrained=False, num_classes=n_classes, n_aux_input_feature=2)
+    # model = JointMask(model_f=model_f, model_s=model_s, num_classes=n_classes)
+    # model.cuda()
+    # model.eval()
+    #
+    # # # Export the trained model to ONNX
+    # dummy_x_f = Variable(torch.randn(1, 1, 384, 256)).cuda()  # one black and white 28 x 28 picture will be the input to the model
+    # dummy_x_s = Variable(torch.randn(1, 1, 384, 256)).cuda()  # one black and white 28 x 28 picture will be the input to the model
+    # dummy_h_g = Variable(torch.randn(1, 2)).cuda()  # one black and white 28 x 28 picture will be the input to the model
+    # torch.onnx.export(model, (dummy_x_f, dummy_x_s, dummy_h_g), f"{dir}/mnist.onnx")
+
+    # Load the ONNX file
+    model = onnx.load(f'{dir}/mnist.onnx')
+    # Import the ONNX model to Tensorflow
+
+    #strict = False. Check that issue https://github.com/onnx/onnx-tensorflow/issues/167
+    tf_rep = prepare(model, strict=False)
+
+    print('inputs:', tf_rep.inputs)
+
+    # Output nodes from the model
+    print('outputs:', tf_rep.outputs)
+
+    #test
+    sil_f = np.zeros((1,1,384,256), dtype=np.float)
+    sil_s = np.zeros((1,1,384,256), dtype=np.float)
+    aux   = np.zeros((1,2), dtype=np.float)
+    # pred = tf_rep.run((sil_f, sil_s, aux))
+    # print(pred)
+
+    tf_rep.export_graph(f'{dir}/mnist.pt')
+
+    # input_keys = [tf_rep.tensor_dict[key].name for key in tf_rep.inputs]
+    # output_keys = [tf_rep.tensor_dict[key].name for key in tf_rep.outputs]
+
+    # del model
+    # del tf_rep
+    #
+    # graph = tf.Graph()
+    # with graph.as_default():
+    #     with tf.gfile.FastGFile(f'{dir}/mnist.pt', 'rb') as f:
+    #         graph_def = tf.GraphDef()
+    #         graph_def.ParseFromString(f.read())
+    #
+    #         elm_keys = input_keys + output_keys
+    #         elms = tf.import_graph_def(graph_def, return_elements=elm_keys)
+    #         tf_graph_inputs = elms[:len(input_keys)]
+    #         tf_graph_outputs = elms[len(input_keys):]
+    #
+    # with graph.as_default():
+    #     with tf.Session() as sess:
+    #         sess.run(tf.global_variables_initializer())
+    #
+    #         feed_dict = {tf_graph_inputs[0]: sil_f, tf_graph_inputs[1]: sil_s, tf_graph_inputs[2]: aux}
+    #
+    #         output = sess.run(tf_graph_outputs, feed_dict=feed_dict)
+    #
+    #         print(output)
+    # exit()
+
+    graph_proto =tf_rep.graph.as_graph_def()
+    graph_str = graph_proto.SerializeToString()
+
+    input_keys = [tf_rep.tensor_dict[key].name for key in tf_rep.inputs]
+    output_keys = [tf_rep.tensor_dict[key].name for key in tf_rep.outputs]
+    input_shape = tf_rep.tensor_dict[tf_rep.inputs[0]].get_shape().as_list()
+    print(input_shape)
+    print(input_keys)
+    print(output_keys)
+    to_save = {}
+    to_save['tf_graph_str'] = graph_str
+    to_save['tf_graph_input_keys'] = input_keys
+    to_save['tf_graph_output_keys'] = output_keys
+    to_save['image_input_shape'] = tuple(input_shape[2:])
+    to_save['model_type'] = model_wrapper.model_type
+    to_save['pca_model'] = model_wrapper.pca_model
+    to_save['pca_target_transform'] = model_wrapper.pca_target_transform
+    to_save['aux_input_transform'] = model_wrapper.height_transform
+
+    out_dir ='/home/khanhhh/data_1/projects/Oh/data/3d_human/deploy_models/'
+    joblib.dump(value=to_save, filename=f'{out_dir}/shape_model.jlb')
+
 if __name__ == '__main__':
+    test_convert_pytorch_to_tensorflow()
 
     #test_pca_max_min()
     #test_export_caesar_vic_mesh()
-    analyze_dif_cam()
+    #analyze_dif_cam()
