@@ -1,8 +1,8 @@
 # tale of content
-[notations](#notation)
-[training data preparation](#training-data-preparation)
-[CNN architectures](#CNN-architectures)
-[training process](#training-process)
+- [notations](#notation)
+- [training data preparation](#training-data-preparation)
+- [CNN architectures](#CNN-architectures)
+- [training process](#training-process)
 
 # notation
 - caesar meshes with maxplank topology: mpii-caesar mesh
