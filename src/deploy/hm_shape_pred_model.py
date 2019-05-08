@@ -4,8 +4,8 @@ import numpy as np
 from pca.nn_util import crop_silhouette_pair
 
 class HmShapePredModel():
-    def __init__(self, path):
-        data = joblib.load(path)
+    def __init__(self, model_path):
+        data = joblib.load(model_path)
         self.tf_graph_str = data['tf_graph_str']
         self.tf_graph_input_keys = data['tf_graph_input_keys']
         self.tf_graph_output_keys = data['tf_graph_output_keys']

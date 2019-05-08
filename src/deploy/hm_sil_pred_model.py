@@ -19,18 +19,17 @@ class HmSilPredModel():
     INPUT_SIZE = 513
     FROZEN_GRAPH_NAME = 'frozen_inference_graph'
 
-    def __init__(self, use_mobile_model = False, use_gpu = False, save_model_path = '../data/deeplab_model/'):
+    def __init__(self, model_path, use_mobile_model = False, use_gpu = False):
 
         # @param ['mobilenetv2_coco_voctrainaug', 'mobilenetv2_coco_voctrainval', 'xception_coco_voctrainaug', 'xception_coco_voctrainval']
         self.use_mobile_model = use_mobile_model
         self.use_gpu = use_gpu
-        self.save_model_path = save_model_path
+        self.model_path = model_path
 
-        graph_path = self.load_model()
+        #graph_path = self.load_model()
+        self.construct_tf_session(self.model_path)
 
-        self.construct_tf_session(graph_path)
-
-    def load_model(self):
+    def _download_model(self, path):
         if self.use_mobile_model == True:
             self.MODEL_NAME = 'mobilenetv2_coco_voctrainval'
         else:
@@ -55,10 +54,10 @@ class HmSilPredModel():
         }
 
         _TARBALL_NAME = f'{self.MODEL_NAME}.tar.gz'
-        if not os.path.exists(self.save_model_path):
-            os.makedirs(self.save_model_path)
+        if not os.path.exists(self.model_path):
+            os.makedirs(self.model_path)
 
-        download_path = os.path.join(self.save_model_path, _TARBALL_NAME)
+        download_path = os.path.join(self.model_path, _TARBALL_NAME)
         if not os.path.isfile(download_path):
             print(f'downloading deeplab model {_TARBALL_NAME} , this might take a while...')
             urllib.request.urlretrieve(_DOWNLOAD_URL_PREFIX + _MODEL_URLS[self.MODEL_NAME], download_path)
