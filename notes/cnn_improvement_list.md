@@ -1,3 +1,7 @@
+# table of content
+- [perspective distortion](#perspective-distortion)
+- [cnn part segmentation input](#cnn-part-segmentation-input)
+- [A pose variant](#A-pose-variant)
 # perspective distortion
 - __There are 3 camera factors that we could cause perspective distortion__
   - __camera orientation is not straight up__

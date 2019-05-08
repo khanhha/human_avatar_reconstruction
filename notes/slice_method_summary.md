@@ -1,3 +1,8 @@
+# table of content
+- [Advantages](#Advantanges)
+- [Disadvanges](#Disadvanges)
+  - [a complex pipeline in the testing time.](#a-complex-pipeline-in-the-testing-time.)
+
 # Advantanges
 - with a good contour, we can sample as many as slice as possible at complex regions like armpit and bust, which in turn will help improve the deformation result. However, getting good contours in practice is very hard. 4 years after the paper about the slice method is published, the same author also introduced an improvement that instead of using the direct contour calculated from silhouettes,they predict contours. The predicted contours will serve as an ideal contour for slice sampling.   
   - Predicting realistic and precise human body models under clothing

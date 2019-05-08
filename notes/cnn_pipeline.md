@@ -1,8 +1,12 @@
+# tale of content
+[notations](#notation)
+[training data preparation](#training-data-preparation)
+[CNN architectures](#CNN-architectures)
+[training process](#training-process)
+
 # notation
 - caesar meshes with maxplank topology: mpii-caesar mesh
 - caesar meshes with victoria topology: vic-caesar mesh
-
-# pipeline overview
 
 # training data preparation
 - __what is a victoria-based PCA model?__
@@ -25,6 +29,7 @@
 
 
 # CNN architectures
+There are two types of architectures: front/side architecture and joint architecture. The front/side architecture just takes in front or side images with auxiliary inputs (height, gender) and the joint architecture takes in both front and side images. The joint architecture reuses the trained weights from the front/side architectures to extract features from the front and side silhouettes.  This separation is needed is just for the purpose of training the joint model. If we train the joint model from scratch, there is a high change that the model will bias toward the front silhouette while neglecting the side silhouettes. Therefore, we have to train the front/side mode independently before combining their weights in the joint model.
 &NewLine;
 - Front/Side Architecture
 
@@ -39,7 +44,7 @@
   <img src='https://g.gravizo.com/svg?%20digraph%20G%20{%20f_sil[label=%22front%20silhouette%22%20shape=box];%20s_sil[label=%22side%20silhouette%22%20shape=box];%20f_cnn[label=%22pre-trained%20front%20CNN%22%20shape=box];%20s_cnn[label=%22pre-trained%20side%20CNN%22%20shape=box];%20fs_concat[label=%22concatenation%22%20shape=box];%20fs_fcn[label=%22fcn:%20fully%20connected%20layers%22%20shape=box];%20aux[label=%22aux_input:%20height,%20gender%22%20shape=box];%20f_fcn_aux[label=%22fcn_aux_f:%20pre-trained%20front%20fcn%20layers%22%20shape=box];%20s_fcn_aux[label=%22fcn_aux_s:%20pre-trained%20side%20fcn%20layers%22%20shape=box];%20aux_elmwise_max[label=%22element-wise%20maximum%22%20shape=box];%20concat_1[label=%22concatenation%22%20shape=box];%20final_fcn[label=%22fcn_final:%20fully%20connected%20layers%22%20shape=box]%20output[label=%22output:%201%20gender%20indicator%20+%2050%20pca%20values%22%20shape=box]%20f_sil-%3Ef_cnn;%20s_sil-%3Es_cnn;%20f_cnn-%3Efs_concat;%20s_cnn-%3Efs_concat;%20fs_concat-%3Efs_fcn;%20aux%20-%3E%20f_fcn_aux;%20aux%20-%3E%20s_fcn_aux;%20f_fcn_aux%20-%3E%20aux_elmwise_max;%20s_fcn_aux%20-%3E%20aux_elmwise_max;%20fs_fcn%20-%3E%20concat_1;%20aux_elmwise_max%20-%3E%20concat_1;%20concat_1%20-%3E%20final_fcn;%20final_fcn%20-%3E%20output%20}'/>
  &NewLine;
 
-# Training
+# training process
 Training consists of two main steps. First we train the front and side CNN models and then we train the joint model with the pre-trained weights from the front and side models. Training front and side model separately is required because it would help create better than models that learn distinctive features in front and side silhouettes. If we group all the training into one step, the model will bias toward the front silhouette while ignore the side silhouettes.
 
 - train front model
