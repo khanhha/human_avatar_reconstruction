@@ -164,14 +164,14 @@ if __name__ == '__main__':
     print(f'dump pca model to {out_path}')
 
     # copy pca target with the same name pattern to the out dir
-    out_target_dir = os.path.join(*[args.out_dir, 'target'])
-    copy_target_prefix(args.target_fml_dir, out_target_dir, '_female')
-    copy_target_prefix(args.target_ml_dir,  out_target_dir, '_male')
+    # out_target_dir = os.path.join(*[args.out_dir, 'target'])
+    # copy_target_prefix(args.target_fml_dir, out_target_dir, '_female')
+    # copy_target_prefix(args.target_ml_dir,  out_target_dir, '_male')
 
-    out_height_path = os.path.join(*[args.out_dir, 'height.txt'])
-    dump_heights(pca_in_dir=out_target_dir,
-                 pca_ml_model_path=args.pca_ml_model_path, pca_fml_model_path=args.pca_fml_model_path,
-                 height_out_path=out_height_path)
+    # out_height_path = os.path.join(*[args.out_dir, 'height.txt'])
+    # dump_heights(pca_in_dir=out_target_dir,
+    #              pca_ml_model_path=args.pca_ml_model_path, pca_fml_model_path=args.pca_fml_model_path,
+    #              height_out_path=out_height_path)
 
     with tempfile.TemporaryDirectory() as tmp_dir:
         print(f'created temporary dir: {tmp_dir}')
@@ -208,7 +208,7 @@ if __name__ == '__main__':
         label = np.zeros(len(name_ids), dtype=np.uint8)
         for idx, name in enumerate(name_ids):
             label[idx] = 1 if '_male' in name else 0
-        train_idxs, test_idxs  = train_test_split(np.arange(n), test_size=0.5, stratify=label) #big test size for reduced traning time
+        train_idxs, test_idxs  = train_test_split(np.arange(n), test_size=0.15, stratify=label) #big test size for reduced traning time
 
         label = np.zeros(len(train_idxs), dtype=np.uint8)
         for i in range(len(train_idxs)):

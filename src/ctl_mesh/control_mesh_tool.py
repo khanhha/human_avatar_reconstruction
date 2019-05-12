@@ -1,13 +1,11 @@
-from control_mesh import  ControlMeshPredictor
+from ctl_mesh.control_mesh import  ControlMeshPredictor
 from deformation.ffdt_deformation_lib import TemplateMeshDeform
 from common.obj_util import export_mesh
 import numpy as np
 from pathlib import Path
 import argparse
 import pickle
-import shutil
 import os
-from tqdm import *
 import multiprocessing
 from functools import partial
 import gc

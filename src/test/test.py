@@ -241,7 +241,8 @@ def test_convert_pytorch_to_tensorflow():
     joblib.dump(value=to_save, filename=f'{out_dir}/shape_model.jlb')
 
 if __name__ == '__main__':
-    test_convert_pytorch_to_tensorflow()
+    print(dir())
+    #test_convert_pytorch_to_tensorflow()
 
     #test_pca_max_min()
     #test_export_caesar_vic_mesh()

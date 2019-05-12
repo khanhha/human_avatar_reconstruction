@@ -111,7 +111,7 @@ class ImgFullDataSet(Dataset):
             else:
                 assert False, f'missing front or side silhouette : {name}'
 
-        #TODO debug. for faster epoch. comment the code after finish
+        #TODO debug. for faster epoch. comment the code after finish. the two below lines should never been included in the real traning time
         # s_paths = s_paths[:100]
         # f_paths = f_paths[:100]
 

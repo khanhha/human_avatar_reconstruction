@@ -106,6 +106,8 @@ def transform_obj_caesar(obj, ld_idxs, s=0.01):
 
 def transform_obj_caesar_pca(obj, s=0.01):
 
+    select_single_obj(obj)
+
     bpy.ops.transform.resize(value=(s, s, s))
     bpy.ops.object.transform_apply(location=True, scale=True, rotation=True)
 
@@ -328,21 +330,29 @@ def project_front_side(DIR_IN_OBJ, DIR_SIL_F,  DIR_SIL_S, DIR_OUT_IMG = None, te
         delete_obj(obj_caesar)
         # break
 
+def avg_co(mesh, ld_idxs):
+    avg_co = Vector((0.0, 0.0, 0.0))
+    for idx in ld_idxs:
+        avg_co += mesh.vertices[idx].co
+
+    avg_co /= len(ld_idxs)
+    return avg_co
+
 def project_synthesized():
     vic_mesh_path = '/home/khanhhh/data_1/projects/Oh/codes/human_estimation/data/meta_data/align_source_vic_mpii.obj'
 
-    pca_path     = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/vic_pca_models/pca_model_vic_male.jlb'
-    pca_co_dir = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/vic_pca_models/pca_coords/male/'
-    sil_root_dir = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/caesar_images_iphone_male/'
+    pca_path     = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/vic_pca_models/pca_model_vic_female.jlb'
+    pca_co_dir = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/vic_pca_models/pca_coords/female/'
+    sil_root_dir = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/caesar_images_iphone_female/'
 
     sil_f_dir = os.path.join(*[sil_root_dir , 'sil_f_raw'])
     sil_s_dir = os.path.join(*[sil_root_dir , 'sil_s_raw'])
     os.makedirs(sil_f_dir, exist_ok=True)
     os.makedirs(sil_s_dir, exist_ok=True)
-    for path in Path(sil_f_dir).glob('*.*'):
-        os.remove(str(path))
-    for path in Path(sil_s_dir).glob('*.*'):
-        os.remove(str(path))
+    #for path in Path(sil_f_dir).glob('*.*'):
+    #    os.remove(str(path))
+    #for path in Path(sil_s_dir).glob('*.*'):
+    #    os.remove(str(path))
 
     pca_model = joblib.load(pca_path)
 
@@ -352,10 +362,11 @@ def project_synthesized():
     vic_tpl_mesh = vic_tpl_obj.data
     n_v = len(vic_tpl_mesh.vertices)
 
-    rarm_sample_v_idx = 5245 #a sample vertex on right arm to collapse arm
+    rarm_sample_v_idx = 5245 #a sample vert1ex on right arm to collapse arm
     larm_sample_v_idx = 3876 #a sample vertex on left arm to collapse arm
     larm_v_idxs = collect_vertex_group_idxs(vic_tpl_obj, 'larm')
     rarm_v_idxs = collect_vertex_group_idxs(vic_tpl_obj, 'rarm')
+    neck_v_idxs = collect_vertex_group_idxs(vic_tpl_obj, 'neck_landmark')
 
     paths = sorted([path for path in Path(pca_co_dir).glob('*.npy')])
     n = len(paths)
@@ -364,17 +375,21 @@ def project_synthesized():
     mid_idx = int(n/4)
     segments = [range(0, mid_idx), range(mid_idx, 2*mid_idx), range(2*mid_idx, 3*mid_idx), range(3*mid_idx, n)]
 
-    blender_id = 0  #start blender instances with id in range [0,len(segments)]
+    blender_id = 4  #start blender instances with id in range [0,len(segments)]
     assert blender_id <= len(segments)
 
-    for i in segments[blender_id]:
-        if i >= n:
-            continue
+    cam_obj = bpy.data.objects['Camera']
 
+    for i in range(len(paths)):
         path = paths[i]
         name = path.stem
         p = np.load(str(path))
-
+        
+        front_sil_path = os.path.join(*[sil_f_dir, name])
+        side_sil_path = os.path.join(*[sil_s_dir, name])
+        if Path(front_sil_path+'.png').exists() and  Path(side_sil_path+'.png').exists():
+            continue
+                
         verts = pca_model.inverse_transform(p)
         verts = verts.reshape(n_v, 3)
 
@@ -383,8 +398,11 @@ def project_synthesized():
 
         transform_obj_caesar_pca(vic_tpl_obj, s = 10.0)
 
+        neck_ld_co = avg_co(vic_tpl_mesh, neck_v_idxs)
+        cam_obj.location[2] = neck_ld_co[2]
+
         set_silhouette_silhouette_mode()
-        front_sil_path = os.path.join(*[sil_f_dir, name])
+
         bpy.data.scenes['Scene'].render.filepath = front_sil_path
         bpy.ops.render.opengl(write_still=True, view_context=True)
 
@@ -401,7 +419,6 @@ def project_synthesized():
         for vi in rarm_v_idxs:
             vic_tpl_mesh.vertices[vi].co[:] = rarm_co
 
-        side_sil_path = os.path.join(*[sil_s_dir, name])
         bpy.data.scenes['Scene'].render.filepath = side_sil_path
         bpy.ops.render.opengl(write_still=True, view_context=True)
 
