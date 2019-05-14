@@ -35,8 +35,9 @@ class HmShapePredModel():
         sil_f = sil_f[np.newaxis, np.newaxis, :]
         sil_s = sil_s[np.newaxis, np.newaxis, :]
 
-        aux = np.array([height, gender])[np.newaxis, :]
+        aux = np.array([height])[np.newaxis, :]
         aux = self.aux_input_transform.transform(aux)
+        aux = np.array([aux[0,0], gender])[np.newaxis, :]
 
         with self.graph.as_default():
             with tf.Session() as sess:
@@ -47,6 +48,7 @@ class HmShapePredModel():
 
                 preds= sess.run(self.tf_graph_outputs, feed_dict=feed_dict)
                 pred = preds[0]
+                print(pred)
                 pca_val = self.pca_target_transform.inverse_transform(pred)
                 verts = self.pca_model.inverse_transform(pca_val)
 

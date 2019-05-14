@@ -6,9 +6,10 @@ from pca.nn_vic_model import  NNModelWrapper
 import os
 import numpy as np
 from sklearn.externals import joblib
+from common.obj_util import import_mesh
 import tempfile
 
-def convert(model_path, out_path):
+def convert(model_path, out_path, vic_mesh_path):
     model_wrapper = NNModelWrapper.load(model_path)
     #for testing, in case there's not pre-trained model
     # n_classes = 51
@@ -42,6 +43,8 @@ def convert(model_path, out_path):
     output_keys = [tf_rep.tensor_dict[key].name for key in tf_rep.outputs]
     input_shape = tf_rep.tensor_dict[tf_rep.inputs[0]].get_shape().as_list()
 
+    tpl_verts, tpl_faces = import_mesh(vic_mesh_path)
+
     to_save = {}
     to_save['tf_graph_str'] = graph_str
     to_save['tf_graph_input_keys'] = input_keys
@@ -51,6 +54,7 @@ def convert(model_path, out_path):
     to_save['pca_model'] = model_wrapper.pca_model
     to_save['pca_target_transform'] = model_wrapper.pca_target_transform
     to_save['aux_input_transform'] = model_wrapper.height_transform
+    to_save['vic_caesar_faces'] = tpl_faces
 
     joblib.dump(value=to_save, filename=out_path)
     print(f'dump the output model to {out_path}')
@@ -60,8 +64,9 @@ if __name__ == '__main__':
     ap = argparse.ArgumentParser()
     ap.add_argument("-in_model_path", type=str, help='the path to the file: DATA_DIR/models/joint/final_model.pt')
     ap.add_argument("-out_model_path", type=str, help='the path to export model to: shape_model.jlb')
+    ap.add_argument("-vic_mesh_path", type=str, help='the path to victoria template mesh: victoria_caesar_template.obj')
     args = ap.parse_args()
 
     model_path = args.in_model_path
     out_path = args.out_model_path
-    convert(model_path, out_path)
+    convert(model_path, out_path, args.vic_mesh_path)
