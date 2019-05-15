@@ -7,9 +7,9 @@
 - [2016 - Semantic 3D Reconstruction of Heads](http://www.eccv2016.org/files/posters/P-4A-20.pdf)
 - [2016 - Real-time Facial Animation with Image-based Dynamic Avatars](http://kunzhou.net/2016/imageAvatar.pdf)
 - [2016 - Head Reconstruction from Internet Photos](http://grail.cs.washington.edu/projects/liangshu/0351.pdf)
-- [2017 - Video to Fully Automatic 3D Hair Model](Video to Fully Automatic 3D Hair Model)
+- [2017 - Video to Fully Automatic 3D Hair Model](https://grail.cs.washington.edu/projects/liangshu/hair.pdf)
 - [2017 - Avatar Digitization From a Single Image For Real-Time Rendering](http://www.hao-li.com/publications/papers/siggraphAsia2017ADFSIFRTR.pdf)
-    - [this method is patented](https://patentscope.wipo.int/search/docs2/pct/WO2019050808/pic/UrFdLTcUtz3JKcyJ46QtvLMkXaNmvfyBorXD2PQDCXitYw2wreFZ3oBRhwWlnf0Fds2z1772vbV7MdXOJAwiYx9LF1gRcYx7dN_YyjJe0ZTw7oAA66RF0TSUPbivsnxNLHjYUzz1Bx1SL5RL38uYAHE48-A0zFm3iSuZRHCiHJU;jsessionid=E4A9C91C2023083168462BC32BC7283C.wapp2nA?docId=id00000047123213&psAuth=ONPpCO2UiiwHU6t0y2DituB3qciMk-BpxUW5k0KmLzA)
+    - [This method was patented](https://patentscope.wipo.int/search/docs2/pct/WO2019050808/pic/UrFdLTcUtz3JKcyJ46QtvLMkXaNmvfyBorXD2PQDCXitYw2wreFZ3oBRhwWlnf0Fds2z1772vbV7MdXOJAwiYx9LF1gRcYx7dN_YyjJe0ZTw7oAA66RF0TSUPbivsnxNLHjYUzz1Bx1SL5RL38uYAHE48-A0zFm3iSuZRHCiHJU;jsessionid=E4A9C91C2023083168462BC32BC7283C.wapp2nA?docId=id00000047123213&psAuth=ONPpCO2UiiwHU6t0y2DituB3qciMk-BpxUW5k0KmLzA)
 - [2019 - Combining 3D Morphable Models: A Large scale Face-and-Head Model](https://arxiv.org/pdf/1903.03785.pdf)
 
 # Face
