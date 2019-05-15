@@ -26,4 +26,4 @@ sh train_cnn.sh DATA_DIR
 - [improvement ideas for the cnn-based method ](./notes/cnn_improvement_list.md)
 - [a summary of the effect of camera properties on silhouette](./notes/cnn_camera_effect.md)
 - [testing ideas for the cnn-based method](notes/testing_ideas.md)
-- [a summary of the slice-based method](./notes/slice_method_summary.md)
+- [a summary of the slice-based method](./  notes/slice_method_summary.md)
