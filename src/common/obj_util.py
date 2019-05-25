@@ -36,7 +36,8 @@ def import_mesh(fpath):
                     continue
                 elif elem[0] == 'f':
                     f = []
-                    for v_idx in elem[1:]:
+                    for v_idx_str in elem[1:]:
+                        v_idx = v_idx_str.split('//')[0]
                         f.append(int(v_idx)-1)
                     faces.append(f)
 

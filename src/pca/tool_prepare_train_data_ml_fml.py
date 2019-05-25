@@ -155,6 +155,8 @@ if __name__ == '__main__':
     size = args.resize_size.split('x')
     size = (int(size[0]), int(size[1]))
 
+    os.makedirs(args.out_dir, exist_ok=True)
+
     #save pca model
     model_female = joblib.load(filename=args.pca_fml_model_path)
     model_male = joblib.load(filename=args.pca_ml_model_path)
@@ -164,14 +166,15 @@ if __name__ == '__main__':
     print(f'dump pca model to {out_path}')
 
     # copy pca target with the same name pattern to the out dir
-    # out_target_dir = os.path.join(*[args.out_dir, 'target'])
-    # copy_target_prefix(args.target_fml_dir, out_target_dir, '_female')
-    # copy_target_prefix(args.target_ml_dir,  out_target_dir, '_male')
+    out_target_dir = os.path.join(*[args.out_dir, 'target'])
+    copy_target_prefix(args.target_fml_dir, out_target_dir, '_female')
+    copy_target_prefix(args.target_ml_dir,  out_target_dir, '_male')
 
-    # out_height_path = os.path.join(*[args.out_dir, 'height.txt'])
-    # dump_heights(pca_in_dir=out_target_dir,
-    #              pca_ml_model_path=args.pca_ml_model_path, pca_fml_model_path=args.pca_fml_model_path,
-    #              height_out_path=out_height_path)
+    out_height_path = os.path.join(*[args.out_dir, 'height.txt'])
+    dump_heights(pca_in_dir=out_target_dir,
+                 pca_ml_model_path=args.pca_ml_model_path, pca_fml_model_path=args.pca_fml_model_path,
+                 height_out_path=out_height_path)
+    exit()
 
     with tempfile.TemporaryDirectory() as tmp_dir:
         print(f'created temporary dir: {tmp_dir}')

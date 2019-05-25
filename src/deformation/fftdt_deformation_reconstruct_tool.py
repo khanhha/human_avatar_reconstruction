@@ -3,6 +3,10 @@ import pickle
 from deformation import ffdt_deformation_lib as df
 from common.obj_util import import_mesh, export_mesh
 from copy import deepcopy
+from deformation.ffdt_deformation_lib import TemplateMeshDeform
+import numpy as np
+from pathlib import Path
+from os.path import join
 
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
@@ -18,35 +22,46 @@ if __name__ == '__main__':
     data_path = args['parameterization']
     out_path  = args['output_deformed_template_mesh']
 
-    try:
-        tpl_verts, tpl_faces = import_mesh(fpath=tpl_path)
+    #try:
+    tpl_verts, tpl_faces = import_mesh(fpath=tpl_path)
 
-        ctl_df_verts, ctl_df_faces = import_mesh(fpath=ctl_path)
-        for idx, tris in enumerate(ctl_df_faces):
-            assert (len(tris) == 3), f'face {idx} with len of {len(tris)} is not a triangle'
+    ctl_df_verts, ctl_df_faces = import_mesh(fpath=ctl_path)
 
-        with open(data_path, 'rb') as f:
-            data = pickle.load(f)
-            ctl_tri_bs = data['control_mesh_tri_basis']
-            vert_UVWs = data['template_vert_UVW']
-            vert_weights = data['template_vert_weight']
-            vert_effect_idxs = data['template_vert_effect_idxs']
+    mean = np.mean(ctl_df_verts, axis=0)
+    ctl_df_verts = ctl_df_verts - mean
+    ctl_df_verts *= 0.02
 
-        print(f'start calculating basis for each triangle of deformed control mesh')
-        ctl_df_basis = df.calc_triangle_local_basis(ctl_df_verts, ctl_df_faces)
-        print(f'\tfinish basis caculattion')
+    for idx, tris in enumerate(ctl_df_faces):
+        assert (len(tris) == 3), f'face {idx} with len of {len(tris)} is not a triangle'
 
-        print(f'start reconstructing a new template mesh from new basis and parameterization')
-        tpl_df_verts = deepcopy(tpl_verts)
-        df.deform_template_mesh(tpl_df_verts, vert_effect_idxs, vert_weights, vert_UVWs, ctl_df_basis)
-        print(f'\tfinish reconstruction')
+    with open(data_path, 'rb') as f:
+        data = pickle.load(f)
+        vert_UVWs = data['template_vert_UVW']
+        vert_weights = data['template_vert_weight']
+        vert_effect_idxs = data['template_vert_effect_idxs']
 
-        print(f'output deformed template mesh to file {out_path}')
-        export_mesh(out_path, tpl_df_verts, tpl_faces)
+        deform = TemplateMeshDeform(effective_range=4, use_mean_rad=False)
+        deform.set_meshes(ctl_verts=ctl_df_verts, ctl_tris=ctl_df_faces, tpl_verts=tpl_verts, tpl_faces=tpl_faces)
+        deform.set_parameterization(vert_tri_UVWs=vert_UVWs, vert_tri_weights=vert_weights,
+                                    vert_effect_tri_idxs=vert_effect_idxs)
 
-    except Exception as exp:
-        print('opp, something wrong: ', exp)
-        exit()
+        del vert_UVWs
+        del vert_weights
+        del vert_effect_idxs
+        del data
+
+    tpl_df_verts = deform.deform(ctl_df_verts)
+
+    print(f'output deformed template mesh to file {out_path}')
+    export_mesh(out_path, tpl_df_verts, tpl_faces)
+
+    out_path = join(*[Path(out_path).parent, f'{Path(out_path).stem}_ground_truth.obj'])
+    export_mesh(out_path, ctl_df_verts, ctl_df_faces)
+
+
+    # except Exception as exp:
+    #     print('opp, something wrong: ', exp)
+    #     exit()
 
 
 

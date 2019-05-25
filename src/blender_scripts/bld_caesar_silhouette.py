@@ -131,6 +131,11 @@ def collect_vertex_group_idxs(obj, name):
                 idxs.append(idx)
     return idxs
 
+def find_heightest_vert_idx(obj, v_idxs):
+    vert_cos = np.array([obj.data.vertices[idx].co[:] for idx in v_idxs])
+    max_z_idx = int(np.argmax(vert_cos[:, 2]))
+    return v_idxs[max_z_idx]
+
 def mpii_is_correct_mesh(obj):
     n_verts = len(obj.data.vertices)
     n_faces = len(obj.data.polygons)
@@ -284,7 +289,7 @@ def project_front_side(DIR_IN_OBJ, DIR_SIL_F,  DIR_SIL_S, DIR_OUT_IMG = None, te
     for i, path in enumerate(Path(DIR_IN_OBJ).glob('*.obj')):
         if test_name is not None and test_name not in path.stem:
             continue
-        
+
         print(i, str(path))
 
         obj_caesar = import_obj(str(path), path.stem)
@@ -323,10 +328,10 @@ def project_front_side(DIR_IN_OBJ, DIR_SIL_F,  DIR_SIL_S, DIR_OUT_IMG = None, te
         side_sil_path = os.path.join(*[DIR_SIL_S, path.stem])
         bpy.data.scenes['Scene'].render.filepath = side_sil_path
         bpy.ops.render.opengl(write_still=True, view_context=True)
-        
+
         if test_name is not None:
             return
-        
+
         delete_obj(obj_caesar)
         # break
 
@@ -339,11 +344,9 @@ def avg_co(mesh, ld_idxs):
     return avg_co
 
 def project_synthesized():
-    vic_mesh_path = '/home/khanhhh/data_1/projects/Oh/codes/human_estimation/data/meta_data/align_source_vic_mpii.obj'
-
-    pca_path     = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/vic_pca_models/pca_model_vic_female.jlb'
-    pca_co_dir = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/vic_pca_models/pca_coords/female/'
-    sil_root_dir = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/caesar_images_iphone_female/'
+    pca_path     = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/vic_pca_models_1/vic_female_pca_model.jlb'
+    pca_co_dir = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/vic_pca_models_1/pca_coords/female/'
+    sil_root_dir = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/caesar_images_iphone_female_1/'
 
     sil_f_dir = os.path.join(*[sil_root_dir , 'sil_f_raw'])
     sil_s_dir = os.path.join(*[sil_root_dir , 'sil_s_raw'])
@@ -356,17 +359,16 @@ def project_synthesized():
 
     pca_model = joblib.load(pca_path)
 
-    _, tpl_faces = import_mesh(vic_mesh_path)
-
     vic_tpl_obj = bpy.data.objects['vic_template']
     vic_tpl_mesh = vic_tpl_obj.data
     n_v = len(vic_tpl_mesh.vertices)
 
-    rarm_sample_v_idx = 5245 #a sample vert1ex on right arm to collapse arm
-    larm_sample_v_idx = 3876 #a sample vertex on left arm to collapse arm
     larm_v_idxs = collect_vertex_group_idxs(vic_tpl_obj, 'larm')
     rarm_v_idxs = collect_vertex_group_idxs(vic_tpl_obj, 'rarm')
     neck_v_idxs = collect_vertex_group_idxs(vic_tpl_obj, 'neck_landmark')
+
+    rarm_sample_v_idx = find_heightest_vert_idx(vic_tpl_obj, larm_v_idxs) #a sample vert1ex on right arm to collapse arm
+    larm_sample_v_idx = find_heightest_vert_idx(vic_tpl_obj, rarm_v_idxs) #a sample vertex on left arm to collapse arm
 
     paths = sorted([path for path in Path(pca_co_dir).glob('*.npy')])
     n = len(paths)
@@ -375,7 +377,7 @@ def project_synthesized():
     mid_idx = int(n/4)
     segments = [range(0, mid_idx), range(mid_idx, 2*mid_idx), range(2*mid_idx, 3*mid_idx), range(3*mid_idx, n)]
 
-    blender_id = 4  #start blender instances with id in range [0,len(segments)]
+    blender_id = 0  #start blender instances with id in range [0,len(segments)]
     assert blender_id <= len(segments)
 
     cam_obj = bpy.data.objects['Camera']
@@ -421,6 +423,7 @@ def project_synthesized():
 
         bpy.data.scenes['Scene'].render.filepath = side_sil_path
         bpy.ops.render.opengl(write_still=True, view_context=True)
+        
 
 project_synthesized()
 

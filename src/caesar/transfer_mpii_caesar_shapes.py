@@ -19,6 +19,7 @@ if __name__ == '__main__':
     ap.add_argument("-parameterization_path", type=str, required=True, help="")
     ap.add_argument("-out_dir", type=str, required=True, help="")
     ap.add_argument("-n_process", type=int, required=False, default=4, help="")
+    ap.add_argument("-ouput_debug", type=int, required=False, default=1, help="")
 
     args = ap.parse_args()
 
@@ -69,16 +70,24 @@ if __name__ == '__main__':
     # exit()
 
     #paths = paths[:12]
+    n_files = len(paths)
     def parallel_util(paths, start, end):
         with tqdm(total = end-start) as pbar:
             for i, path in enumerate(paths[start:end]):
                 ctl_df_verts, ctl_df_faces = import_mesh(fpath=path)
+                ctl_df_verts *= 0.01 #rescale to the same approximation of the paramiterization to increase accuracy
 
                 tpl_new_verts = deform.deform(ctl_df_verts)
+
+                tpl_new_verts *= 0.1 #scale the final mesh down, so that all the meshes have the height in meter: 1.7 for example
 
                 out_path = join(*[args.out_dir, f'{path.stem}.pkl'])
                 with open(out_path, 'wb') as file:
                     pickle.dump(obj=tpl_new_verts, file=file, protocol=pickle.HIGHEST_PROTOCOL)
+
+                if np.random.randint(0, n_files) < 150:
+                    out_path = join(*[args.out_dir, f'{path.stem}.obj'])
+                    export_mesh(fpath=out_path, verts=tpl_new_verts, faces=tpl_faces)
 
                 pbar.update(1)
 
