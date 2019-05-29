@@ -2,15 +2,15 @@
 # Pipeline
 <img src='https://g.gravizo.com/svg?%20digraph%20G%20{%20libface_prn_network[label=%22libface%20prn%20network%22%20shape=box]%20libface_prn_output[label=%22libface%20prn%20output%22%20shape=box]%20deform_vic_face_to_match_prn_output[label=%22deform%20vic%20face%20to%20match%20prn%20output%22%20shape=box]%20head_alignment[label=%22head%20alignment%22%20shape=box]%20face_embed[label=%22face%20embedding%22%20shape=box]%20seam_solving[label=%22seam%20solving%22%20shape=box]%20head_alignment-%3Eface_embed%20face_embed%20-%3E%20seam_solving%20libface_prn_network-%3Elibface_prn_output%20libface_prn_output-%3Edeform_vic_face_to_match_prn_output%20deform_vic_face_to_match_prn_output-%3Eface_embed%20}%27'/>
 
-##deform vic face to match prn output
+## deform vic face to match prn output
 use pre-calculated paramterization to deform victoria face to match prn output. We denote the output as __customer_face__
 
-##head alignment
+## head alignment
 - use max-min along z axis to scale victoria head to match customer head (the mesh output from pca model)
 - translate the scaled head to the center of the customer head
 - we denote the output as __scaled_head__
 
-##face embedding
+## face embedding
 - use facial landmarks (eye, lips) to embed (scale + rotate) the __customer_face__ face to the __scaled_head__
 
 ## seam solving
