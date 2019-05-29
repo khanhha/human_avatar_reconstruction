@@ -28,9 +28,17 @@ class HmShapePredModel():
     def predict(self, sil_f, sil_s, height, gender):
         assert len(sil_f.shape) == 2
         assert len(sil_s.shape) == 2
+        assert sil_f.shape == sil_s.shape
+        assert sil_f.dtype == sil_s.dtype
 
         size = self.image_input_shape
-        sil_f, sil_s = crop_silhouette_pair(sil_f, sil_s, mask_f=sil_f, mask_s=sil_s, target_h=size[0], target_w=size[1], px_height=int(0.9 * size[0]))
+        if sil_f.shape != size:
+            sil_f, sil_s = crop_silhouette_pair(sil_f, sil_s, mask_f=sil_f, mask_s=sil_s, target_h=size[0], target_w=size[1], px_height=int(0.9 * size[0]))
+
+        if sil_f.dtype == np.uint8:
+            sil_f = sil_f.astype(np.float)/255.0
+            sil_s = sil_s.astype(np.float)/255.0
+            print('hihi')
 
         sil_f = sil_f[np.newaxis, np.newaxis, :]
         sil_s = sil_s[np.newaxis, np.newaxis, :]
@@ -48,18 +56,16 @@ class HmShapePredModel():
 
                 preds= sess.run(self.tf_graph_outputs, feed_dict=feed_dict)
                 pred = preds[0]
-                print(pred)
                 pca_val = self.pca_target_transform.inverse_transform(pred)
                 verts = self.pca_model.inverse_transform(pca_val)
-
                 return verts
 
 if __name__ == '__main__':
     path = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/cnn_data/sil_384_256_ml_fml/models/joint/deploy_model.jlb'
     model = HmShapePredModel(path)
 
-    sil_f = np.zeros((1, 384, 256), dtype=np.float)
-    sil_s = np.zeros((1, 384, 256), dtype=np.float)
+    sil_f = np.zeros((384, 256), dtype=np.float)
+    sil_s = np.zeros((384, 256), dtype=np.float)
     height = 1.6
     gender = 0
     pred = model.predict(sil_f, sil_s, height, gender)[0]
