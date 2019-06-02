@@ -5,7 +5,7 @@ from os.path import join
 import numpy as np
 from pathlib import Path
 import pickle
-from common.obj_util import export_mesh, import_mesh
+from common.obj_util import export_mesh, import_mesh_obj
 from pca.pca_util import load_faces
 from tqdm import tqdm
 import gc

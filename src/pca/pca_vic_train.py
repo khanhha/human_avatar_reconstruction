@@ -5,7 +5,7 @@ from os.path import join
 import numpy as np
 from pathlib import Path
 import pickle
-from common.obj_util import export_mesh, import_mesh
+from common.obj_util import export_mesh, import_mesh_obj
 from pca.pca_util import load_faces
 from tqdm import tqdm
 import gc
@@ -125,7 +125,7 @@ def test_syn_pca(model_path, pca_dir, vic_mesh_path, debug_out_dir, n_samples = 
     co_paths = [path for path in Path(pca_dir).glob('*.*')]
     co_paths = [co_paths[idx] for idx in np.random.randint(0, len(co_paths), n_samples)]
 
-    tpl_verts, tpl_faces = import_mesh(vic_mesh_path)
+    tpl_verts, tpl_faces = import_mesh_obj(vic_mesh_path)
     NV = tpl_verts.shape[0]
 
     os.makedirs(debug_out_dir, exist_ok=True)
@@ -158,7 +158,7 @@ def main():
         male_paths = [path for path in vpaths if path.stem not in female_names]
         female_paths = [path for path in vpaths if path.stem in female_names]
 
-    tpl_verts, tpl_faces = import_mesh(args.vic_mesh_path)
+    tpl_verts, tpl_faces = import_mesh_obj(args.vic_mesh_path)
     NV = tpl_verts.shape[0]
     vsize = tpl_verts.size
     assert vsize == (tpl_verts.shape[0] * tpl_verts.shape[1])

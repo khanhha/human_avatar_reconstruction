@@ -3,7 +3,7 @@ import pickle
 from deformation import ffdt_deformation_lib as df
 import numpy as np
 import scipy.stats as stats
-from common.obj_util import import_mesh
+from common.obj_util import import_mesh_obj
 
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
@@ -25,11 +25,11 @@ if __name__ == '__main__':
     effecttive_range = float(args['effective_range'])
     use_mean_rad = int(args['use_mean_radius']) > 0
 
-    ctl_verts, ctl_faces = import_mesh(ctl_out_path)
+    ctl_verts, ctl_faces = import_mesh_obj(ctl_out_path)
     for idx, tri in enumerate(ctl_faces):
         assert len(tri) == 3, f'face {idx} is not a triangle, n_vert = {len(tri)}'
 
-    tpl_verts, tpl_faces = import_mesh(tpl_out_path)
+    tpl_verts, tpl_faces = import_mesh_obj(tpl_out_path)
 
     print('control  mesh:            nverts = {0}, nfaces = {1}'.format(ctl_verts.shape[0], len(ctl_faces)))
     print('template mesh (victoria): nverts = {0}, nfaces = {1}'.format(tpl_verts.shape[0], len(tpl_faces)))

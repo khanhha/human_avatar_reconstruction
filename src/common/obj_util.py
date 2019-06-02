@@ -20,7 +20,7 @@ def export_mesh(fpath, verts, faces, add_one = True):
                 f.write(" %d" % (v_idx))
             f.write("\n")
 
-def import_mesh(fpath):
+def import_mesh_obj(fpath):
     coords = []
     faces =  []
     with open(fpath, 'r') as obj:

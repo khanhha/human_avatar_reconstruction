@@ -17,7 +17,7 @@ from sklearn.externals import joblib
 from sklearn.decomposition import IncrementalPCA
 from os.path import join
 import scipy.io as io
-from common.obj_util import export_mesh, import_mesh
+from common.obj_util import export_mesh, import_mesh_obj
 from pca.dense_net import load_joint_net_161_test
 from pca.nn_util import load_pca_model, reconstruct_mesh_from_pca, create_pair_loader, create_pair_loader_inference, network_input_size, crop_silhouette
 

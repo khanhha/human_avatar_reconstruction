@@ -5,7 +5,7 @@ from os.path import join
 import numpy as np
 from pathlib import Path
 import pickle
-from common.obj_util import export_mesh, import_mesh
+from common.obj_util import export_mesh, import_mesh_obj
 from pca.pca_util import load_faces
 from tqdm import tqdm
 import gc
@@ -20,7 +20,7 @@ def main():
     ap.add_argument("-out_dir",  type=str, required=True, help="")
     args = ap.parse_args()
 
-    tpl_verts, tpl_faces = import_mesh(args.vic_mesh_path)
+    tpl_verts, tpl_faces = import_mesh_obj(args.vic_mesh_path)
     vsize = tpl_verts.size
     NV = tpl_verts.shape[0]
     assert vsize == (tpl_verts.shape[0] * tpl_verts.shape[1])

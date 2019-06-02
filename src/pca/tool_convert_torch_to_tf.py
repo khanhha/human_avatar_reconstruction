@@ -6,7 +6,7 @@ from pca.nn_vic_model import  NNModelWrapper
 import os
 import numpy as np
 from sklearn.externals import joblib
-from common.obj_util import import_mesh
+from common.obj_util import import_mesh_obj
 import tempfile
 
 def convert(model_path, out_path, vic_mesh_path):
@@ -43,7 +43,7 @@ def convert(model_path, out_path, vic_mesh_path):
     output_keys = [tf_rep.tensor_dict[key].name for key in tf_rep.outputs]
     input_shape = tf_rep.tensor_dict[tf_rep.inputs[0]].get_shape().as_list()
 
-    tpl_verts, tpl_faces = import_mesh(vic_mesh_path)
+    tpl_verts, tpl_faces = import_mesh_obj(vic_mesh_path)
 
     to_save = {}
     to_save['tf_graph_str'] = graph_str

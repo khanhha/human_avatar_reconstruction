@@ -8,7 +8,7 @@ import cv2
 from opendr.camera import ProjectPoints
 from opendr.renderer import ColoredRenderer
 from opendr.lighting import LambertianPointLight
-from common.obj_util import export_mesh, import_mesh
+from common.obj_util import export_mesh, import_mesh_obj
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 colors = {
@@ -116,7 +116,7 @@ if __name__ == '__main__':
     vic_mesh_path = '/home/khanhhh/data_1/projects/Oh/codes/human_estimation/data/meta_data/align_source_vic_mpii.obj'
     out_mesh_path = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/victoria_caesar_obj/CSR0097A.obj'
 
-    verts, faces = import_mesh(vic_mesh_path)
+    verts, faces = import_mesh_obj(vic_mesh_path)
     verts *= 0.05
     faces = np.array(faces)
 

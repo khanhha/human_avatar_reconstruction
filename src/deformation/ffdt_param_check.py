@@ -1,7 +1,7 @@
 import argparse
 import pickle
 import numpy as np
-from common.obj_util import import_mesh, export_mesh
+from common.obj_util import import_mesh_obj, export_mesh
 from copy import deepcopy
 from pathlib import Path
 
@@ -44,9 +44,9 @@ if __name__ == '__main__':
         param_data = pickle.load(file=file)
         vert_effect_idxs = param_data['template_vert_effect_idxs']
 
-    ctl_mesh_verts, ctl_mesh_tris = import_mesh(ctl_mesh_path)
-    tpl_mesh_verts, _ = import_mesh(tpl_mesh_path)
-    pnt_mesh_verts, pnt_mesh_tris = import_mesh(pnt_mesh_path)
+    ctl_mesh_verts, ctl_mesh_tris = import_mesh_obj(ctl_mesh_path)
+    tpl_mesh_verts, _ = import_mesh_obj(tpl_mesh_path)
+    pnt_mesh_verts, pnt_mesh_tris = import_mesh_obj(pnt_mesh_path)
 
 
     # v_idxs = [2945, 4373, 14, 69, 7322, 7993, 6941, 7946, 7750, 6445, 8321, 7634, 6145, 1042, 140, 2965, 4419, 3980, 5606, 6017]

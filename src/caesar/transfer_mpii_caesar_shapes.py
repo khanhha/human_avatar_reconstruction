@@ -3,7 +3,7 @@ import argparse
 from pathlib import Path
 import os
 from tqdm import tqdm
-from common.obj_util import import_mesh, export_mesh
+from common.obj_util import import_mesh_obj, export_mesh
 import numpy as np
 from os.path import join
 import multiprocessing
@@ -28,10 +28,10 @@ if __name__ == '__main__':
     #cur_paths = [path for path in Path(args.out_dir).glob('*.obj')]
     cur_paths = []
 
-    tpl_verts, tpl_faces = import_mesh(args.template_mesh_path)
+    tpl_verts, tpl_faces = import_mesh_obj(args.template_mesh_path)
     n_tpl_verts = len(tpl_verts)
 
-    ctl_verts, ctl_faces = import_mesh(args.control_mesh_path)
+    ctl_verts, ctl_faces = import_mesh_obj(args.control_mesh_path)
 
     with open(args.parameterization_path, 'rb') as f:
         data = pickle.load(f)
@@ -74,7 +74,7 @@ if __name__ == '__main__':
     def parallel_util(paths, start, end):
         with tqdm(total = end-start) as pbar:
             for i, path in enumerate(paths[start:end]):
-                ctl_df_verts, ctl_df_faces = import_mesh(fpath=path)
+                ctl_df_verts, ctl_df_faces = import_mesh_obj(fpath=path)
                 ctl_df_verts *= 0.01 #rescale to the same approximation of the paramiterization to increase accuracy
 
                 tpl_new_verts = deform.deform(ctl_df_verts)

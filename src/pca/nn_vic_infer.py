@@ -13,7 +13,7 @@ from pathlib import Path
 import pickle
 from PIL import Image
 from tqdm import tqdm
-from common.obj_util import export_mesh, import_mesh
+from common.obj_util import export_mesh, import_mesh_obj
 from sklearn.preprocessing import StandardScaler, MinMaxScaler, RobustScaler
 from sklearn.externals import joblib
 from pca.dense_net import JointMask
@@ -60,7 +60,7 @@ if __name__ == '__main__':
 
     args = ap.parse_args()
 
-    tpl_verts, tpl_faces = import_mesh(args.vic_mesh_path)
+    tpl_verts, tpl_faces = import_mesh_obj(args.vic_mesh_path)
     NV = tpl_verts.shape[0]
 
     model_wrapper = NNModelWrapper.load(args.model_path)

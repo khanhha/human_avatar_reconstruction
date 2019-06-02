@@ -3,7 +3,7 @@ import argparse
 from pathlib import Path
 import os
 from tqdm import tqdm
-from common.obj_util import import_mesh, export_mesh
+from common.obj_util import import_mesh_obj, export_mesh
 import numpy as np
 from os.path import join
 import multiprocessing
@@ -25,7 +25,7 @@ if __name__ == '__main__':
     ap.add_argument("-out_dir", type=str, required=True, help="")
     args = ap.parse_args()
 
-    _, tpl_faces = import_mesh(args.vic_mesh_path)
+    _, tpl_faces = import_mesh_obj(args.vic_mesh_path)
 
     for path in Path(args.out_dir).glob('*.obj'):
         os.remove(str(path))

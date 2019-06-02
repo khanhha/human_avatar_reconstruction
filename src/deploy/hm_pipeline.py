@@ -8,7 +8,7 @@ import numpy as np
 import argparse
 import os
 from pathlib import Path
-from common.obj_util import import_mesh, export_mesh
+from common.obj_util import import_mesh_obj, export_mesh
 
 class HumanRGBModel:
 
@@ -16,7 +16,7 @@ class HumanRGBModel:
         self.hmsil_model = HmSilPredModel(model_path=hmsil_model_path, use_gpu=True, use_mobile_model=False)
         #self.hmshape_model = HmShapePredPytorchModel(model_path=hmshape_model_path)
         self.hmshape_model = HmShapePredModel(model_path=hmshape_model_path)
-        _, faces = import_mesh(mesh_path)
+        _, faces = import_mesh_obj(mesh_path)
         self.tpl_faces = faces
 
     def predict(self, rgb_img_f, rgb_img_s, height, gender):

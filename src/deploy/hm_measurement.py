@@ -1,6 +1,6 @@
 import numpy as np
 import pickle
-from common.obj_util import import_mesh
+from common.obj_util import import_mesh_obj
 from pathlib import Path
 # This import registers the 3D projection, but is otherwise unused.
 from mpl_toolkits.mplot3d import Axes3D  # noqa: F401 unused import
@@ -70,7 +70,7 @@ def calc_neighbor_idxs(vert_grps):
 
         N = 40
 
-        verts, faces = import_mesh(mesh_path)
+        verts, faces = import_mesh_obj(mesh_path)
 
         bust_verts = verts[grp_idxs]
         center = center_bb(bust_verts)
@@ -294,7 +294,7 @@ def main_test():
 
     bd_measure = HumanMeasure(vert_grp_path=measure_vert_grps_path, contour_circ_neighbor_idxs_path=circ_neighbor_idxs_path)
 
-    verts, _  = import_mesh(args.obj)
+    verts, _  = import_mesh_obj(args.obj)
     M = bd_measure.measure(verts)
 
     print('\n\n')

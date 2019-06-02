@@ -1,7 +1,7 @@
 import argparse
 import pickle
 from deformation import ffdt_deformation_lib as df
-from common.obj_util import import_mesh, export_mesh
+from common.obj_util import import_mesh_obj, export_mesh
 from copy import deepcopy
 from deformation.ffdt_deformation_lib import TemplateMeshDeform
 import numpy as np
@@ -23,9 +23,9 @@ if __name__ == '__main__':
     out_path  = args['output_deformed_template_mesh']
 
     #try:
-    tpl_verts, tpl_faces = import_mesh(fpath=tpl_path)
+    tpl_verts, tpl_faces = import_mesh_obj(fpath=tpl_path)
 
-    ctl_df_verts, ctl_df_faces = import_mesh(fpath=ctl_path)
+    ctl_df_verts, ctl_df_faces = import_mesh_obj(fpath=ctl_path)
 
     mean = np.mean(ctl_df_verts, axis=0)
     ctl_df_verts = ctl_df_verts - mean

@@ -7,7 +7,7 @@ from sklearn.externals import joblib
 from sklearn.decomposition import IncrementalPCA
 from sklearn.preprocessing import StandardScaler, Normalizer, MinMaxScaler, RobustScaler
 from tqdm import tqdm
-from common.obj_util import export_mesh, import_mesh
+from common.obj_util import export_mesh, import_mesh_obj
 from os.path import join
 from pca.nn_util import crop_silhouette_pair_blender
 import tempfile
@@ -138,7 +138,7 @@ def test_export_caesar_vic_mesh():
     vert_path = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/victoria_caesar/CSR0097A.pkl'
     vic_mesh_path = '/home/khanhhh/data_1/projects/Oh/codes/human_estimation/data/meta_data/align_source_vic_mpii.obj'
     out_mesh_path = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/victoria_caesar_obj/CSR0097A.obj'
-    tpl_verts, tpl_faces = import_mesh(vic_mesh_path)
+    tpl_verts, tpl_faces = import_mesh_obj(vic_mesh_path)
     verts = joblib.load(vert_path)
     export_mesh(fpath=out_mesh_path, verts=verts, faces=tpl_faces)
 

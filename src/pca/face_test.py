@@ -8,7 +8,7 @@ import numpy as np
 import argparse
 import os
 from pathlib import Path
-from common.obj_util import import_mesh, export_mesh
+from common.obj_util import import_mesh_obj, export_mesh
 from common.transformations import rotation_matrix, unit_vector, angle_between_vectors, vector_product
 import math
 import pickle
@@ -206,9 +206,9 @@ if __name__ == '__main__':
     height = 1.6
     gender = 0
 
-    face_verts, _ = import_mesh(face_res_path)
-    tpl_verts, tpl_faces = import_mesh(tpl_mesh_path)
-    _, tpl_tris = import_mesh(tpl_mesh_tri_path)
+    face_verts, _ = import_mesh_obj(face_res_path)
+    tpl_verts, tpl_faces = import_mesh_obj(tpl_mesh_path)
+    _, tpl_tris = import_mesh_obj(tpl_mesh_tri_path)
 
     tmp_out_mesh_path = '/home/khanhhh/data_1/projects/Oh/data/face/test_merge_face_body/tmp_verts.npy'
     if not Path(tmp_out_mesh_path).exists():
