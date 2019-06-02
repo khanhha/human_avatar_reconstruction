@@ -12,7 +12,16 @@ export PYTHONPATH="${PYTHONPATH}:./"
 python ./deploy/hm_pipeline.py -model_dir MODEL_DIR -img_f path_to_front_img -img_s path_to_side_img -height height_in_meter_of_subject gender 0_if_female_else_1 -out_obj_path obj_path_to_export_mesh_prediction
 ```
 
-# how to train model
+# run measurement calculation on predicted vertices
+- for more information about measurements, please refer to the chart picture in __/notes/woman_measurement_chart.jpg__
+- download the [meta-data](), put them under ./deploy_models/meta_data/ 
+- move to the folder source
+- run the code
+```python
+export PYTHONPATH="${PYTHONPATH}:./"p
+python ./deploy/hm_measurement.py -obj path_to_obj_file -grp ./deploy_models/meta_data/victoria_measure_vert_groups.pkl -nbr ./deploy_models/meta_data/victoria_measure_contour_circ_neighbor_idxs.pkl
+```
+# train model
 - download the dataset from this link
 - denote DATA_DIR point to the root directory of the dataset
 - run the following commands: this shell script will sequentially train front, side and then the joint model
