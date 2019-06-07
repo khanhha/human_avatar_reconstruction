@@ -8,7 +8,7 @@ import numpy as np
 import argparse
 import os
 from pathlib import Path
-from common.obj_util import import_mesh_obj, export_mesh
+from common.obj_util import import_mesh_obj, export_mesh, import_mesh_tex_obj, export_mesh_tex_obj
 from common.transformations import rotation_matrix, unit_vector, angle_between_vectors, vector_product
 import math
 import pickle
@@ -253,12 +253,30 @@ if __name__ == '__main__':
     handle_idxs = np.hstack([vface_map_in_head, vneck_seam_map_in_head])
     new_head_verts_1 = solve_head_discontinuity(tpl_head_verts, new_head_verts, handle_idxs, head_tri_in_head)
 
+    out_dir = '/home/khanhhh/data_1/projects/Oh/data/face/test_merge_face_body/'
     mesh_verts_1 = np.copy(mesh_verts)
     mesh_verts_1[vhead_map] = new_head_verts
-    out_dir = '/home/khanhhh/data_1/projects/Oh/data/face/test_merge_face_body/'
     export_mesh(os.path.join(*[out_dir, 'front_IMG_1928_victoria_head_merged.obj']), verts=mesh_verts_1, faces=tpl_faces)
 
     mesh_verts_2 = np.copy(mesh_verts)
     mesh_verts_2[vhead_map] = new_head_verts_1
-    out_dir = '/home/khanhhh/data_1/projects/Oh/data/face/test_merge_face_body/'
     export_mesh(os.path.join(*[out_dir, 'front_IMG_1928_victoria_head_merged_smoothed.obj']), verts=mesh_verts_2, faces=tpl_faces)
+
+
+    #test texutured export
+
+    text_mesh_path = '/home/khanhhh/data_1/projects/Oh/codes/human_estimation/data/meta_data/victoria_template_textured.obj'
+    tex_mesh = import_mesh_tex_obj(text_mesh_path)
+    out_mesh = {'v':mesh_verts_2, 'vt':tex_mesh['vt'], 'f':tex_mesh['f'], 'ft':tex_mesh['ft']}
+
+
+    part_vert_grp_path = '/home/khanhhh/data_1/projects/Oh/codes/human_estimation/data/meta_data/victoria_part_vert_idxs.pkl'
+    with open(part_vert_grp_path, 'rb') as file:
+        part_vert_grps = pickle.load(file)
+        head_verts = part_vert_grps['head']
+        head_verts_tex = tex_mesh['vt'][head_verts]
+        plt.axes().set_aspect(1.0)
+        plt.plot(head_verts_tex[:,0], head_verts_tex[:,1], 'g+')
+        plt.show()
+
+    export_mesh_tex_obj(os.path.join(*[out_dir, 'front_IMG_1928_victoria_head_tex.obj']), out_mesh)

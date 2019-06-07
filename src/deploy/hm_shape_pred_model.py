@@ -38,7 +38,6 @@ class HmShapePredModel():
         if sil_f.dtype == np.uint8:
             sil_f = sil_f.astype(np.float)/255.0
             sil_s = sil_s.astype(np.float)/255.0
-            print('hihi')
 
         sil_f = sil_f[np.newaxis, np.newaxis, :]
         sil_s = sil_s[np.newaxis, np.newaxis, :]

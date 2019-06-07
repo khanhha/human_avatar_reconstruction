@@ -24,11 +24,16 @@ class HumanRGBModel:
         sil_s = self.hmsil_model.extract_silhouette(rgb_img_s)
         sil_f = sil_f.astype(np.float32)/255.0
         sil_s = sil_s.astype(np.float32)/255.0
-        fig, axes = plt.subplots(1,2)
-        # axes[0].imshow(sil_f)
-        # axes[1].imshow(sil_s)
+        # fig, axes = plt.subplots(1,2)
+        # axes[0].imshow(rgb_img_f)
+        # axes[0].imshow(sil_f, alpha=0.5)
+        # axes[1].imshow(rgb_img_s)
+        # axes[1].imshow(sil_s, alpha=0.5)
         # plt.show()
+        verts, faces = self.predict_sil(sil_f, sil_s, height, gender)
+        return verts, faces, sil_f, sil_s
 
+    def predict_sil(self, sil_f, sil_s, height, gender):
         verts = self.hmshape_model.predict(sil_f=sil_f, sil_s=sil_s, height=height, gender=gender)
         verts = verts[0]
         verts = verts.reshape(verts.shape[0]//3, 3)
@@ -37,35 +42,65 @@ class HumanRGBModel:
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
     ap.add_argument("-model_dir",  required=True, type=str, help="the direction where shape_model.jlb  and deeplab model are stored")
-    ap.add_argument("-img_f",  required=True, type=str, help="path to the front image")
-    ap.add_argument("-img_s",  required=True, type=str, help="path to the side image")
-    ap.add_argument("-out_obj_path",  required=True, type=str, help="the obj ouput path")
-    ap.add_argument("-height",  required=True, type=float, help="height of that person, in meter, for example, 1.62")
-    ap.add_argument("-gender",  required=True, type=int, choices=[0, 1], help="gender of that person: 1 is male and 0 is male")
+    ap.add_argument("-in_txt_file",  required=True, type=str, help="the direction where shape_model.jlb  and deeplab model are stored")
 
     args = ap.parse_args()
-
-    #model_dir = '/home/khanhhh/data_1/projects/Oh/data/3d_human/deploy_models/'
-    #img_f_path = '/home/khanhhh/data_1/projects/Oh/data/oh_mobile_images/images/front_IMG_1928.JPG'
-    #img_s_path = '/home/khanhhh/data_1/projects/Oh/data/oh_mobile_images/images/side_IMG_1938.JPG'
 
     #shape_model_path = os.path.join(*[args.model_dir, 'shape_model_pytorch.pt'])
     shape_model_path = os.path.join(*[args.model_dir, 'shape_model.jlb'])
     deeplab_path = os.path.join(*[args.model_dir, 'deeplabv3_xception_ade20k_train_2018_05_29.tar.gz'])
     vic_mesh_path = os.path.join(*[args.model_dir, 'vic_mesh.obj'])
 
-    assert Path(shape_model_path).exists() and Path(deeplab_path).exists() and Path(args.img_f).exists() and Path(args.img_s).exists()
+    assert Path(shape_model_path).exists() and Path(deeplab_path).exists()
     model = HumanRGBModel(hmshape_model_path=shape_model_path, hmsil_model_path=deeplab_path, mesh_path=vic_mesh_path)
 
-    img_f = cv.imread(args.img_f)
-    img_s = cv.imread(args.img_s)
+    with open(args.in_txt_file, 'rt') as file:
+        dir = Path(args.in_txt_file).parent
 
-    height = args.height
-    gender = float(args.gender)
+        for idx, l in enumerate(file.readlines()):
+            if l[0] == '#':
+                continue
+            comps = l.split(' ')
+            front_img_path = os.path.join(*[dir, comps[0]])
+            side_img_path  = os.path.join(*[dir, comps[1]])
+            height = float(comps[2])
+            gender = float(comps[3])
+            is_sil = int(comps[4])
 
-    verts, faces = model.predict(img_f, img_s, height, gender)
+            assert gender == 0.0 or gender == 1.0 , 'unexpected gender. just accept 1 or 0'
+            assert is_sil == 0 or is_sil == 1, 'unexpected sil flag. just accept 1 or 0'
+            assert height >= 1.0 and height  <= 2.5, 'unexpected height. not in range of [1.0, 2.5]'
 
-    print(f'output mesh shape: {verts.shape}')
-    print(f'exported obj object to path {args.out_obj_path}')
-    export_mesh(args.out_obj_path, verts=verts, faces=faces)
+            assert Path(front_img_path).exists() and Path(side_img_path).exists()
+
+            print(f'process image pair {comps[0]} - {comps[1]}. height = {height}. gender = {gender}. is_sil = {is_sil}')
+            if not is_sil:
+                img_f = cv.imread(front_img_path)
+                img_s = cv.imread(side_img_path)
+
+                verts, faces, sil_f, sil_s = model.predict(img_f, img_s, height, gender)
+
+                sil_f  = (sil_f*255.0).astype(np.uint8)
+                sil_s  = (sil_s*255.0).astype(np.uint8)
+                out_sil_f_path = os.path.join(*[dir, f'{Path(front_img_path).stem}_sil.jpg'])
+                cv.imwrite(out_sil_f_path, sil_f)
+                out_sil_s_path = os.path.join(*[dir, f'{Path(side_img_path).stem}_sil.jpg'])
+                cv.imwrite(out_sil_s_path, sil_s)
+                print(f'\texported silhouette {out_sil_f_path} - {out_sil_s_path}')
+            else:
+                img_f = cv.imread(front_img_path, cv.IMREAD_GRAYSCALE)
+                img_s = cv.imread(side_img_path, cv.IMREAD_GRAYSCALE)
+                ret_0, img_f = cv.threshold(img_f, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU)
+                ret_1, img_s = cv.threshold(img_s, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU)
+                # plt.subplot(121)
+                # plt.imshow(img_f)
+                # plt.subplot(122)
+                # plt.imshow(img_s)
+                # plt.show()
+                verts, faces = model.predict_sil(img_f, img_s, height, gender)
+
+            out_path = os.path.join(*[dir, f'{Path(front_img_path).stem}_{idx}.obj'])
+            #print(f'\toutput mesh shape: {verts.shape}')
+            print(f'\texported obj object to path {out_path}')
+            export_mesh(out_path, verts=verts, faces=faces)
 
