@@ -3,7 +3,7 @@ from deformation.ffdt_deformation_lib import TemplateMeshDeform
 import pickle
 import numpy as np
 from common.obj_util import import_mesh_obj, export_mesh, import_mesh_tex_obj, export_mesh_tex_obj
-from common.transformations import rotation_matrix, unit_vector, angle_between_vectors, vector_product
+from common.transformations import rotation_matrix, unit_vector, angle_between_vectors, vector_product, affine_matrix_from_points
 import math
 import os
 import pickle
@@ -17,38 +17,40 @@ def embbed_neck_seam_to_tpl_head(ctm_verts, tpl_head_verts, vneck_seam_map, vnec
     tpl_head_verts[vneck_seam_map_in_head] = ctm_verts[vneck_seam_map]
     return tpl_head_verts
 
-def embbed_face_to_tpl_head(tpl_head_verts, face_verts, vface_map_in_head, vleye_map_in_head, vreye_map_in_head, vupper_lip_map_in_head):
+def embbed_face_to_tpl_head(tpl_head_verts, face_verts, vface_map_in_head):
     #orientation face to match victoria face
     tmp = np.copy(face_verts[:, 2])
     face_verts[:,2] = face_verts[:,1]
-    face_verts[:, 1] = -tmp
+    face_verts[:, 1] = tmp
     face_verts[:, 0] = -face_verts[:, 0]
 
     #scale face to match victoria's face
     org_face_verts = tpl_head_verts[vface_map_in_head]
     scale = (org_face_verts[:,2].max() - org_face_verts[:,2].min()) / (face_verts[:,2].max() - face_verts[:,2].min())
     face_verts *= scale
-    face_center = np.mean(face_verts, axis=0)
-    org_face_center = np.mean(org_face_verts, axis=0)
+    face_center = np.mean(face_verts, axis=0) #customer's face center
+    org_face_center = np.mean(org_face_verts, axis=0) #victoria's face center
 
+    match_idxs = [12170, 12184, 5559, 1142, 991, 13075, 7603, 9475, 13247, 6479, 13136, 13089]
+    test_tpl_face_verts = tpl_head_verts[vface_map_in_head].copy()
 
-    tpl_leye = np.mean(tpl_head_verts[vleye_map_in_head], axis=0)
-    tpl_reye = np.mean(tpl_head_verts[vreye_map_in_head], axis=0)
-    tpl_eye = 0.5*(tpl_leye + tpl_reye)
-    tpl_upper_lip = np.mean(tpl_head_verts[vupper_lip_map_in_head], axis=0)
-    tpl_ver_dir = unit_vector(tpl_eye - tpl_upper_lip)
-
+    #temporary embed the customer face to extract keypoints
     face_verts = face_verts - face_center + org_face_center
     tpl_head_verts[vface_map_in_head] = face_verts
 
-    leye = np.mean(tpl_head_verts[vleye_map_in_head], axis=0)
-    reye = np.mean(tpl_head_verts[vreye_map_in_head], axis=0)
-    eye = 0.5*(leye + reye)
-    upper_lip = np.mean(tpl_head_verts[vupper_lip_map_in_head], axis=0)
-    ver_dir = unit_vector(eye - upper_lip)
+    set_0 = test_tpl_face_verts[match_idxs, :].T
+    set_1 = face_verts[match_idxs, :].T
 
-    M = rotation_matrix(angle_between_vectors(ver_dir, tpl_ver_dir), vector_product(ver_dir, tpl_ver_dir))
-    tpl_head_verts[vface_map_in_head] = np.dot(tpl_head_verts[vface_map_in_head] - org_face_center, M[:3, :3].T) + org_face_center
+    AT = affine_matrix_from_points(set_1, set_0, shear = False, scale=False)
+
+    tmp_ctm_faceverts = tpl_head_verts[vface_map_in_head]
+    tmp_ctm_faceverts = np.hstack([tmp_ctm_faceverts, np.ones((tmp_ctm_faceverts.shape[0], 1))])
+
+    tmp_ctm_faceverts = np.dot(AT, tmp_ctm_faceverts.T)
+    tmp_ctm_faceverts = tmp_ctm_faceverts.T
+    tmp_ctm_faceverts = tmp_ctm_faceverts[:, :3]
+
+    tpl_head_verts[vface_map_in_head]  = tmp_ctm_faceverts
 
     return tpl_head_verts
 
@@ -224,10 +226,7 @@ class HmHeadEmbedder:
 
         new_head_verts = np.copy(tpl_head_verts)
         new_head_verts = embbed_face_to_tpl_head(tpl_head_verts=new_head_verts, face_verts=ctm_face_verts,
-                                                 vface_map_in_head=self.vface_map_in_head,
-                                                 vleye_map_in_head=self.vleye_map_in_head,
-                                                 vreye_map_in_head=self.vreye_map_in_head,
-                                                 vupper_lip_map_in_head=self.vupper_lip_map_in_head)
+                                                 vface_map_in_head=self.vface_map_in_head)
 
         new_head_verts = embbed_neck_seam_to_tpl_head(ctm_verts=customer_df_verts, tpl_head_verts=new_head_verts,
                                                       vneck_seam_map=self.vneck_seam_map,
@@ -235,6 +234,7 @@ class HmHeadEmbedder:
 
         handle_idxs = np.hstack([self.vface_map_in_head, self.vneck_seam_map_in_head])
         new_head_verts_1 = solve_head_discontinuity(tpl_head_verts, new_head_verts, handle_idxs, self.head_tri_in_head)
+        #new_head_verts_1 = new_head_verts
 
         customer_df_verts[self.vhead_map] = new_head_verts_1
 
