@@ -1,4 +1,7 @@
 import numpy as np
+import os
+import cv2 as cv
+from pathlib import Path
 
 def export_vertices(fpath, obj):
     with open(fpath, 'w') as f:
@@ -20,7 +23,7 @@ def export_mesh(fpath, verts, faces, add_one = True):
                 f.write(" %d" % (v_idx))
             f.write("\n")
 
-def export_mesh_tex_obj(fpath, mesh, add_one = True):
+def export_mesh_tex_obj(fpath, mesh, add_one = True, img_tex = None):
     assert 'v' in mesh, 'missing v'
     assert 'vt' in mesh , 'missing vt'
     assert 'f' in mesh, 'missing f'
@@ -32,9 +35,23 @@ def export_mesh_tex_obj(fpath, mesh, add_one = True):
     faces = mesh['f']
     faces_tex = mesh['ft']
 
+    dir = Path(fpath).parent
+    name = Path(fpath).stem
+
+    mtl_fname = f'{name}.mtl'
+    tex_fname = f'{name}.jpg'
+
+    #write texture
+    if img_tex is not None:
+        cv.imwrite(os.path.join(*[dir, tex_fname]), img_tex)
+
+    #write mtl file
+    with open(os.path.join(*[dir, mtl_fname]), 'w') as file:
+        file.write(f'map_Kd ./{tex_fname}')
+
+    #write obj file
     with open(fpath, 'w') as f:
-        #test
-        f.write('mtllib ./test_mtl.mtl\n')
+        f.write(f'mtllib ./{mtl_fname}\n')
         for i in range(verts.shape[0]):
             co = tuple(verts[i, :])
             f.write("v %.8f %.8f %.8f \n" % co)

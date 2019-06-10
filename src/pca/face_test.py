@@ -1,6 +1,7 @@
 from deploy.hm_shape_pred_pytorch_model import HmShapePredPytorchModel
 from deploy.hm_shape_pred_model import HmShapePredModel
 from deploy.hm_sil_pred_model import HmSilPredModel
+from deploy.hm_face_warp import  HmFaceWarp
 from pca.nn_util import crop_silhouette_pair
 import cv2 as cv
 import matplotlib.pyplot as plt
@@ -12,6 +13,7 @@ from common.obj_util import import_mesh_obj, export_mesh, import_mesh_tex_obj, e
 from common.transformations import rotation_matrix, unit_vector, angle_between_vectors, vector_product
 import math
 import pickle
+from deformation.ffdt_deformation_lib import  TemplateMeshDeform
 
 import sys
 sys.path.insert(0, '/home/khanhhh/data_1/sample_codes/libigl/python')
@@ -191,26 +193,144 @@ def calc_head_tris_in_head_space(tpl_tris, vhead_map):
 
     return head_tris
 
-if __name__ == '__main__':
-    face_res_path = '/home/khanhhh/data_1/projects/Oh/data/face/deformation_result/front_IMG_1928.obj'
-    tpl_mesh_path = '/home/khanhhh/data_1/projects/Oh/codes/human_estimation/data/meta_data/align_victoria.obj'
-    tpl_mesh_tri_path = '/home/khanhhh/data_1/projects/Oh/codes/human_estimation/data/meta_data/align_victoria_tri.obj'
+def deform_face(face_path):
+    tpl_path = '/home/khanhhh/data_1/projects/Oh/codes/human_estimation/data/meta_data/face_victoria.obj'
+    data_path = '/home/khanhhh/data_1/projects/Oh/codes/human_estimation/data/meta_data/global_face_vic_prnet_parameterization.pkl'
 
-    sil_dir = '/home/khanhhh/data_1/projects/Oh/data/mobile_image_silhouettes/sil_384_256/'
-    sil_f_path = os.path.join(*[sil_dir, 'sil_f' ,'_female_IMG_1928.jpg'])
-    sil_s_path = os.path.join(*[sil_dir, 'sil_s' ,'_female_IMG_1928.jpg'])
+    tpl_verts, tpl_faces = import_mesh_obj(fpath=tpl_path)
+
+    mesh = import_mesh_tex_obj(fpath=face_path)
+    ctl_df_verts = mesh['v']
+    ctl_df_faces = mesh['f']
+
+    mean = np.mean(ctl_df_verts, axis=0)
+    ctl_df_verts = ctl_df_verts - mean
+    ctl_df_verts *= 0.02
+
+    for idx, tris in enumerate(ctl_df_faces):
+        assert (len(tris) == 3), f'face {idx} with len of {len(tris)} is not a triangle'
+
+    with open(data_path, 'rb') as f:
+        data = pickle.load(f)
+        vert_UVWs = data['template_vert_UVW']
+        vert_weights = data['template_vert_weight']
+        vert_effect_idxs = data['template_vert_effect_idxs']
+
+        deform = TemplateMeshDeform(effective_range=4, use_mean_rad=False)
+        deform.set_meshes(ctl_verts=ctl_df_verts, ctl_tris=ctl_df_faces, tpl_verts=tpl_verts, tpl_faces=tpl_faces)
+        deform.set_parameterization(vert_tri_UVWs=vert_UVWs, vert_tri_weights=vert_weights,
+                                    vert_effect_tri_idxs=vert_effect_idxs)
+
+        del vert_UVWs
+        del vert_weights
+        del vert_effect_idxs
+        del data
+
+    tpl_df_verts = deform.deform(ctl_df_verts)
+
+    return tpl_df_verts, tpl_faces
+
+
+from deploy.hm_head_embedder import HmHeadEmbedder
+if __name__ == '__main__':
+    ap = argparse.ArgumentParser()
+    ap.add_argument("-face",  type=str, required=True)
+    ap.add_argument("-f_sil", type=str, required=True)
+    ap.add_argument("-s_sil", type=str, required=True)
+    ap.add_argument("-face_img", type=str, required=True)
+    ap.add_argument("-height", type=float, required=True)
+    ap.add_argument("-gender", type=float, default=0.0, required=False)
+    args = ap.parse_args()
+
+    face_res_path = args.face
+    sil_f_path = args.f_sil
+    sil_s_path = args.s_sil
+    height = args.height
+    gender = args.gender
+    face_img_path = args.face_img
+
+    name_id = Path(sil_f_path).stem
+
+    meta_dir = '/home/khanhhh/data_1/projects/Oh/codes/human_estimation/data/meta_data/'
+    out_dir = '/home/khanhhh/data_1/projects/Oh/data/face/test_merge_face_body/'
+
+    head_embed = HmHeadEmbedder(meta_dir)
+    face_warp = HmFaceWarp(meta_dir)
+
+    tpl_mesh_tri_path = f'{meta_dir}/align_victoria_tri.obj'
+    tpl_mesh_path = f'{meta_dir}align_victoria.obj'
+
+    sil_f = cv.imread(sil_f_path, cv.IMREAD_GRAYSCALE)
+    sil_s = cv.imread(sil_s_path, cv.IMREAD_GRAYSCALE)
+    face_img = cv.imread(face_img_path)
+
+    tmp_out_mesh_path = f'/home/khanhhh/data_1/projects/Oh/data/face/test_merge_face_body/{name_id}_tmp_verts.npy'
+    if not Path(tmp_out_mesh_path).exists():
+        path = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/cnn_data/sil_384_256_ml_fml_1/models/joint/shape_model.jlb'
+        model = HmShapePredModel(path)
+        pred = model.predict(sil_f, sil_s, height, gender)[0]
+        ctm_mesh_verts = pred.reshape(pred.shape[0] // 3, 3)
+        print(f'output mesh vertex shape: {ctm_mesh_verts.shape}')
+        np.save(tmp_out_mesh_path, ctm_mesh_verts)
+    else:
+        ctm_mesh_verts = np.load(tmp_out_mesh_path)
+
+    mesh = import_mesh_tex_obj(fpath=face_res_path)
+    ctl_df_verts = mesh['v']
+
+    ctm_mesh_verts = head_embed.embed(customer_df_verts=ctm_mesh_verts, prn_facelib_verts=ctl_df_verts)
+
+    texture = face_warp.warp(face_img)
+
+    text_mesh_path = '/home/khanhhh/data_1/projects/Oh/codes/human_estimation/data/meta_data/victoria_template_textured.obj'
+    tex_mesh = import_mesh_tex_obj(text_mesh_path)
+
+    out_mesh = {'v':ctm_mesh_verts, 'vt':tex_mesh['vt'], 'f':tex_mesh['f'], 'ft':tex_mesh['ft']}
+
+    export_mesh_tex_obj(os.path.join(*[out_dir, f'{name_id}_victoria_head_tex.obj']), out_mesh, img_tex=texture)
+
+def backup():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("-face",  type=str, required=True)
+    ap.add_argument("-f_sil", type=str, required=True)
+    ap.add_argument("-s_sil", type=str, required=True)
+    ap.add_argument("-f_img", type=str, required=True)
+    ap.add_argument("-height", type=float, required=True)
+    ap.add_argument("-gender", type=float, default=0.0, required=False)
+    args = ap.parse_args()
+
+    face_res_path = args.face
+    sil_f_path = args.f_sil
+    sil_s_path = args.s_sil
+    height = args.height
+    gender = args.gender
+
+    name_id = Path(sil_f_path).stem
+
+    out_dir = '/home/khanhhh/data_1/projects/Oh/data/face/test_merge_face_body/'
+
+    tpl_mesh_tri_path = '/home/khanhhh/data_1/projects/Oh/codes/human_estimation/data/meta_data/align_victoria_tri.obj'
+    tpl_mesh_path = '/home/khanhhh/data_1/projects/Oh/codes/human_estimation/data/meta_data/align_victoria.obj'
 
     sil_f = cv.imread(sil_f_path, cv.IMREAD_GRAYSCALE)
     sil_s = cv.imread(sil_s_path, cv.IMREAD_GRAYSCALE)
 
-    height = 1.6
-    gender = 0
+    tmp_face_verts_path = f'/home/khanhhh/data_1/projects/Oh/data/face/test_merge_face_body/{name_id}_tmp_face_verts.npy'
+    if not Path(tmp_face_verts_path).exists():
+        face_verts, face_faces = deform_face(face_res_path)
 
-    face_verts, _ = import_mesh_obj(face_res_path)
+        # y_forward = -y_forward
+        face_verts[:, 1] = -face_verts[:, 1]
+
+        np.save(tmp_face_verts_path, face_verts)
+        export_mesh(os.path.join(*[out_dir, 'tmp_test_deformed_fae.obj']), verts=face_verts, faces=face_faces)
+    else:
+        face_verts = np.load(tmp_face_verts_path)
+
     tpl_verts, tpl_faces = import_mesh_obj(tpl_mesh_path)
     _, tpl_tris = import_mesh_obj(tpl_mesh_tri_path)
 
-    tmp_out_mesh_path = '/home/khanhhh/data_1/projects/Oh/data/face/test_merge_face_body/tmp_verts.npy'
+    tmp_out_mesh_path = f'/home/khanhhh/data_1/projects/Oh/data/face/test_merge_face_body/{name_id}_tmp_verts.npy'
     if not Path(tmp_out_mesh_path).exists():
         path = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/cnn_data/sil_384_256_ml_fml_1/models/joint/shape_model.jlb'
         model = HmShapePredModel(path)
@@ -253,30 +373,17 @@ if __name__ == '__main__':
     handle_idxs = np.hstack([vface_map_in_head, vneck_seam_map_in_head])
     new_head_verts_1 = solve_head_discontinuity(tpl_head_verts, new_head_verts, handle_idxs, head_tri_in_head)
 
-    out_dir = '/home/khanhhh/data_1/projects/Oh/data/face/test_merge_face_body/'
-    mesh_verts_1 = np.copy(mesh_verts)
-    mesh_verts_1[vhead_map] = new_head_verts
-    export_mesh(os.path.join(*[out_dir, 'front_IMG_1928_victoria_head_merged.obj']), verts=mesh_verts_1, faces=tpl_faces)
+    # mesh_verts_1 = np.copy(mesh_verts)
+    # mesh_verts_1[vhead_map] = new_head_verts
+    # export_mesh(os.path.join(*[out_dir, f'{name_id}_victoria_head_merged.obj']), verts=mesh_verts_1, faces=tpl_faces)
 
     mesh_verts_2 = np.copy(mesh_verts)
     mesh_verts_2[vhead_map] = new_head_verts_1
-    export_mesh(os.path.join(*[out_dir, 'front_IMG_1928_victoria_head_merged_smoothed.obj']), verts=mesh_verts_2, faces=tpl_faces)
-
+    #export_mesh(os.path.join(*[out_dir, f'{name_id}_victoria_head_merged_smoothed.obj']), verts=mesh_verts_2, faces=tpl_faces)
 
     #test texutured export
-
     text_mesh_path = '/home/khanhhh/data_1/projects/Oh/codes/human_estimation/data/meta_data/victoria_template_textured.obj'
     tex_mesh = import_mesh_tex_obj(text_mesh_path)
     out_mesh = {'v':mesh_verts_2, 'vt':tex_mesh['vt'], 'f':tex_mesh['f'], 'ft':tex_mesh['ft']}
 
-
-    part_vert_grp_path = '/home/khanhhh/data_1/projects/Oh/codes/human_estimation/data/meta_data/victoria_part_vert_idxs.pkl'
-    with open(part_vert_grp_path, 'rb') as file:
-        part_vert_grps = pickle.load(file)
-        head_verts = part_vert_grps['head']
-        head_verts_tex = tex_mesh['vt'][head_verts]
-        plt.axes().set_aspect(1.0)
-        plt.plot(head_verts_tex[:,0], head_verts_tex[:,1], 'g+')
-        plt.show()
-
-    export_mesh_tex_obj(os.path.join(*[out_dir, 'front_IMG_1928_victoria_head_tex.obj']), out_mesh)
+    export_mesh_tex_obj(os.path.join(*[out_dir, f'{name_id}_victoria_head_tex.obj']), out_mesh)

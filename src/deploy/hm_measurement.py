@@ -6,6 +6,7 @@ from pathlib import Path
 from mpl_toolkits.mplot3d import Axes3D  # noqa: F401 unused import
 from common.transformations import *
 import argparse
+from common.obj_util import import_mesh_tex_obj
 
 def fit_plane(points):
     """
