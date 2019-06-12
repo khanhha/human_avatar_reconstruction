@@ -19,10 +19,10 @@ def embbed_neck_seam_to_tpl_head(ctm_verts, tpl_head_verts, vneck_seam_map, vnec
 
 def embbed_face_to_tpl_head(tpl_head_verts, face_verts, vface_map_in_head):
     #orientation face to match victoria face
-    tmp = np.copy(face_verts[:, 2])
-    face_verts[:,2] = face_verts[:,1]
-    face_verts[:, 1] = tmp
-    face_verts[:, 0] = -face_verts[:, 0]
+    # tmp = np.copy(face_verts[:, 2])
+    # face_verts[:,2] = face_verts[:,1]
+    # face_verts[:, 1] = tmp
+    # face_verts[:, 0] = -face_verts[:, 0]
 
     #scale face to match victoria's face
     org_face_verts = tpl_head_verts[vface_map_in_head]
@@ -154,7 +154,7 @@ class HmHeadEmbedder:
         vic_tpl_face_mesh_path = os.path.join(*[meta_dir, 'face_victoria.obj'])
         vic_tpl_mesh_tri_path = os.path.join(*[meta_dir, 'align_victoria_tri.obj'])
         prn_facelib_mesh_path = os.path.join(*[meta_dir, 'face_prn_facelib.obj'])
-        parameterization_path = os.path.join(*[meta_dir, 'global_face_vic_prnet_parameterization.pkl'])
+        parameterization_path = os.path.join(*[meta_dir, 'global_face_vic_prnet_parameterization_v1.pkl'])
         vic_tpl_vertex_groups_path = os.path.join(*[meta_dir, 'victoria_part_vert_idxs.pkl'])
 
 
@@ -208,14 +208,23 @@ class HmHeadEmbedder:
     def vic_tpl_faces(self):
         return self.deform.tpl_faces
 
+    def axis_blender_convert(self, verts):
+        tmp = np.copy(verts[:, 2])
+        verts[:, 2] = verts[:, 1]
+        verts[:, 1] = -tmp
+        return verts
+
     def embed(self, customer_df_verts, prn_facelib_verts):
         mean = np.mean(prn_facelib_verts, axis=0)
         ctl_df_verts = prn_facelib_verts - mean
-        ctl_df_verts *= 0.02
+        ctl_df_verts *= 0.01
+
+        #make the prn axis compatible with victoria's axis
+        ctl_df_verts = self.axis_blender_convert(ctl_df_verts)
 
         ctm_face_verts = self.deform.deform(ctl_df_verts)
         # y_forward = -y_forward
-        ctm_face_verts[:, 1] = -ctm_face_verts[:, 1]
+        # ctm_face_verts[:, 1] = -ctm_face_verts[:, 1]
 
 
         tpl_head_verts = self.vic_tpl_head_verts.copy()

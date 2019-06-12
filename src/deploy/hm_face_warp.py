@@ -292,8 +292,11 @@ class HmFaceWarp():
 
         tps.warpImage(image, image, flags=cv.INTER_CUBIC)
 
-        # test = self.targets.copy().astype(np.int)
-        # image[test[0,:,1], test[0,:,0]] = (255, 0, 0)
+        test = self.targets.copy().astype(np.int)
+        image[test[0,:,1], test[0,:,0]] = (255, 0, 0)
+
+        test = sources.copy().astype(np.int)
+        image[test[0,:,1], test[0,:,0]] = (0, 0, 255)
 
         #TODO: remove. we make black pixels white for the sake of visualization
         image[image[:,:,0] == 0] = (255,255,255)
