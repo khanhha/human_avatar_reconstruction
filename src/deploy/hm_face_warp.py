@@ -240,6 +240,7 @@ class HmFaceWarp():
 
         self.targets = self._load_target_texture_landmarks(meta_dir)
         self.targets *= 1024
+        #TODO: forget why we have to invser the y coordinate
         self.targets[:, 1] = 1024 - self.targets[:,1]
         assert self.targets.shape[0] == self.N_Facial_LD
 
@@ -253,24 +254,48 @@ class HmFaceWarp():
         for i in range(self.N_Facial_LD):
             self.matches.append(cv.DMatch(i, i, 0))
 
+        #debug
+        # from pathlib import Path
+        # import os
+        # dir = '/media/khanhhh/42855ff5-574e-4a41-ad10-0f08087b0ff6/data_1/projects/Oh/data/face/2019-06-04-face/'
+        # out_dir = '/media/khanhhh/42855ff5-574e-4a41-ad10-0f08087b0ff6/data_1/projects/Oh/data/face/2019-06-04-face-dlib-landmark/'
+        # os.makedirs(out_dir, exist_ok=True)
+        # for img_path in Path(dir).glob('*.*'):
+        #     img = cv.imread(str(img_path))
+        #     print(img_path)
+        #     sources = self._detect_face_landmark(img)
+        #     if sources is not None:
+        #         for i in range(sources.shape[1]):
+        #             x, y = int(sources[0, i, 0]), int(sources[0, i, 1])
+        #             cv.circle(img, (x, y), 2, (0, 0, 255), -1)
+        #     debug_path = f'{out_dir}/{img_path.stem}.jpg'
+        #     cv.imwrite(debug_path, img)
+        # exit()
+
     def warp(self, img):
         if isinstance(img, str):
             image = cv.imread(img)
         else:
             image = img
 
+        #TODO: resize the image this way will ignore the normal aspect rate, which could affect the perfomance of dlib landmark detector
+        #however, we need the original image to have the same size as the texture to be able to warp it.
+        #is there anyway around?
         image = cv.resize(image, dsize=(1024, 1024), interpolation=cv.INTER_AREA)
 
         sources = self._detect_face_landmark(image)
         if sources is None:
             return image
 
-        tps = cv.createThinPlateSplineShapeTransformer(100)
+        tps = cv.createThinPlateSplineShapeTransformer(0)
         tps.estimateTransformation(self.targets, sources, self.matches)
 
         tps.warpImage(image, image, flags=cv.INTER_CUBIC)
 
-        #TOOD: remove
+        # test = self.targets.copy().astype(np.int)
+        # image[test[0,:,1], test[0,:,0]] = (255, 0, 0)
+
+        #TODO: remove. we make black pixels white for the sake of visualization
         image[image[:,:,0] == 0] = (255,255,255)
 
         return image
