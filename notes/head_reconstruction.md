@@ -9,16 +9,18 @@
       - apply biharmonic deformation to reconstruct a new Victoria's face from the modified landmarks.
     - use nonrigid iterative closest iteration to improve the alignment.
     - smooth the mesh and apply shrink wrap.
-    - the final result will look like this
-    ![jpg](./images/face_align_vic_prn.jpg)
+    - the final result will look like this.
+
+      ![jpg](./images/face_align_vic_prn.jpg)
 
   - parameterization
     - at this step, two faces should be well aligned and corresponding landmarks should be at the same locations.  
     - after two faces are well aligned, we represent each vertex of Victoria's face with respect to a set of neighboring triangles from PRN face.
   - texture mapping
     - use blender Unwrap tool for the head. Scale and translate the head texture map a bit. we call it Blender default texture map.
-    - the result is shown in the below picture
-    ![](./images/face_blender_texture_map.jpg)
+    - the result is shown in the below picture.
+
+      ![](./images/face_blender_texture_map.jpg)
 
 ### real-time stage
   - head geometry
