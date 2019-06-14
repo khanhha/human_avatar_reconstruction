@@ -174,7 +174,6 @@ if __name__ == '__main__':
     dump_heights(pca_in_dir=out_target_dir,
                  pca_ml_model_path=args.pca_ml_model_path, pca_fml_model_path=args.pca_fml_model_path,
                  height_out_path=out_height_path)
-    exit()
 
     with tempfile.TemporaryDirectory() as tmp_dir:
         print(f'created temporary dir: {tmp_dir}')
