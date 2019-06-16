@@ -64,9 +64,9 @@ from deploy.hm_head_embedder import HmHeadEmbedder
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
     ap.add_argument("-face",  type=str, required=True)
+    ap.add_argument("-face_img",  type=str, required=True)
     ap.add_argument("-f_sil", type=str, required=True)
     ap.add_argument("-s_sil", type=str, required=True)
-    ap.add_argument("-face_img", type=str, required=True)
     ap.add_argument("-height", type=float, required=True)
     ap.add_argument("-gender", type=float, default=0.0, required=False)
     args = ap.parse_args()
@@ -76,7 +76,11 @@ if __name__ == '__main__':
     sil_s_path = args.s_sil
     height = args.height
     gender = args.gender
-    face_img_path = args.face_img
+
+    face_prn_kps_path = f'{Path(args.face).parent}/{Path(args.face).stem}_img_kpt.txt'
+    face_img_path = f'{Path(args.face).parent}/{Path(args.face).stem}.jpg'
+    #face_img_path = args.face_img
+    face_prn_kpts = np.loadtxt(face_prn_kps_path)
 
     name_id = Path(sil_f_path).stem
 
@@ -91,6 +95,15 @@ if __name__ == '__main__':
     sil_f = cv.imread(sil_f_path, cv.IMREAD_GRAYSCALE)
     sil_s = cv.imread(sil_s_path, cv.IMREAD_GRAYSCALE)
     face_img = cv.imread(face_img_path)
+
+    # face_prn_kps visualization
+    # print(face_prn_kps.shape)
+    # for i in range(face_prn_kps.shape[0]):
+    #     p = face_prn_kps[i,:]
+    #     print(p)
+    #     cv.circle(face_img, (p[1], p[0]), 2, (0,0,255), thickness=2, lineType=cv.FILLED)
+    # plt.imshow(face_img[:,:,::-1])
+    # plt.show()
 
     tmp_out_mesh_path = f'/home/khanhhh/data_1/projects/Oh/data/face/test_merge_face_body/{name_id}_tmp_verts.npy'
     if not Path(tmp_out_mesh_path).exists():
@@ -107,10 +120,10 @@ if __name__ == '__main__':
     ctl_df_verts = mesh['v']
 
     ctm_mesh_verts = head_embed.embed(customer_df_verts=ctm_mesh_verts, prn_facelib_verts=ctl_df_verts)
-    use_default_blender_texture = False
+    use_default_blender_texture = True
     if use_default_blender_texture == True:
         face_warp = HmFaceWarp(meta_dir)
-        texture = face_warp.warp(face_img)
+        texture = face_warp.warp(face_img, face_prn_kpts)
     else:
         rect_path = os.path.join(*[meta_dir, 'prn_texture_rectangle.txt'])
         prn_texture_path = '/home/khanhhh/data_1/projects/Oh/data/face/2019-06-04-face-output/MVIMG_20190604_180645_texture.png'
