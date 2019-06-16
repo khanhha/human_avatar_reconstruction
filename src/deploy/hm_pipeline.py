@@ -42,7 +42,9 @@ class HumanRGBModel:
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
     ap.add_argument("-model_dir",  required=True, type=str, help="the direction where shape_model.jlb  and deeplab model are stored")
-    ap.add_argument("-in_txt_file",  required=True, type=str, help="the direction where shape_model.jlb  and deeplab model are stored")
+    ap.add_argument("-in_txt_file",  required=True, type=str, help="the texture file to the input data directory. each line of the texture file have the following format:"
+                                                                   "front_img  side_img  height_in_meter  gender  are_silhouette_or_not")
+    ap.add_argument("-save_sil",  required=False, default= True, type=bool, help="save silhouettes that are calculated from RGB input images")
 
     args = ap.parse_args()
 
@@ -73,20 +75,21 @@ if __name__ == '__main__':
 
             assert Path(front_img_path).exists() and Path(side_img_path).exists()
 
-            print(f'process image pair {comps[0]} - {comps[1]}. height = {height}. gender = {gender}. is_sil = {is_sil}')
+            print(f'\nprocess image pair {comps[0]} - {comps[1]}. height = {height}. gender = {gender}. is_sil = {is_sil}')
             if not is_sil:
                 img_f = cv.imread(front_img_path)
                 img_s = cv.imread(side_img_path)
 
                 verts, faces, sil_f, sil_s = model.predict(img_f, img_s, height, gender)
 
-                sil_f  = (sil_f*255.0).astype(np.uint8)
-                sil_s  = (sil_s*255.0).astype(np.uint8)
-                out_sil_f_path = os.path.join(*[dir, f'{Path(front_img_path).stem}_sil.jpg'])
-                cv.imwrite(out_sil_f_path, sil_f)
-                out_sil_s_path = os.path.join(*[dir, f'{Path(side_img_path).stem}_sil.jpg'])
-                cv.imwrite(out_sil_s_path, sil_s)
-                print(f'\texported silhouette {out_sil_f_path} - {out_sil_s_path}')
+                if args.save_sil:
+                    sil_f  = (sil_f*255.0).astype(np.uint8)
+                    sil_s  = (sil_s*255.0).astype(np.uint8)
+                    out_sil_f_path = os.path.join(*[dir, f'{Path(front_img_path).stem}_sil.jpg'])
+                    cv.imwrite(out_sil_f_path, sil_f)
+                    out_sil_s_path = os.path.join(*[dir, f'{Path(side_img_path).stem}_sil.jpg'])
+                    cv.imwrite(out_sil_s_path, sil_s)
+                    print(f'\texported silhouette {out_sil_f_path} - {out_sil_s_path}')
             else:
                 img_f = cv.imread(front_img_path, cv.IMREAD_GRAYSCALE)
                 img_s = cv.imread(side_img_path, cv.IMREAD_GRAYSCALE)
@@ -100,7 +103,6 @@ if __name__ == '__main__':
                 verts, faces = model.predict_sil(img_f, img_s, height, gender)
 
             out_path = os.path.join(*[dir, f'{Path(front_img_path).stem}_{idx}.obj'])
-            #print(f'\toutput mesh shape: {verts.shape}')
             print(f'\texported obj object to path {out_path}')
             export_mesh(out_path, verts=verts, faces=faces)
 

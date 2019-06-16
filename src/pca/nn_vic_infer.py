@@ -17,7 +17,7 @@ from common.obj_util import export_mesh, import_mesh_obj
 from sklearn.preprocessing import StandardScaler, MinMaxScaler, RobustScaler
 from sklearn.externals import joblib
 from pca.dense_net import JointMask
-from pca.nn_util import  AverageMeter, load_target, ImgFullDataSet, load_height
+from pca.nn_util import  load_target, ImgFullDataSet, load_height
 from pca.nn_util import create_pair_loader, find_latest_model_path, load_pca_model, adjust_learning_rate, network_input_size
 from pca.losses import SMPLLoss
 from pca.nn_vic_model import  NNModelWrapper

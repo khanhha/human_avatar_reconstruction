@@ -58,6 +58,14 @@ def convert(model_path, out_path, vic_mesh_path):
 
     joblib.dump(value=to_save, filename=out_path)
     print(f'dump the output model to {out_path}')
+    print(f'the shape_model includes the following infromation:\n')
+    print(f'\n\ttensor flow graph')
+    print(f'\n\tinput image size')
+    print(f'\n\tmodel_type: f, s or joint')
+    print(f'\n\tpca_model: the male and female PCA models wrapped in a single class')
+    print(f'\n\tPCA_target_transform: transform the [0,1] prediction from CNN to the true range of PCA model')
+    print(f'\n\taux_input_transform: transform height input to the range of [0,1] to input to the model')
+    print(f'\n\tvic_caesar_faces: the list of faces of template victoria mesh. the verts returned from PCA model + this face lib will form the final prediction mesh')
 
 import argparse
 if __name__ == '__main__':

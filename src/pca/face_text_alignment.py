@@ -2,7 +2,7 @@ import cv2 as cv
 import numpy as np
 import pickle
 import matplotlib.pyplot as plt
-from common.obj_util import import_mesh_tex_obj
+from common.obj_util import import_mesh_tex_obj, export_mesh_tex_obj
 import sys
 sys.path.insert(0, '/home/khanhhh/data_1/sample_codes/libigl/python')
 import pyigl as igl
@@ -114,7 +114,9 @@ if __name__ == '__main__':
 
     N_Facial_LD = 68
 
-    mpath = os.path.join(*[dir, 'victoria_template_tri_textured.obj'])
+    mpath = os.path.join(*[dir, 'victoria_template_textured.obj'])
+    out_mpath = os.path.join(*[dir, 'victoria_template_textured_warped.obj'])
+
     mesh = import_mesh_tex_obj(mpath)
     verts= mesh['v']
     verts_tex = mesh['vt']
@@ -144,6 +146,12 @@ if __name__ == '__main__':
     vtbody_vthead_map  = dict((vbody, vhead) for vhead, vbody in enumerate(vthead))
     faces_tex_in_head  = faces_from_verts(faces_tex, vthead)
     vt_face_ld_in_head = [vtbody_vthead_map[vbody] for vbody in vt_face_ld]
+
+    #debug. bring it the same scale of the prn texture
+    #verts_tex -= 0.5
+    #verts_tex += 0.5
+    verts_tex *= 255.0
+
     vthead_co   = verts_tex[vthead]
     vt_face_ld_co  = verts_tex[vt_face_ld]
 
@@ -152,15 +160,50 @@ if __name__ == '__main__':
     tar_ld_path = os.path.join(*[dir_1, 'uv_kpt_ind.txt'])
     tar_face_ld_cos = np.loadtxt(tar_ld_path).T
     tar_face_ld_cos[:,1] = 255 - tar_face_ld_cos[:,1]
-    tar_face_ld_cos = tar_face_ld_cos.astype(np.float32)/255.0
+    tar_face_ld_cos = tar_face_ld_cos.astype(np.float32)
 
-    vt_head_co_mod = vthead_co.copy()
-    vt_head_co_mod[vt_face_ld_in_head] = tar_face_ld_cos
+    sources = vt_face_ld_co
+    targets = tar_face_ld_cos
+    sources = sources.astype(np.float32)
+    targets = targets.astype(np.float32)
+    sources = sources.reshape((1, -1, 2))
+    targets = targets.reshape((1, -1, 2))
 
-    vthead_warped_co = warp_head_texture(vthead_co, vt_head_co_mod, vt_face_ld_in_head, faces_tex_in_head)
+    matches = list()
+    for i in range(N_Facial_LD):
+        matches.append(cv.DMatch(i, i, 0))
+    tps = cv.createThinPlateSplineShapeTransformer(10)
+    tps.estimateTransformation(sources, targets, matches)
+
+    verts_tex_1 = verts_tex.copy().reshape((1, -1, 2)).astype(np.float32)
+    error, verts_tex_1 = tps.applyTransformation(verts_tex_1)
+    verts_tex_1.shape = (-1, 2)
+
+    verts_tex_1 /= 255.0
+    tar_face_ld_cos /= 255.0
+
+    #verts_tex_1[verts_tex_1 < 0.0000001] = 0.0
+    #verts_tex_1[verts_tex_1 > 1.0000001] = 0.0'
+    min_uv = verts_tex_1.min()
+    max_uv = verts_tex_1.max()
+    range_uv = max_uv - min_uv
+    verts_tex_1 = (verts_tex_1 - min_uv)/range_uv
+
+    prn_rect = np.array([[0.0,0.0], [1.0, 1.0]])
+    prn_rect = (prn_rect - min_uv) / range_uv
+
+    #export texture
+    mesh['vt'] = verts_tex_1
+
+    vt_face_ld_co_1  = verts_tex_1[vt_face_ld]
+    export_mesh_tex_obj(fpath=out_mpath, mesh=mesh)
+
+    path = np.savetxt(fname=os.path.join(*[dir, 'prn_texture_rectangle.txt']), X = prn_rect)
+
 
     plt.axes().set_aspect(1.0)
-    plt.plot(vthead_co[:,0], vthead_co[:,1], 'g+')
-    plt.plot(vt_face_ld_co[:, 0], vt_face_ld_co[:, 1], 'r+')
-    plt.plot(tar_face_ld_cos[:,0], tar_face_ld_cos[:,1], 'b+', linewidth=2, markersize=5 )
+    plt.plot(verts_tex_1[:,0], verts_tex_1[:,1], 'g+')
+    plt.plot(vt_face_ld_co_1[:, 0], vt_face_ld_co_1[:, 1], 'r+')
+    #plt.plot(tar_face_ld_cos[:,0], tar_face_ld_cos[:,1], 'b+', linewidth=2, markersize=4 )
+    plt.plot(prn_rect[:,0], prn_rect[:,1], 'b+', linewidth=2, markersize=7 )
     plt.show()

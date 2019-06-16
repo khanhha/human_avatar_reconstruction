@@ -210,12 +210,12 @@ if __name__ == '__main__':
         label = np.zeros(len(name_ids), dtype=np.uint8)
         for idx, name in enumerate(name_ids):
             label[idx] = 1 if '_male' in name else 0
-        train_idxs, test_idxs  = train_test_split(np.arange(n), test_size=0.15, stratify=label) #big test size for reduced traning time
+        train_idxs, test_idxs  = train_test_split(np.arange(n), test_size=0.1, stratify=label) #big test size for reduced traning time
 
         label = np.zeros(len(train_idxs), dtype=np.uint8)
         for i in range(len(train_idxs)):
             label[i] = 1 if '_male' in name_ids[train_idxs[i]] else 0
-        train_idxs, valid_idxs = train_test_split(train_idxs, test_size=0.15, stratify=label)
+        train_idxs, valid_idxs = train_test_split(train_idxs, test_size=0.10, stratify=label)
 
         copy_train_valid_test(name_ids, sil_f_paths, train_idxs=train_idxs, valid_idxs=valid_idxs, test_idxs=test_idxs, out_dir=out_sil_f_dir, args=args)
         copy_train_valid_test(name_ids, sil_s_paths, train_idxs=train_idxs, valid_idxs=valid_idxs, test_idxs=test_idxs, out_dir=out_sil_s_dir, args=args)

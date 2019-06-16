@@ -1,7 +1,7 @@
 from deploy.hm_shape_pred_pytorch_model import HmShapePredPytorchModel
 from deploy.hm_shape_pred_model import HmShapePredModel
 from deploy.hm_sil_pred_model import HmSilPredModel
-from deploy.hm_face_warp import  HmFaceWarp
+from deploy.hm_face_warp import  HmFaceWarp, HmFPrnNetFaceTextureEmbedder
 from pca.nn_util import crop_silhouette_pair
 import cv2 as cv
 import matplotlib.pyplot as plt
@@ -35,7 +35,6 @@ def align_face_to_mesh(face_verts, mesh_verts, vmap_face_to_mesh):
     face_hor_ldm_co_1 =  face_verts[hor_ldm_idx_1]
     mesh_hor_ldm_co_0 = mesh_verts[vmap_face_to_mesh[hor_ldm_idx_0], :]
     mesh_hor_ldm_co_1 = mesh_verts[vmap_face_to_mesh[hor_ldm_idx_1], :]
-
 
     tmp = np.copy(face_verts[:, 2])
     face_verts[:,2] = face_verts[:,1]
@@ -85,7 +84,6 @@ if __name__ == '__main__':
     out_dir = '/home/khanhhh/data_1/projects/Oh/data/face/test_merge_face_body/'
 
     head_embed  = HmHeadEmbedder(meta_dir)
-    face_warp   = HmFaceWarp(meta_dir)
 
     tpl_mesh_tri_path = f'{meta_dir}/align_victoria_tri.obj'
     tpl_mesh_path = f'{meta_dir}align_victoria.obj'
@@ -109,12 +107,32 @@ if __name__ == '__main__':
     ctl_df_verts = mesh['v']
 
     ctm_mesh_verts = head_embed.embed(customer_df_verts=ctm_mesh_verts, prn_facelib_verts=ctl_df_verts)
+    use_default_blender_texture = False
+    if use_default_blender_texture == True:
+        face_warp = HmFaceWarp(meta_dir)
+        texture = face_warp.warp(face_img)
+    else:
+        rect_path = os.path.join(*[meta_dir, 'prn_texture_rectangle.txt'])
+        prn_texture_path = '/home/khanhhh/data_1/projects/Oh/data/face/2019-06-04-face-output/MVIMG_20190604_180645_texture.png'
+        prn_tex = cv.imread(prn_texture_path)
+        face_embed = HmFPrnNetFaceTextureEmbedder(prn_facelib_rect_path=rect_path, texture_size=1024)
+        texture = face_embed.embed(prn_tex)
 
-    texture = face_warp.warp(face_img)
-
-    text_mesh_path = '/home/khanhhh/data_1/projects/Oh/codes/human_estimation/data/meta_data/victoria_template_textured.obj'
+    text_mesh_path = '/home/khanhhh/data_1/projects/Oh/codes/human_estimation/data/meta_data/victoria_template_textured_warped.obj'
     tex_mesh = import_mesh_tex_obj(text_mesh_path)
 
     out_mesh = {'v':ctm_mesh_verts, 'vt':tex_mesh['vt'], 'f':tex_mesh['f'], 'ft':tex_mesh['ft']}
 
     export_mesh_tex_obj(os.path.join(*[out_dir, f'{name_id}_victoria_head_tex.obj']), out_mesh, img_tex=texture)
+
+    #debug landmarks
+    meta_dir = '/home/khanhhh/data_1/projects/Oh/codes/human_estimation/data/meta_data/'
+    vic_ld_path = f'{meta_dir}/victoria_face_landmarks.pkl'
+    with open(vic_ld_path, 'rb') as file:
+        vic_face_lds_dict = pickle.load(file)
+        assert len(vic_face_lds_dict) == 68
+        vic_ld_idxs = [vic_face_lds_dict[i] for i in range(68)]
+        out_ld_path = os.path.join(*[out_dir, f'{name_id}_victoria_face_lds.txt'])
+        face_lds = ctm_mesh_verts[vic_ld_idxs, :]
+        np.savetxt(fname=out_ld_path, X=face_lds)
+

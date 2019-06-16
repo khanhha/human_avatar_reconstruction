@@ -16,7 +16,7 @@ from tqdm import tqdm
 from sklearn.preprocessing import StandardScaler, Normalizer, MinMaxScaler, RobustScaler
 from sklearn.externals import joblib
 from pca.dense_net import JointMask
-from pca.nn_util import  AverageMeter, load_target, ImgFullDataSet, load_height
+from pca.nn_util import  load_target, ImgFullDataSet, load_height
 from pca.nn_util import create_pair_loader, find_latest_model_path, load_pca_model, adjust_learning_rate, network_input_size
 from pca.losses import SMPLLoss
 from ignite.engine import Events, create_supervised_trainer, create_supervised_evaluator
@@ -28,124 +28,6 @@ import logging
 import sys
 from pca.nn_vic_model import NNModelWrapper
 from pca.pca_vic_model import PcaModel
-
-# def train(train_loader, valid_loader, model, criterion, optimizer, validation, args, model_dir):
-#     # switch to train mode
-#     # switch to train mode
-#     latest_model_path = find_latest_model_path(model_dir)
-#
-#     best_model_path = os.path.join(*[model_dir, 'model_best.pt'])
-#
-#     if latest_model_path is not None:
-#         state = torch.load(latest_model_path)
-#         epoch = state['epoch']
-#         model.load_state_dict(state['model'])
-#
-#         #if latest model path does exist, best_model_path should exists as well
-#         assert Path(best_model_path).exists() == True, f'best model path {best_model_path} does not exist'
-#         #load the min loss so far
-#         best_state = torch.load(latest_model_path)
-#         min_val_los = best_state['valid_loss']
-#
-#         print(f'Restored model at epoch {epoch}. Min validation loss so far is : {min_val_los}')
-#         epoch += 1
-#         print(f'Started training model from epoch {epoch}')
-#     else:
-#         print('Started training model from epoch 0')
-#         epoch = 0
-#         min_val_los = 9999
-#
-#     valid_losses = []
-#     model_type = args.model_type
-#     for epoch in range(epoch, args.n_epoch + 1):
-#
-#         lr = adjust_learning_rate(optimizer, epoch, args.lr)
-#
-#         criterion.decay_pca_weight(epoch)
-#
-#         tq = tqdm(total=(len(train_loader) * args.batch_size))
-#         tq.set_description(f'Epoch {epoch}, lr = {lr}, pca_weight = {criterion.pca_weight}')
-#
-#         losses = AverageMeter()
-#
-#         model.train()
-#         for i, (input_f, input_s, target, height) in enumerate(train_loader):
-#             target_var = Variable(target).cuda()
-#             height_var = Variable(height).cuda()
-#             if model_type == 'f':
-#                 input_f_var = Variable(input_f).cuda()
-#                 pred = model(input_f_var, height_var)
-#             elif model_type == 's':
-#                 input_s_var = Variable(input_s).cuda()
-#                 pred = model(input_s_var, height_var)
-#             else:
-#                 input_f_var = Variable(input_f).cuda()
-#                 input_s_var = Variable(input_s).cuda()
-#                 pred = model(input_f_var, input_s_var, height_var)
-#
-#             #pred = pred.view(-1)
-#             #target_var  = target_var.view(-1)
-#
-#             #assert (masks_probs_flat >= 0. & masks_probs_flat <= 1.).all()
-#             loss = criterion(pred, target_var)
-#             losses.update(loss, input_f.size(0))
-#
-#             tq.set_postfix(loss='{:.5f}'.format(losses.avg))
-#             tq.update(args.batch_size)
-#
-#             # compute gradient and do SGD step
-#             optimizer.zero_grad()
-#             loss.backward()
-#             optimizer.step()
-#
-#         valid_metrics = validation(model, valid_loader, criterion, args)
-#         valid_loss = valid_metrics['valid_loss']
-#         valid_losses.append(valid_loss)
-#         print(f'\n\tvalid_loss = {valid_loss:.5f}')
-#         tq.close()
-#
-#         #save the model of the current epoch
-#         epoch_model_path = os.path.join(*[model_dir, f'model_epoch_{epoch}.pt'])
-#         torch.save({
-#             'model': model.state_dict(),
-#             'epoch': epoch,
-#             'valid_loss': valid_loss,
-#             'train_loss': losses.avg
-#         }, epoch_model_path)
-#
-#         if valid_loss < min_val_los:
-#             min_val_los = valid_loss
-#
-#             torch.save({
-#                 'model': model.state_dict(),
-#                 'epoch': epoch,
-#                 'valid_loss': valid_loss,
-#                 'train_loss': losses.avg
-#             }, best_model_path)
-#
-# def validate(model, val_loader, criterion, args):
-#     losses = AverageMeter()
-#     model.eval()
-#     with torch.no_grad():
-#         for i, (input_f, input_s, target, height) in enumerate(val_loader):
-#             target_var = Variable(target).cuda()
-#             height_var = Variable(height).cuda()
-#             if args.model_type == 'f':
-#                 input_f_var = Variable(input_f).cuda()
-#                 pred = model(input_f_var, height_var)
-#             elif args.model_type == 's':
-#                 input_s_var = Variable(input_s).cuda()
-#                 pred = model(input_s_var, height_var)
-#             else:
-#                 input_f_var = Variable(input_f).cuda()
-#                 input_s_var = Variable(input_s).cuda()
-#                 pred = model(input_f_var, input_s_var, height_var)
-#
-#             loss = criterion(pred, target_var)
-#
-#             losses.update(loss.item(), input_f.size(0))
-#
-#     return {'valid_loss': losses.avg}
 
 def create_summary_writer(args, model, data_loader, log_dir, clean_old_log = True):
     if clean_old_log:
@@ -320,7 +202,6 @@ def find_model_path(dir, hint):
     return None
 
 def load_transformations():
-    #Todo: not sure if target scaling affect the target loss. don't use it now
     if args.is_scale_target:
         target_data = load_target(args.target_dir)
         target_trans = MinMaxScaler()
@@ -345,12 +226,15 @@ def run(args):
     model_root_dir = os.path.join(*[args.root_dir, 'models'])
     model_dir = os.path.join(*[model_root_dir, args.model_type])
     os.makedirs(model_dir, exist_ok=True)
+
+    #train the front and side model first
     if args.model_type in ['f', 's']:
         n_aux_input_feature = 1 #height
         if args.use_gender:
             n_aux_input_feature = 2 #gender
         model = densenet121(pretrained=False, num_classes=args.num_classes, n_aux_input_feature=n_aux_input_feature)
     else:
+        #find the path to the front and side models
         model_f_path = find_model_path(os.path.join(*[model_root_dir, 'f']), 'final_model')
         model_s_path = find_model_path(os.path.join(*[model_root_dir, 's']), 'final_model')
         assert Path(model_f_path).exists(), 'missing front model'
@@ -361,6 +245,7 @@ def run(args):
         print(f'\tmodel_f: {model_f_path}')
         print(f'\tmodel_s: {model_s_path}')
         print('\n')
+        #create  joint model from the front and side weights
         model = JointMask(model_f=model_f_wrap.model, model_s=model_s_wrap.model, num_classes=args.num_classes)
 
     target_trans, height_trans = load_transformations()
@@ -483,7 +368,6 @@ def run(args):
     writer.close()
     pbar.close()
 
-import distutils
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
     ap.add_argument("-root_dir", type=str, required=True)
@@ -510,33 +394,3 @@ if __name__ == '__main__':
     args = ap.parse_args()
     assert args.use_height == True, 'only support height input currently'
     run(args)
-    exit()
-
-    # model_root_dir = os.path.join(*[args.root_dir, 'models'])
-    # model_dir = os.path.join(*[model_root_dir, args.model_type])
-    # os.makedirs(model_dir, exist_ok=True)
-    # if args.model_type in ['f', 's']:
-    #     model = densenet121(pretrained=False, num_classes=args.num_classes, n_aux_input_feature=1)
-    # else:
-    #     model_f_path = os.path.join(*[model_root_dir, 'f', 'model_best.pt'])
-    #     model_s_path = os.path.join(*[model_root_dir, 's', 'model_best.pt'])
-    #     assert Path(model_f_path).exists(), 'missing front model'
-    #     assert Path(model_s_path).exists(), 'missing side model'
-    #     model = load_joint_net_161_train(model_f_path, model_s_path, num_classes=args.num_classes, n_aux_input_feature=1)
-    #
-    # train_loader, valid_loader = create_loaders(args)
-    #
-    # pca_model = joblib.load(filename=args.pca_model_path)
-    # if pca_model.whiten:
-    #     pca_components = np.sqrt(pca_model.explained_variance_[:, np.newaxis]) * pca_model.components_
-    # else:
-    #     pca_components = pca_model.components_
-    # pca_components = torch.Tensor(pca_components.T).cuda()
-    #
-    # criterion = SMPLLoss(pca_components)
-    #
-    # optimizer = torch.optim.RMSprop(model.parameters(), lr = args.lr)
-    #
-    # device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    # model_ft = model.to(device)
-    # train(train_loader, valid_loader, model, criterion, optimizer, validate, args, model_dir)

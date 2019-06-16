@@ -292,14 +292,12 @@ class HmFaceWarp():
 
         tps.warpImage(image, image, flags=cv.INTER_CUBIC)
 
+        #TODO: remove in release
         test = self.targets.copy().astype(np.int)
         image[test[0,:,1], test[0,:,0]] = (255, 0, 0)
 
-        test = sources.copy().astype(np.int)
-        image[test[0,:,1], test[0,:,0]] = (0, 0, 255)
-
         #TODO: remove. we make black pixels white for the sake of visualization
-        image[image[:,:,0] == 0] = (255,255,255)
+        #image[image[:,:,0] == 0] = (255,255,255)
 
         return image
 
@@ -323,8 +321,7 @@ class HmFaceWarp():
         return None
 
     def _load_target_texture_landmarks(self, meta_dir):
-
-        mpath = os.path.join(*[meta_dir, 'victoria_template_textured.obj'])
+        mpath = os.path.join(*[meta_dir, 'victoria_template_textured_warped.obj'])
         mesh = import_mesh_tex_obj(mpath)
         verts_tex = mesh['vt']
         faces = mesh['f']
@@ -348,6 +345,38 @@ class HmFaceWarp():
         vt_face_ld_co = verts_tex[vt_face_ld]
 
         return vt_face_ld_co
+
+
+class HmFPrnNetFaceTextureEmbedder():
+
+    def __init__(self, prn_facelib_rect_path, texture_size = 1024):
+        self.texture_size = texture_size
+        self.rect_uv = np.loadtxt(prn_facelib_rect_path)
+        self.rect = (texture_size * self.rect_uv).astype(np.int)
+        self.rect[:,0] = self.texture_size - self.rect[:,0] - 1
+        self.embed_size = self.rect.max() - self.rect.min()
+
+        print(f'p0 = {self.rect[0,:]}')
+        print(f'p1 = {self.rect[1,:]}')
+        plt.plot(self.rect[0,0], self.rect[0,1], 'g+')
+        plt.plot(self.rect[1,0], self.rect[1,1], 'r+')
+        plt.show()
+
+    def embed(self, prn_facelib_tex):
+
+        assert prn_facelib_tex.shape[0] == prn_facelib_tex.shape[1], 'require square texture shape'
+
+        texture = np.zeros(shape=(self.texture_size, self.texture_size, 3), dtype=np.uint8)
+
+        if self.embed_size != prn_facelib_tex.shape[0]:
+            prn_facelib_tex = cv.resize(prn_facelib_tex, (self.embed_size, self.embed_size), interpolation=cv.INTER_CUBIC)
+
+        texture[self.rect[1,0]:self.rect[0,0], self.rect[0,1]:self.rect[1,1], :] = prn_facelib_tex
+
+        # import  matplotlib.pyplot as plt
+        # plt.imshow(texture)
+        # plt.show()
+        return texture
 
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()

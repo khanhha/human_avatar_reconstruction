@@ -344,9 +344,9 @@ def avg_co(mesh, ld_idxs):
     return avg_co
 
 def project_synthesized():
-    pca_path     = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/vic_pca_models_1/vic_female_pca_model.jlb'
-    pca_co_dir = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/vic_pca_models_1/pca_coords/female/'
-    sil_root_dir = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/caesar_images_iphone_female_1/'
+    pca_path     = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/vic_pca_models_nosyn/vic_male_pca_model.jlb'
+    pca_co_dir = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/vic_pca_models_nosyn/pca_coords/male/'
+    sil_root_dir = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/caesar_images_iphone_male_nosyn/'
 
     sil_f_dir = os.path.join(*[sil_root_dir , 'sil_f_raw'])
     sil_s_dir = os.path.join(*[sil_root_dir , 'sil_s_raw'])
@@ -374,11 +374,10 @@ def project_synthesized():
     n = len(paths)
 
     #multiple blender instances for performance
-    mid_idx = int(n/4)
-    segments = [range(0, mid_idx), range(mid_idx, 2*mid_idx), range(2*mid_idx, 3*mid_idx), range(3*mid_idx, n)]
-
-    blender_id = 0  #start blender instances with id in range [0,len(segments)]
-    assert blender_id <= len(segments)
+    #mid_idx = int(n/4)
+    #segments = [range(0, mid_idx), range(mid_idx, 2*mid_idx), range(2*mid_idx, 3*mid_idx), range(3*mid_idx, n)]
+    #blender_id = 0  #start blender instances with id in range [0,len(segments)]
+    #assert blender_id <= len(segments)
 
     cam_obj = bpy.data.objects['Camera']
 
