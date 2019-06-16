@@ -23,8 +23,9 @@ python ./deploy/hm_measurement.py -obj path_to_obj_file -grp ./deploy_models/met
 ```
 # train model
 ## training
-- download the original dataset (4301 meshes) from this link, or the synthesized dataset (62000) from this link
-- denote DATA_DIR point to the root directory of the dataset
+- download the original dataset (4301 meshes) from [this link](https://drive.google.com/open?id=1c9eHv9NBo4PkfpRCHWix1wzCKumsICG3), 
+or the synthesized dataset (62000) from [this link](https://drive.google.com/open?id=18Kaj8A18wEMiZmmi7y9k9QDmSsFrcQO_)
+- denote DATA_DIR point to the root directory of the dataset. For example, ```root_dir/sil_384_256_ml_fml_nosyn```
 - run the following commands: this shell script will sequentially train front, side and then the joint model. The final joint model
 will be converted from Pytorch to Tensorflow graph and wrapped with additional information for inference.
     ```python
@@ -41,7 +42,7 @@ will be converted from Pytorch to Tensorflow graph and wrapped with additional i
     tensorboard ./joint #for the side model
     ```
 - open the web brower to check the error
-![traing_error](./notes/images/training_error.jpg)
+![traing_error](notes/images/training_error.jpg)
 
 - run inference on the model: copy the shape_model.jlb file to the deploy model directory and go back to the "run the pre-trained models" step
 
