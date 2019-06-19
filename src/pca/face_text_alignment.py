@@ -189,8 +189,9 @@ if __name__ == '__main__':
     range_uv = max_uv - min_uv
     verts_tex_1 = (verts_tex_1 - min_uv)/range_uv
 
-    prn_rect = np.array([[0.0,0.0], [1.0, 1.0]])
-    prn_rect = (prn_rect - min_uv) / range_uv
+    prn_rect_center = np.array([0.5,0.5])
+    prn_rect_center = (prn_rect_center - min_uv) / range_uv
+    prn_rect_size   = np.array([1.0, 1.0])/range_uv
 
     #export texture
     mesh['vt'] = verts_tex_1
@@ -198,12 +199,13 @@ if __name__ == '__main__':
     vt_face_ld_co_1  = verts_tex_1[vt_face_ld]
     export_mesh_tex_obj(fpath=out_mpath, mesh=mesh)
 
-    path = np.savetxt(fname=os.path.join(*[dir, 'prn_texture_rectangle.txt']), X = prn_rect)
+    path = np.savetxt(fname=os.path.join(*[dir, 'prn_texture_rectangle.txt']), X = np.vstack([prn_rect_center, prn_rect_size]))
 
 
     plt.axes().set_aspect(1.0)
     plt.plot(verts_tex_1[:,0], verts_tex_1[:,1], 'g+')
     plt.plot(vt_face_ld_co_1[:, 0], vt_face_ld_co_1[:, 1], 'r+')
     #plt.plot(tar_face_ld_cos[:,0], tar_face_ld_cos[:,1], 'b+', linewidth=2, markersize=4 )
-    plt.plot(prn_rect[:,0], prn_rect[:,1], 'b+', linewidth=2, markersize=7 )
+    plt.plot(prn_rect_center[0], prn_rect_center[1], 'b+', linewidth=2, markersize=7 )
+
     plt.show()

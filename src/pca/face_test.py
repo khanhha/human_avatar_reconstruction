@@ -120,7 +120,7 @@ if __name__ == '__main__':
     ctl_df_verts = mesh['v']
 
     ctm_mesh_verts = head_embed.embed(customer_df_verts=ctm_mesh_verts, prn_facelib_verts=ctl_df_verts)
-    use_default_blender_texture = True
+    use_default_blender_texture = False
     if use_default_blender_texture == True:
         face_warp = HmFaceWarp(meta_dir)
         texture = face_warp.warp(face_img, face_prn_kpts)
@@ -128,7 +128,7 @@ if __name__ == '__main__':
         rect_path = os.path.join(*[meta_dir, 'prn_texture_rectangle.txt'])
         prn_texture_path = '/home/khanhhh/data_1/projects/Oh/data/face/2019-06-04-face-output/MVIMG_20190604_180645_texture.png'
         prn_tex = cv.imread(prn_texture_path)
-        face_embed = HmFPrnNetFaceTextureEmbedder(prn_facelib_rect_path=rect_path, texture_size=1024)
+        face_embed = HmFPrnNetFaceTextureEmbedder(meta_dir=meta_dir, prn_facelib_rect_path=rect_path, texture_size=1024)
         texture = face_embed.embed(prn_tex)
 
     text_mesh_path = '/home/khanhhh/data_1/projects/Oh/codes/human_estimation/data/meta_data/victoria_template_textured_warped.obj'

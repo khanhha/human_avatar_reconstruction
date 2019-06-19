@@ -6,103 +6,15 @@ import dlib
 import cv2 as cv
 import matplotlib.pyplot as plt
 from skimage.transform import PiecewiseAffineTransform, warp
-from common.obj_util import import_mesh_tex_obj
+from common.obj_util import import_mesh_tex_obj, import_mesh_obj
+from skimage import draw
 import pickle
 import os
-from collections import defaultdict
-
-def translate(image, x, y):
-    # define the translation matrix and perform the translation
-    M = np.float32([[1, 0, x], [0, 1, y]])
-    shifted = cv.warpAffine(image, M, (image.shape[1], image.shape[0]))
-
-    # return the translated image
-    return shifted
-
-def rotate(image, angle, center=None, scale=1.0):
-    # grab the dimensions of the image
-    (h, w) = image.shape[:2]
-
-    # if the center is None, initialize it as the center of
-    # the image
-    if center is None:
-        center = (w // 2, h // 2)
-
-    # perform the rotation
-    M = cv.getRotationMatrix2D(center, angle, scale)
-    rotated = cv.warpAffine(image, M, (w, h))
-
-    # return the rotated image
-    return rotated
-
-
-def rotate_bound(image, angle):
-    # grab the dimensions of the image and then determine the
-    # center
-    (h, w) = image.shape[:2]
-    (cX, cY) = (w / 2, h / 2)
-
-    # grab the rotation matrix (applying the negative of the
-    # angle to rotate clockwise), then grab the sine and cosine
-    # (i.e., the rotation components of the matrix)
-    M = cv.getRotationMatrix2D((cX, cY), -angle, 1.0)
-    cos = np.abs(M[0, 0])
-    sin = np.abs(M[0, 1])
-
-    # compute the new bounding dimensions of the image
-    nW = int((h * sin) + (w * cos))
-    nH = int((h * cos) + (w * sin))
-
-    # adjust the rotation matrix to take into account translation
-    M[0, 2] += (nW / 2) - cX
-    M[1, 2] += (nH / 2) - cY
-
-    # perform the actual rotation and return the image
-    return cv.warpAffine(image, M, (nW, nH))
-
-def resize(image, width=None, height=None, inter=cv.INTER_AREA):
-    # initialize the dimensions of the image to be resized and
-    # grab the image size
-    dim = None
-    (h, w) = image.shape[:2]
-
-    # if both the width and height are None, then return the
-    # original image
-    if width is None and height is None:
-        return image
-
-    # check to see if the width is None
-    if width is None:
-        # calculate the ratio of the height and construct the
-        # dimensions
-        r = height / float(h)
-        dim = (int(w * r), height)
-
-    # otherwise, the height is None
-    else:
-        # calculate the ratio of the width and construct the
-        # dimensions
-        r = width / float(w)
-        dim = (width, int(h * r))
-
-    # resize the image
-    resized = cv.resize(image, dim, interpolation=inter)
-
-    # return the resized image
-    return resized
-
-def rect_to_bb(rect):
-    # take a bounding predicted by dlib and convert it
-    # to the format (x, y, w, h) as we would normally do
-    # with OpenCV
-    x = rect.left()
-    y = rect.top()
-    w = rect.right() - x
-    h = rect.bottom() - y
-
-    # return a tuple of (x, y, w, h)
-    return (x, y, w, h)
-
+from collections import defaultdict, Counter
+from sklearn import mixture
+from sklearn.cluster import KMeans
+from src.deploy.multi_resol_texture_syn import  multiResolution_textureSynthesis
+from src.deploy.patchBasedTextureSynthesis import patchBasedTextureSynthesis
 def shape_to_np(shape, dtype="int"):
     # initialize the list of (x, y)-coordinates
     coords = np.zeros((68, 2), dtype=dtype)
@@ -157,49 +69,6 @@ def test_thin_plate():
     tps.estimateTransformation(tshape, sshape, matches)
     ret, tshape = tps.applyTransformation(sshape)
     print(tshape)
-
-def test():
-    img_path = '/home/khanhhh/data_1/projects/Oh/data/face/prn_output/front_IMG_1933.jpg'
-    image = cv.imread(img_path)
-    sources = detect_face_landmark(image)
-    sources = sources.astype(np.float32)
-    sources  = sources.reshape((1,-1, 2))
-
-    mkhm_img_tpl_path = "/home/khanhhh/data_1/projects/Oh/data/face/Make_Human_3D face/Head_FemaleGen01_Planar_01.png"
-    img_mkhm = cv.imread(mkhm_img_tpl_path)
-    targets = detect_face_landmark(img_mkhm)
-    targets = targets.astype(np.float32)
-    targets  = targets.reshape((1,-1, 2))
-
-    matches = list()
-    for i in range(targets.shape[1]):
-        v = sources[0,i,:] - targets[0,i,:]
-        d = np.linalg.norm(v)
-        matches.append(cv.DMatch(i, i, d))
-
-    tps = cv.createThinPlateSplineShapeTransformer()
-    tps.estimateTransformation(sources, targets, matches)
-
-    ret, test = tps.applyTransformation(sources)
-    print(test-targets)
-
-    test_img = image.copy()
-    for i in range(targets.shape[1]):
-        x,y = int(sources[0,i,0]), int(sources[0,i,1])
-        cv.circle(test_img, (x, y), 1, (0, 0, 255), -1)
-        cv.putText(test_img, f'{i}', (x, y), cv.FONT_HERSHEY_SIMPLEX, 0.2, (0, 255, 0), 1)
-
-        x,y = int(targets[0,i,0]), int(targets[0,i,1])
-        cv.circle(test_img, (x, y), 1, (255, 0, 0), -1)
-        cv.putText(test_img, f'{i}', (x, y), cv.FONT_HERSHEY_SIMPLEX, 0.2, (0, 255, 0), 1)
-
-    img_warp_mkhm = image.copy()
-    tps.warpImage(image, img_warp_mkhm)
-    #img_warp_mkhm = img_warp_mkhm[:512, :512, :]
-
-    plt.imshow(img_warp_mkhm[:,:,::-1])
-    plt.show()
-
 
 def find_head_tex_verts(mesh, head_vert_idxs):
     head_vert_set = set(head_vert_idxs)
@@ -272,34 +141,45 @@ class HmFaceWarp():
         #     cv.imwrite(debug_path, img)
         # exit()
 
-    def warp(self, img):
+    def warp(self, img, img_face_kpt = None):
         if isinstance(img, str):
             image = cv.imread(img)
         else:
             image = img
 
-        #TODO: resize the image this way will ignore the normal aspect rate, which could affect the perfomance of dlib landmark detector
-        #however, we need the original image to have the same size as the texture to be able to warp it.
-        #is there anyway around?
-        image = cv.resize(image, dsize=(1024, 1024), interpolation=cv.INTER_AREA)
+        #TODO: currently we assume that the face complete like inside the rectagnle of[ 0:1024, 0:1024]. need to handle it more accurately
+        texture = np.zeros((1024, 1024, 3), dtype=np.uint8)
+        w_max = min(texture.shape[1], img.shape[1])
+        h_max = min(texture.shape[0], img.shape[0])
+        texture[0:h_max, 0:w_max, :] = img[0:h_max, 0:w_max,:]
 
-        sources = self._detect_face_landmark(image)
-        if sources is None:
-            return image
+        if img_face_kpt is None:
+            sources = self._detect_face_landmark(texture)
+            if sources is None:
+                return image
+        else:
+            sources = img_face_kpt.reshape((1, -1, 2))
 
         tps = cv.createThinPlateSplineShapeTransformer(0)
         tps.estimateTransformation(self.targets, sources, self.matches)
 
-        tps.warpImage(image, image, flags=cv.INTER_CUBIC)
+        tps.warpImage(texture, texture, flags=cv.INTER_CUBIC)
 
         #TODO: remove in release
         test = self.targets.copy().astype(np.int)
-        image[test[0,:,1], test[0,:,0]] = (255, 0, 0)
+        texture[test[0,:,1], test[0,:,0]] = (0, 0, 255)
+
+        #TODO: remove in release
+        # test_1 = sources.copy().astype(np.int)
+        # texture[test_1[0,:,1], test_1[0,:,0]] = (255, 0, 0)
 
         #TODO: remove. we make black pixels white for the sake of visualization
-        #image[image[:,:,0] == 0] = (255,255,255)
+        #texture[texture[:,:,0] == 0] = (255,255,255)
 
-        return image
+        # plt.imshow(texture)
+        # plt.show()
+
+        return texture
 
     def _detect_face_landmark(self, img):
         gray = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
@@ -348,19 +228,127 @@ class HmFaceWarp():
 
 
 class HmFPrnNetFaceTextureEmbedder():
-
-    def __init__(self, prn_facelib_rect_path, texture_size = 1024):
+    def __init__(self, meta_dir, prn_facelib_rect_path, texture_size = 1024):
         self.texture_size = texture_size
         self.rect_uv = np.loadtxt(prn_facelib_rect_path)
-        self.rect = (texture_size * self.rect_uv).astype(np.int)
-        self.rect[:,0] = self.texture_size - self.rect[:,0] - 1
-        self.embed_size = self.rect.max() - self.rect.min()
+        #TODO: we assume the embed texture area is a square here
+        self.embed_size  = np.round(0.5*texture_size * self.rect_uv[1,:]).astype(np.int)[0]
+        self.rect_center = self.rect_uv[0,:]
+        self.rect_center[1] = 1.0 - self.rect_center[1]
+        self.rect_center = np.round(texture_size * self.rect_center).astype(np.int)
 
-        print(f'p0 = {self.rect[0,:]}')
-        print(f'p1 = {self.rect[1,:]}')
-        plt.plot(self.rect[0,0], self.rect[0,1], 'g+')
-        plt.plot(self.rect[1,0], self.rect[1,1], 'r+')
+        vic_tpl_vertex_groups_path = os.path.join(*[meta_dir, 'victoria_part_vert_idxs.pkl'])
+
+        vic_tpl_face_mesh_path = os.path.join(*[meta_dir, 'victoria_template_textured_warped.obj'])
+        vic_mesh = import_mesh_tex_obj(vic_tpl_face_mesh_path)
+        verts_tex = vic_mesh['vt']
+        faces_tex = vic_mesh['ft']
+        vic_tri_quads = vic_mesh['f']
+
+        with open(vic_tpl_vertex_groups_path, 'rb') as file:
+            vparts = pickle.load(file=file)
+            vface_map = vparts['face']
+            non_face_tris_idxs = self._faces_inverse_from_verts(vic_tri_quads, vface_map)
+
+        self.non_face_tex_mask = np.zeros((texture_size, texture_size), dtype=np.bool)
+        for idx in non_face_tris_idxs:
+            ft = faces_tex[idx]
+            ft_uvs = []
+            for v_ft in ft:
+                uv = verts_tex[v_ft, :]
+                ft_uvs.append(uv)
+            ft_uvs = np.array(ft_uvs)
+            ft_uvs[:,1] = 1.0 - ft_uvs[:,1]
+            ft_uvs = np.round((self.texture_size * ft_uvs))
+            rr, cc = draw.polygon(ft_uvs[:,1], ft_uvs[:,0])
+            self.non_face_tex_mask[rr, cc] = 0.5
+
+        # self.non_face_tex_mask[self.rect_center[1]-10:self.rect_center[1]+10, self.rect_center[0]-10:self.rect_center[0]+10] = 0.2
+        # plt.imshow(self.non_face_tex_mask)
+        # plt.show()
+
+    def _faces_inverse_from_verts(self, all_faces, verts):
+        vset = set(verts)
+        faces = []
+        for f_idx, f in enumerate(all_faces):
+            in_group = True
+            for v in f:
+                if v not in vset:
+                    in_group = False
+                    break
+
+            if in_group == False:
+                faces.append(f_idx)
+
+        return faces
+
+    def synthesize_skin_color_1(self, texture):
+        img_path = '/home/khanhhh/data_1/projects/Oh/data/face/2019-06-04-face/MVIMG_20190604_180645.jpg'
+        skin_sample = cv.imread(img_path)
+        skin_sample = skin_sample[2500:2900,1300:1800, :]
+        return cv.resize(skin_sample, dsize=(self.texture_size, self.texture_size))
+
+    def synthesize_skin_color_2(self, texture):
+        path = '/home/khanhhh/data_1/projects/Oh/data/face/skin_texture_patch.jpg'
+        exampleMapPath = path
+        outputPath = "out/1/"
+        patchSize = 128  # size of the patch (without the overlap)
+        overlapSize = 16# the width of the overlap region
+        outputSize = [1024, 1024]
+
+        pbts = patchBasedTextureSynthesis(exampleMapPath, outputPath, outputSize, patchSize, overlapSize,
+                                          in_windowStep=5, in_mirror_hor=True, in_mirror_vert=True, in_shapshots=False)
+        img_texture = pbts.resolveAll()
+        img_texture = img_texture[:,:,::-1]
+        return img_texture
+
+    def synthesize_skin_color(self, texture):
+        img_path = '/home/khanhhh/data_1/projects/Oh/data/face/2019-06-04-face/MVIMG_20190604_180645.jpg'
+        skin_sample = cv.imread(img_path)
+        #skin_sample = skin_sample[1800:2000,1620:1820, :]
+        skin_sample = skin_sample[2500:2900,1300:1800, :]
+
+        # Initiate KMeans Object
+        estimator = KMeans(n_clusters=5, random_state=0)
+        estimator.fit(np.reshape(skin_sample, (-1,3)))
+
+        occurance_counter = Counter(estimator.labels_)
+        # Get the total sum of all the predicted occurances
+        totalOccurance = sum(occurance_counter.values())
+
+        colorInformation = []
+        clusters = estimator.cluster_centers_
+        # Loop through all the predicted colors
+        for x in occurance_counter.most_common(len(clusters)):
+            index = (int(x[0]))
+
+            # Get the color number into a list
+            color = clusters[index].tolist()
+
+            # Get the percentage of each color
+            color_percentage = (x[1] / totalOccurance)
+
+            # make the dictionay of the information
+            colorInfo = {"cluster_index": index, "color": color, "color_percentage": color_percentage}
+
+            # Add the dictionary to the list
+            colorInformation.append(colorInfo)
+
+        print(colorInformation)
+        sk_color = colorInformation[0]['color']
+        sk_color = np.array(sk_color).astype(np.uint8)
+        syn_tex = np.zeros((self.texture_size, self.texture_size, 3), np.uint8)
+        syn_tex[:] = sk_color
+
+        plt.subplot(131)
+        plt.imshow(skin_sample[:,:,::-1])
+        plt.subplot(132)
+        plt.imshow(syn_tex[:,:,::-1])
+        plt.subplot(133)
+        plt.imshow(texture[:,:,::-1])
         plt.show()
+
+        return syn_tex
 
     def embed(self, prn_facelib_tex):
 
@@ -368,14 +356,69 @@ class HmFPrnNetFaceTextureEmbedder():
 
         texture = np.zeros(shape=(self.texture_size, self.texture_size, 3), dtype=np.uint8)
 
-        if self.embed_size != prn_facelib_tex.shape[0]:
-            prn_facelib_tex = cv.resize(prn_facelib_tex, (self.embed_size, self.embed_size), interpolation=cv.INTER_CUBIC)
+        if (2*self.embed_size + 1) != prn_facelib_tex.shape[0]:
+            prn_facelib_tex = cv.resize(prn_facelib_tex, (2*self.embed_size + 1, 2*self.embed_size + 1), interpolation=cv.INTER_CUBIC)
 
-        texture[self.rect[1,0]:self.rect[0,0], self.rect[0,1]:self.rect[1,1], :] = prn_facelib_tex
+        texture[self.rect_center[1]-self.embed_size:self.rect_center[1]+self.embed_size+1, self.rect_center[0]-self.embed_size:self.rect_center[0]+self.embed_size+1, :] = prn_facelib_tex
 
-        # import  matplotlib.pyplot as plt
-        # plt.imshow(texture)
-        # plt.show()
+        skin_sample = texture[430:490, 570:620, :]
+        # skin_sample = np.repeat(skin_sample, repeats=17, axis=0)
+        # skin_sample = np.repeat(skin_sample, repeats=20, axis=1)
+        #skin_sample = texture[390:530, 460:620, :]
+        #skin_sample = np.repeat(skin_sample, repeats=7, axis=0)
+        #skin_sample = np.repeat(skin_sample, repeats=7, axis=1)
+        #skin_sample_1 = cv.resize(skin_sample, dsize=(self.texture_size, self.texture_size))
+
+        # skin_sample = np.reshape(skin_sample, newshape=(-1,3))
+        # rand_idxs = np.random.randint(0, skin_sample.shape[0], self.texture_size*self.texture_size)
+        # skin_sample_1 = skin_sample[rand_idxs, :]
+        # skin_sample_1.shape=(self.texture_size, self.texture_size, 3)
+
+
+        #titling from the original image
+        # img_path = '/home/khanhhh/data_1/projects/Oh/data/face/2019-06-04-face/MVIMG_20190604_180645.jpg'
+        # skin_sample = cv.imread(img_path)
+        # skin_sample = skin_sample[1800:2000,1620:1820, :]
+        # skin_sample_1 = np.zeros((self.texture_size, self.texture_size, 3), np.uint8)
+        # for i in range(0, self.texture_size, skin_sample.shape[0]):
+        #     for j in range(0, self.texture_size, skin_sample.shape[1]):
+        #         i1 = min(i+skin_sample.shape[0], self.texture_size)
+        #         j1 = min(j+skin_sample.shape[1], self.texture_size)
+        #         skin_sample_1[i:i1, j:j1, :] = skin_sample[0:i1-i, 0:j1-j, :]
+
+        img_path = '/home/khanhhh/data_1/projects/Oh/data/face/2019-06-04-face/MVIMG_20190604_180645.jpg'
+        skin_sample = cv.imread(img_path)
+        skin_sample = skin_sample[1800:2000,1620:1820, :]
+        skin_sample_1 = cv.resize(skin_sample, dsize=(self.texture_size, self.texture_size))
+
+        #sample from texture
+        # skin_sample = texture[430:490, 570:620, :]
+        # skin_sample_1 = np.zeros((self.texture_size, self.texture_size, 3), np.uint8)
+        # for i in range(0, self.texture_size, skin_sample.shape[0]):
+        #     for j in range(0, self.texture_size, skin_sample.shape[1]):
+        #         i1 = min(i+skin_sample.shape[0], self.texture_size)
+        #         j1 = min(j+skin_sample.shape[1], self.texture_size)
+        #         skin_sample_1[i:i1, j:j1, :] = skin_sample[0:i1-i, 0:j1-j, :]
+
+
+        #fit a gaussina model and resample
+        # img_path = '/home/khanhhh/data_1/projects/Oh/data/face/2019-06-04-face/MVIMG_20190604_180645.jpg'
+        # skin_sample = cv.imread(img_path)
+        # skin_sample = skin_sample[1800:2000,1620:1820, :]
+        # skin_sample = skin_sample.astype(np.float)/255.0
+        # model = mixture.GaussianMixture(n_components=1, covariance_type='full')
+        # model.fit(skin_sample.reshape(-1,3))
+        # skin_sample_1 = model.sample(n_samples=self.texture_size*self.texture_size)
+        # skin_sample_1 = np.reshape(skin_sample_1[0], (self.texture_size, self.texture_size, 3))
+        # skin_sample_1 = (skin_sample_1*255.0).astype(np.uint8)
+        # print(skin_sample_1.shape)
+
+        #skin_sample_1 = self.synthesize_skin_color(texture)
+        #skin_sample_1 = self.synthesize_skin_color_1(texture)
+        skin_sample_1 = self.synthesize_skin_color_2(texture)
+
+        texture[self.non_face_tex_mask, :] = skin_sample_1[self.non_face_tex_mask, :]
+
         return texture
 
 if __name__ == '__main__':
