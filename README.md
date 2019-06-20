@@ -5,11 +5,12 @@ conda env create -f environment.yml
 
 # run the pre-trained models
 - download [the models](https://drive.google.com/open?id=1l_Tc83U2ZVafjaq6XunPkLrTdrq93RCS) and put them under the folder ./deploy_models
+- download [the test data](https://drive.google.com/open?id=1BLL8VAjId6qBA3p6ebytQRsY7Xk0hCp7)
 - move to the folder source
 - run the code
 ```python
 export PYTHONPATH="${PYTHONPATH}:./"
-python ./deploy/hm_pipeline.py -model_dir MODEL_DIR -img_f path_to_front_img -img_s path_to_side_img -height height_in_meter_of_subject gender 0_if_female_else_1 -out_obj_path obj_path_to_export_mesh_prediction
+python ./deploy/hm_pipeline.py -model_dir MODEL_DIR/deploy_models -in_txt_file TEST_DATA_DIR/data.txt
 ```
 
 # run measurement calculation on predicted vertices
