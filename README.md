@@ -5,6 +5,7 @@ conda env create -f environment.yml
 
 # run the pre-trained models
 - download [the models](https://drive.google.com/open?id=1l_Tc83U2ZVafjaq6XunPkLrTdrq93RCS) and put them under the folder ./deploy_models
+- download [the latest shape model](https://drive.google.com/open?id=1ue5UYiTWyuc1t2wWOj7X4OqVPdRSI-AR) (trained on the original dataset) and replace the old corresponding ones in the folder ./deploy_models with them
 - download [the test data](https://drive.google.com/open?id=1BLL8VAjId6qBA3p6ebytQRsY7Xk0hCp7)
 - move to the folder source
 - run the code
