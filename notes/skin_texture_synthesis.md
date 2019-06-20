@@ -27,6 +27,15 @@ it looks natural in 3D.
 - 3D result
     - ![3D result](./images/face/patch_based_3D_result_cheek.jpg)
 
+## patch-based method without boundary smooth
+- texture synthesis reusult
+    - ![texture](./images/face/patch_based_texture_nosmooth.jpg)
+- final texture with face masked out
+    - ![texture](./images/face/patch_based_texture_nosmooth_masked.jpg)
+- 3D result
+    - ![texture](./images/face/patch_based_texture_nosmooth_3D.jpg)
+    
+    
 ## upsample method
 - take a sample at the cheek region and resize it to match the texture size
 - texture result
