@@ -11,3 +11,6 @@
 
 # Body measurement
 - [2016 - One-Shot 3D Body-Measurement](https://www.reactivereality.com/static/pdf/krinninger_master_thesis.pdf)
+
+# Human Avarar
+- [2019 - Textured Neural Avatars](https://saic-violet.github.io/texturedavatar/)
