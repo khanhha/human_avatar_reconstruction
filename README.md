@@ -16,7 +16,7 @@ python ./deploy/hm_pipeline.py -model_dir MODEL_DIR/deploy_models -in_txt_file T
 
 # run measurement calculation on predicted vertices
 - for more information about measurements, please refer to the chart picture in __/notes/woman_measurement_chart.jpg__
-- download the [meta-data](), put them under ./deploy_models/meta_data/ 
+- download the [meta-data](https://drive.google.com/open?id=1YUdRzxdwfDj9-QXz9NScr9SaMWKkabKP), put them under ./deploy_models/meta_data/ 
 - move to the folder source
 - run the code
 ```python
