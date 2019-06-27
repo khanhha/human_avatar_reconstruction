@@ -15,6 +15,9 @@ from sklearn import mixture
 from sklearn.cluster import KMeans
 from src.deploy.multi_resol_texture_syn import  multiResolution_textureSynthesis
 from src.deploy.patchBasedTextureSynthesis import patchBasedTextureSynthesis
+from tex_syn.preprocess import *
+from tex_syn.generate import *
+import time
 def shape_to_np(shape, dtype="int"):
     # initialize the list of (x, y)-coordinates
     coords = np.zeros((68, 2), dtype=dtype)
@@ -248,7 +251,8 @@ class HmFPrnNetFaceTextureEmbedder():
         with open(vic_tpl_vertex_groups_path, 'rb') as file:
             vparts = pickle.load(file=file)
             vface_map = vparts['face']
-            non_face_tris_idxs = self._faces_inverse_from_verts(vic_tri_quads, vface_map)
+
+        non_face_tris_idxs = self._faces_inverse_from_verts(vic_tri_quads, vface_map)
 
         self.non_face_tex_mask = np.zeros((texture_size, texture_size), dtype=np.bool)
         for idx in non_face_tris_idxs:
@@ -263,11 +267,52 @@ class HmFPrnNetFaceTextureEmbedder():
             rr, cc = draw.polygon(ft_uvs[:,1], ft_uvs[:,0])
             self.non_face_tex_mask[rr, cc] = 0.5
 
+        face_tris_idxs = self._faces_from_verts(vic_tri_quads, vface_map)
+        self.face_tex_mask = np.zeros((texture_size, texture_size), dtype=np.bool)
+        for idx in face_tris_idxs:
+            ft = faces_tex[idx]
+            ft_uvs = []
+            for v_ft in ft:
+                uv = verts_tex[v_ft, :]
+                ft_uvs.append(uv)
+            ft_uvs = np.array(ft_uvs)
+            ft_uvs[:,1] = 1.0 - ft_uvs[:,1]
+            ft_uvs = np.round((self.texture_size * ft_uvs))
+            rr, cc = draw.polygon(ft_uvs[:,1], ft_uvs[:,0])
+            self.face_tex_mask[rr, cc] = 0.5
+
         # self.non_face_tex_mask[self.rect_center[1]-10:self.rect_center[1]+10, self.rect_center[0]-10:self.rect_center[0]+10] = 0.2
-        # plt.imshow(self.non_face_tex_mask)
+        # plt.imshow(self.face_tex_mask)
         # plt.show()
 
+    def _faces_from_verts(self, all_faces, verts):
+        """
+        find all the faces each of which does contain all vertices in verts
+        :param all_faces:
+        :param verts:
+        :return:
+        """
+        vset = set(verts)
+        faces = []
+        for f_idx, f in enumerate(all_faces):
+            in_group = True
+            for v in f:
+                if v not in vset:
+                    in_group = False
+                    break
+
+            if in_group == True:
+                faces.append(f_idx)
+
+        return faces
+
     def _faces_inverse_from_verts(self, all_faces, verts):
+        """
+        find all the faces each of which does not contain all vertices in verts
+        :param all_faces:
+        :param verts:
+        :return:
+        """
         vset = set(verts)
         faces = []
         for f_idx, f in enumerate(all_faces):
@@ -288,21 +333,84 @@ class HmFPrnNetFaceTextureEmbedder():
         skin_sample = skin_sample[2500:2900,1300:1800, :]
         return cv.resize(skin_sample, dsize=(self.texture_size, self.texture_size))
 
-    def synthesize_skin_color_2(self, texture):
-        path = '/home/khanhhh/data_1/projects/Oh/data/face/skin_texture_patch.jpg'
+    def synthesize_skin_color_tiling(self, face_texture):
+        #path = '/home/khanhhh/data_1/projects/Oh/data/face/skin_texture_patch.jpg'
+        #path = '/home/khanhhh/data_1/projects/Oh/data/face/skin_texture_patch_cheek.jpg'
+        #path = '/home/khanhhh/data_1/projects/Oh/data/face/skin_texture_patch_forehead_small.jpg'
+        path = '/home/khanhhh/data_1/projects/Oh/data/face/skin_texture_patch_forehead.jpg'
         exampleMapPath = path
         outputPath = "out/1/"
-        patchSize = 128  # size of the patch (without the overlap)
-        overlapSize = 16# the width of the overlap region
+        patchSize =  16  # size of the patch (without the overlap)
+        overlapSize = 4# the width of the overlap region
         outputSize = [1024, 1024]
-
-        pbts = patchBasedTextureSynthesis(exampleMapPath, outputPath, outputSize, patchSize, overlapSize,
-                                          in_windowStep=5, in_mirror_hor=True, in_mirror_vert=True, in_shapshots=False)
+        patch = face_texture[1:35,90:160, :][:,:,::-1]
+        patch = patch.astype(np.float) / 255.0
+        pbts = patchBasedTextureSynthesis(patch, outputPath, outputSize, patchSize, overlapSize,
+                                          in_windowStep=5, in_mirror_hor=False, in_mirror_vert=False, in_shapshots=False)
         img_texture = pbts.resolveAll()
         img_texture = img_texture[:,:,::-1]
+
         return img_texture
 
-    def synthesize_skin_color(self, texture):
+    def synthesize_skin_color_quilting(self, face_texture):
+        patch = face_texture[1:35,90:160, :][:,:,::-1]
+        patch = patch / 255.0
+
+        block_size = 20
+        overlap = int(block_size/6.0)
+        tolerance = 0.1
+        outH = self.texture_size
+        outW = self.texture_size
+        start_time = time.time()
+        img_texture = generateTextureMap(patch, block_size, overlap, outH, outW, tolerance)
+        end_time = time.time()
+        print('quilting time: ', end_time-start_time)
+
+        img_texture = img_texture[:,:,::-1]
+
+        print(img_texture.shape, img_texture.dtype)
+        img_texture = (img_texture * 255.0).astype(np.uint8)
+        img_texture = cv.resize(img_texture, (self.texture_size, self.texture_size), interpolation=cv.INTER_AREA)
+        plt.imshow(img_texture[:,:,::-1])
+        plt.show()
+        return img_texture
+
+    def synthesise_skin_color_seamlesscloneing(self, face_texture):
+        patch = face_texture[1:35,90:160, :]
+        skin_texture = np.zeros((self.texture_size, self.texture_size, 3), np.uint8)
+        for i in range(0, self.texture_size, patch.shape[0]):
+            for j in range(0, self.texture_size, patch.shape[1]):
+                i1 = min(i+patch.shape[0], self.texture_size)
+                j1 = min(j+patch.shape[1], self.texture_size)
+                skin_texture[i:i1, j:j1, :] = patch[0:i1-i, 0:j1-j, :]
+
+        skin_texture_1 = skin_texture.copy()
+        mask = np.ones((patch.shape[0], patch.shape[1]), dtype=np.uint8)*255
+        mask[:4,:] = 0
+        mask[:,:4] = 0
+        mask[:,-4:] = 0
+        mask[-4:,:] = 0
+        # plt.imshow(patch[:, :, ::-1])
+        # plt.imshow(mask, alpha=0.5)
+        # plt.show()
+
+        for i in range(0, self.texture_size, patch.shape[0]):
+            for j in range(0, self.texture_size, patch.shape[1]):
+                i1 = min(i+patch.shape[0], self.texture_size)
+                j1 = min(j+patch.shape[1], self.texture_size)
+                x = int((j+j1)/2)
+                y = int((i+i1)/2)
+                skin_texture_1 = cv.seamlessClone(patch, skin_texture_1, mask, (x,y), cv.MIXED_CLONE)
+
+                cv.drawMarker(skin_texture_1, (x,y), (255,0,0), markerType=cv.MARKER_SQUARE, markerSize=5, thickness=5)
+                plt.subplot(121)
+                plt.imshow(skin_texture[:,:,::-1])
+                plt.subplot(122)
+                plt.imshow(skin_texture_1[:,:,::-1])
+                plt.show()
+        return skin_texture
+
+    def synthesize_skin_color_kmeans(self, texture):
         img_path = '/home/khanhhh/data_1/projects/Oh/data/face/2019-06-04-face/MVIMG_20190604_180645.jpg'
         skin_sample = cv.imread(img_path)
         #skin_sample = skin_sample[1800:2000,1620:1820, :]
@@ -350,24 +458,63 @@ class HmFPrnNetFaceTextureEmbedder():
 
         return syn_tex
 
+    def synthesize_skin_texture_base_color(self, face_texture):
+        #titling from the original image
+        #img_path = '/home/khanhhh/data_1/projects/Oh/data/face/2019-06-04-face/MVIMG_20190604_180645.jpg'
+        #skin_sample = cv.imread(img_path)
+        #skin_sample = skin_sample[1800:2000,1620:1820, :]  \
+        #img_path = '/home/khanhhh/data_1/projects/Oh/data/face/skin_texture_patch_forehead.jpg'
+        #G0 = cv.imread(img_path)
+        G0 = face_texture[1:35,90:160, :]
+        gpB = [G0]
+        G = G0.copy()
+        for i in range(10):
+            G = cv.pyrDown(G)
+            gpB.append(G)
+            if G.shape[0] == 1:
+                break
+
+        G = gpB[-1]
+        skin_texture = np.zeros((self.texture_size, self.texture_size, 3), dtype=np.uint8)
+        skin_texture[:,:,:] = G[0,0,:]
+        # plt.subplot(121)
+        # plt.imshow(G0[:, :, ::-1])
+        # plt.subplot(122)
+        # plt.imshow(skin_texture[:,:,::-1])
+        # plt.show()
+
+        return skin_texture
+        # img_path = '/home/khanhhh/data_1/projects/Oh/data/face/skin_texture_patch_forehead_base_color.jpg'
+        # skin_patch = cv.imread(img_path)
+        # tiling = False
+        # if tiling:
+        #     skin_texture = np.zeros((self.texture_size, self.texture_size, 3), np.uint8)
+        #     for i in range(0, self.texture_size, skin_patch.shape[0]):
+        #         for j in range(0, self.texture_size, skin_patch.shape[1]):
+        #             i1 = min(i+skin_patch.shape[0], self.texture_size)
+        #             j1 = min(j+skin_patch.shape[1], self.texture_size)
+        #             skin_texture[i:i1, j:j1, :] = skin_patch[0:i1-i, 0:j1-j, :]
+        # else:
+        #     skin_texture = cv.resize(skin_patch, (self.texture_size, self.texture_size), interpolation=cv.INTER_AREA)
+        #
+        # return skin_texture
+
     def embed(self, prn_facelib_tex):
 
         assert prn_facelib_tex.shape[0] == prn_facelib_tex.shape[1], 'require square texture shape'
 
-        texture = np.zeros(shape=(self.texture_size, self.texture_size, 3), dtype=np.uint8)
+        face_texture = np.zeros(shape=(self.texture_size, self.texture_size, 3), dtype=np.uint8)
 
         if (2*self.embed_size + 1) != prn_facelib_tex.shape[0]:
             prn_facelib_tex = cv.resize(prn_facelib_tex, (2*self.embed_size + 1, 2*self.embed_size + 1), interpolation=cv.INTER_CUBIC)
 
-        texture[self.rect_center[1]-self.embed_size:self.rect_center[1]+self.embed_size+1, self.rect_center[0]-self.embed_size:self.rect_center[0]+self.embed_size+1, :] = prn_facelib_tex
+        # #debug
+        # prn_facelib_tex[:2, :, :] = (255,0,0)
+        # prn_facelib_tex[:, :2, :] = (255,0,0)
+        # prn_facelib_tex[-2:,:, :] = (255,0,0)
+        # prn_facelib_tex[:,-2:, :] = (255,0,0)
 
-        skin_sample = texture[430:490, 570:620, :]
-        # skin_sample = np.repeat(skin_sample, repeats=17, axis=0)
-        # skin_sample = np.repeat(skin_sample, repeats=20, axis=1)
-        #skin_sample = texture[390:530, 460:620, :]
-        #skin_sample = np.repeat(skin_sample, repeats=7, axis=0)
-        #skin_sample = np.repeat(skin_sample, repeats=7, axis=1)
-        #skin_sample_1 = cv.resize(skin_sample, dsize=(self.texture_size, self.texture_size))
+        face_texture[self.rect_center[1]-self.embed_size:self.rect_center[1]+self.embed_size+1, self.rect_center[0]-self.embed_size:self.rect_center[0]+self.embed_size+1, :] = prn_facelib_tex
 
         # skin_sample = np.reshape(skin_sample, newshape=(-1,3))
         # rand_idxs = np.random.randint(0, skin_sample.shape[0], self.texture_size*self.texture_size)
@@ -375,51 +522,86 @@ class HmFPrnNetFaceTextureEmbedder():
         # skin_sample_1.shape=(self.texture_size, self.texture_size, 3)
 
 
-        #titling from the original image
+        # upsample approach
         # img_path = '/home/khanhhh/data_1/projects/Oh/data/face/2019-06-04-face/MVIMG_20190604_180645.jpg'
         # skin_sample = cv.imread(img_path)
         # skin_sample = skin_sample[1800:2000,1620:1820, :]
-        # skin_sample_1 = np.zeros((self.texture_size, self.texture_size, 3), np.uint8)
-        # for i in range(0, self.texture_size, skin_sample.shape[0]):
-        #     for j in range(0, self.texture_size, skin_sample.shape[1]):
-        #         i1 = min(i+skin_sample.shape[0], self.texture_size)
-        #         j1 = min(j+skin_sample.shape[1], self.texture_size)
-        #         skin_sample_1[i:i1, j:j1, :] = skin_sample[0:i1-i, 0:j1-j, :]
-
-        img_path = '/home/khanhhh/data_1/projects/Oh/data/face/2019-06-04-face/MVIMG_20190604_180645.jpg'
-        skin_sample = cv.imread(img_path)
-        skin_sample = skin_sample[1800:2000,1620:1820, :]
-        skin_sample_1 = cv.resize(skin_sample, dsize=(self.texture_size, self.texture_size))
+        # skin_sample_1 = cv.resize(skin_sample, dsize=(self.texture_size, self.texture_size))
 
         #sample from texture
-        # skin_sample = texture[430:490, 570:620, :]
+        #skin_sample = texture[430:490, 570:620, :] #cheek
+        # skin_sample = texture[340:380, 510:560, :] #forehead
         # skin_sample_1 = np.zeros((self.texture_size, self.texture_size, 3), np.uint8)
         # for i in range(0, self.texture_size, skin_sample.shape[0]):
-        #     for j in range(0, self.texture_size, skin_sample.shape[1]):
-        #         i1 = min(i+skin_sample.shape[0], self.texture_size)
-        #         j1 = min(j+skin_sample.shape[1], self.texture_size)
-        #         skin_sample_1[i:i1, j:j1, :] = skin_sample[0:i1-i, 0:j1-j, :]
-
-
-        #fit a gaussina model and resample
-        # img_path = '/home/khanhhh/data_1/projects/Oh/data/face/2019-06-04-face/MVIMG_20190604_180645.jpg'
-        # skin_sample = cv.imread(img_path)
-        # skin_sample = skin_sample[1800:2000,1620:1820, :]
-        # skin_sample = skin_sample.astype(np.float)/255.0
-        # model = mixture.GaussianMixture(n_components=1, covariance_type='full')
-        # model.fit(skin_sample.reshape(-1,3))
-        # skin_sample_1 = model.sample(n_samples=self.texture_size*self.texture_size)
-        # skin_sample_1 = np.reshape(skin_sample_1[0], (self.texture_size, self.texture_size, 3))
-        # skin_sample_1 = (skin_sample_1*255.0).astype(np.uint8)
-        # print(skin_sample_1.shape)
+        #      for j in range(0, self.texture_size, skin_sample.shape[1]):
+        #          i1 = min(i+skin_sample.shape[0], self.texture_size)
+        #          j1 = min(j+skin_sample.shape[1], self.texture_size)
+        #          skin_sample_1[i:i1, j:j1, :] = skin_sample[0:i1-i, 0:j1-j, :]
 
         #skin_sample_1 = self.synthesize_skin_color(texture)
         #skin_sample_1 = self.synthesize_skin_color_1(texture)
-        skin_sample_1 = self.synthesize_skin_color_2(texture)
 
-        texture[self.non_face_tex_mask, :] = skin_sample_1[self.non_face_tex_mask, :]
+        #head_texture = self.synthesize_skin_color_2(face_texture)
+        #cv.imwrite('/home/khanhhh/data_1/projects/Oh/data/face/test_merge_face_body/test_f_victoria_head_tex_synthesis.jpg', head_texture)
 
-        return texture
+        #face_texture[np.bitwise_not(self.face_tex_mask), :] = head_texture[np.bitwise_not(self.face_tex_mask), :]
+        #return face_texture
+
+        mask = self.face_tex_mask.astype(np.uint8) * 255
+        mask_rect = cv.boundingRect(mask)
+        mask_center = (mask_rect[0]+int(mask_rect[2]/2), mask_rect[1]+int(mask_rect[3]/2))
+        # print(mask_rect)
+        # cv.drawMarker(face_texture, (mask_rect[0]+int(mask_rect[2]/2), mask_rect[1]+int(mask_rect[3]/2)), (0,0,255), markerSize=5, thickness=2)
+        # plt.imshow(face_texture)
+        # plt.imshow(mask, alpha=0.5)
+        # plt.show()
+        # exit()
+        prn_mask = mask[self.rect_center[1]-self.embed_size:self.rect_center[1]+self.embed_size+1, self.rect_center[0]-self.embed_size:self.rect_center[0]+self.embed_size+1]
+        head_texture = self.synthesize_skin_texture_base_color(prn_facelib_tex)
+        #head_texture = self.synthesize_skin_color_tiling(prn_facelib_tex)
+        #head_texture = self.synthesise_skin_color_seamlesscloneing(prn_facelib_tex)
+        # tmp_path = '/home/khanhhh/data_1/projects/Oh/data/face/test_merge_face_body/tmp.png'
+        # from pathlib import Path
+        # if not Path(tmp_path).exists():
+        #     head_texture = self.synthesize_skin_color_quilting(prn_facelib_tex)
+        #     cv.imwrite(tmp_path, head_texture)
+        # else:
+        #     head_texture = cv.imread(tmp_path)
+
+        # head_texture_color_base_1 = cv.cvtColor(head_texture_color_base, cv.COLOR_BGR2HSV)
+        # head_texture_1 = cv.cvtColor(head_texture, cv.COLOR_BGR2HSV)
+        # head_texture_color_base_1 = head_texture_color_base.copy()
+        # head_texture_1 = head_texture.copy()
+        #
+        # head_texture_1 = 0.5 *( head_texture_color_base_1 + head_texture_1)
+        # head_texture_1 = head_texture_1.astype(np.uint8)
+        # head_texture_1 = cv.cvtColor(head_texture_1, cv.COLOR_HSV2BGR)
+        #
+        # plt.subplot(131)
+        # plt.imshow(head_texture_color_base[:,:,::-1])
+        # plt.subplot(132)
+        # plt.imshow(head_texture[:,:,::-1])
+        # plt.subplot(133)
+        # plt.imshow(head_texture_1[:,:,::-1])
+        # plt.show()
+        #head_texture = head_texture_1
+
+        start_time = time.time()
+        head_texture = cv.seamlessClone(prn_facelib_tex, head_texture, prn_mask, mask_center, cv.NORMAL_CLONE)
+        elapsed_time = time.time() - start_time
+        print('seamless time: ', elapsed_time)
+        #head_texture[self.rect_center[1]-self.embed_size:self.rect_center[1]+self.embed_size+1, self.rect_center[0]-self.embed_size:self.rect_center[0]+self.embed_size+1, :] = prn_facelib_tex
+
+        return head_texture
+
+        # height, width, channels = head_texture.shape
+        # center = (int(width / 2), int(height / 2))
+        # head_texture = cv.seamlessClone(face_texture, head_texture, mask, center, cv.NORMAL_CLONE)
+        # cv.drawMarker(head_texture, center, (0,0,255), markerSize=10, thickness=5)
+        # plt.imshow(face_texture[:,:,::-1])
+        # plt.imshow(head_texture[:,:,::-1], alpha=0.5)
+        # plt.show()
+        #return head_texture
 
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()

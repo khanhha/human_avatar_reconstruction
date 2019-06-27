@@ -73,7 +73,6 @@ class patchBasedTextureSynthesis:
         overlapArea_Left = self.getOverlapAreaLeft(coord)
         # find most similar patch from the examples
         dist, ind = self.findMostSimilarPatches(overlapArea_Top, overlapArea_Left, coord)
-
         if self.mirror_hor or self.mirror_vert:
             # check that top and left neighbours are not mirrors
             dist, ind = self.checkForMirrors(dist, ind, coord)
@@ -229,7 +228,6 @@ class patchBasedTextureSynthesis:
         return dist, ind
 
     def distances2probability(self, distances, PARM_truncation, PARM_attenuation):
-
         probabilities = 1 - distances / np.max(distances)
         probabilities *= (probabilities > PARM_truncation)
         probabilities = pow(probabilities, PARM_attenuation)  # attenuate the values
@@ -367,7 +365,15 @@ class patchBasedTextureSynthesis:
             canvasOverlap = self.canvas[x_range[0]:x_range[0] + self.overlapSize, y_range[0]:y_range[1]]
             examplePatchOverlap = np.copy(examplePatch[0][0:self.overlapSize, :])
             examplePatch[0][0:self.overlapSize, :] = self.linearBlendOverlaps(canvasOverlap, examplePatchOverlap, 'top')
+
+        #khanh
+        #debug patch size
+        # examplePatch[0:2, 0:2, :] = 0.0
+        # plt.clf()
+        # plt.imshow(examplePatch)
+        # plt.show()
         self.canvas[x_range[0]:x_range[1], y_range[0]:y_range[1]] = examplePatch
+
 
     def linearBlendOverlaps(self, canvasOverlap, examplePatchOverlap, mode):
         if mode == 'left':
@@ -391,11 +397,14 @@ class patchBasedTextureSynthesis:
         return np.copy(self.canvas[x_range[0]:x_range[1], y_range[0]:y_range[1]])
 
     def loadExampleMap(self, exampleMapPath):
-        exampleMap = io.imread(exampleMapPath)  # returns an MxNx3 array
-        exampleMap = exampleMap / 255.0  # normalize
-        # make sure it is 3channel RGB
-        if (np.shape(exampleMap)[-1] > 3):
-            exampleMap = exampleMap[:, :, :3]  # remove Alpha Channel
-        elif (len(np.shape(exampleMap)) == 2):
-            exampleMap = np.repeat(exampleMap[np.newaxis, :, :], 3, axis=0)  # convert from Grayscale to RGB
-        return exampleMap
+        if isinstance(exampleMapPath, str):
+            exampleMap = io.imread(exampleMapPath)  # returns an MxNx3 array
+            exampleMap = exampleMap / 255.0  # normalize
+            # make sure it is 3channel RGB
+            if (np.shape(exampleMap)[-1] > 3):
+                exampleMap = exampleMap[:, :, :3]  # remove Alpha Channel
+            elif (len(np.shape(exampleMap)) == 2):
+                exampleMap = np.repeat(exampleMap[np.newaxis, :, :], 3, axis=0)  # convert from Grayscale to RGB
+            return exampleMap
+        else:
+            return exampleMapPath
