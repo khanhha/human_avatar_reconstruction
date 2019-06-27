@@ -12,24 +12,27 @@ import gc
 from sklearn.externals import joblib
 from sklearn.decomposition import IncrementalPCA
 
-def export_principal_components(args, pca_model, n_samples):
-    for i in range(n_samples):
+def export_principal_components(out_dir, pca_model, tpl_faces, n_components, n_std_deviation = 2.0):
+
+    os.makedirs(out_dir, exist_ok=True)
+
+    for i in range(n_components):
         var = pca_model.explained_variance_
         param = np.zeros(var.shape)
-        param[i] = 3.0*np.sqrt(var[i])
+        param[i] = n_std_deviation *np.sqrt(var[i])
         verts = pca_model.inverse_transform(param)
         n = verts.shape[0]
         verts = verts.reshape(n//3,3)
-        opath = join(*[args.out_test_dir, f'{i}st_pca_+3*standard_deviation.obj'])
+        opath = join(*[out_dir, f'pca_component_{i}+{n_std_deviation}*standard_deviation.obj'])
         export_mesh(fpath=opath, verts=verts, faces=tpl_faces)
 
         var = pca_model.explained_variance_
         param = np.zeros(var.shape)
-        param[i] = -3.0*np.sqrt(var[i])
+        param[i] = -n_std_deviation *np.sqrt(var[i])
         verts = pca_model.inverse_transform(param)
         n = verts.shape[0]
         verts = verts.reshape(n//3,3)
-        opath = join(*[args.out_test_dir, f'{i}st_pca_-3*standard_deviation.obj'])
+        opath = join(*[out_dir, f'pca_component_{i}-{n_std_deviation}*standard_deviation.obj'])
         export_mesh(fpath=opath, verts=verts, faces=tpl_faces)
 
 def train_pca(paths, NV):
@@ -97,7 +100,17 @@ def female_vert_paths(vert_dir, female_names_dir):
     all_paths = [path for path in Path(vert_dir).glob('*.pkl')]
     return [path for path in all_paths if path.stem in female_names]
 
-def tool_export_pca_coords(args, model_dir, synthesize_samples=0):
+def tool_export_pca_coords(model_path, vert_paths, out_pca_dir, synthesize_samples=0):
+    os.makedirs(out_pca_dir, exist_ok=True)
+    print(f'\ttransforming {len(vert_paths)} original mesh to pca values')
+    convert_org_mesh_to_pca(model_path=model_path, out_dir=out_pca_dir, vert_paths=vert_paths)
+    if synthesize_samples > 0:
+        print(f'\tstart synthesizing {synthesize_samples} pca values. model path = {Path(model_path).name}')
+        gen_syn_pca_params(model_path=model_path, out_dir=out_pca_dir, n_samples=synthesize_samples)
+
+#test_syn_pca(model_path=model_path, pca_dir=out_pca_dir, vic_mesh_path=vic_mesh_path, debug_out_dir=debug_dir, n_samples=15)
+
+def tool_export_pca_coords_male_female(args, model_dir, vic_mesh_path, synthesize_samples=0):
     vdir = args.vert_dir
     female_names_dir = args.female_names_dir
 
@@ -114,7 +127,7 @@ def tool_export_pca_coords(args, model_dir, synthesize_samples=0):
         print(f'start synthesizing {synthesize_samples} male pca values. model path = {Path(model_path).name}')
         debug_dir = os.path.join(*[model_dir, 'pca_coords', 'debug_male'])
         gen_syn_pca_params(model_path=model_path, out_dir=out_dir, n_samples=30000)
-        test_syn_pca(model_path=model_path, pca_dir=out_dir, vic_mesh_path=vic_mesh_path, debug_out_dir=debug_dir, n_samples=15)
+        export_random_pca_mesh(model_path=model_path, pca_dir=out_dir, vic_mesh_path=vic_mesh_path, debug_out_dir=debug_dir, n_samples=15)
 
     model_path = os.path.join(*[model_dir, 'vic_female_pca_model.jlb'])
     out_dir =   os.path.join(*[model_dir, 'pca_coords', 'female'])
@@ -127,9 +140,9 @@ def tool_export_pca_coords(args, model_dir, synthesize_samples=0):
         print(f'start synthesizing {synthesize_samples} female pca values. model path = {Path(model_path).name}')
         debug_dir = os.path.join(*[model_dir, 'pca_coords', 'debug_female'])
         gen_syn_pca_params(model_path=model_path, out_dir=out_dir, n_samples=30000)
-        test_syn_pca(model_path=model_path, pca_dir=out_dir, vic_mesh_path=vic_mesh_path, debug_out_dir=debug_dir, n_samples=15)
+        export_random_pca_mesh(model_path=model_path, pca_dir=out_dir, vic_mesh_path=vic_mesh_path, debug_out_dir=debug_dir, n_samples=15)
 
-def test_syn_pca(model_path, pca_dir, vic_mesh_path, debug_out_dir, n_samples = 15):
+def export_random_pca_mesh(model_path, pca_dir, vic_mesh_path, debug_out_dir, n_samples = 15):
     pca_model = joblib.load(filename=model_path)
 
     co_paths = [path for path in Path(pca_dir).glob('*.*')]
@@ -150,21 +163,28 @@ def test_syn_pca(model_path, pca_dir, vic_mesh_path, debug_out_dir, n_samples = 
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("-vert_dir", type=str, required=True, help="directory to the original caesar mesh (deformed to Victoria topology) vertices")
-    ap.add_argument("-vic_mesh_path", type=str, required=True, help="")
-    ap.add_argument("-out_dir",  type=str, required=True, help="")
-    ap.add_argument("-pca_k", type=int, required=False, default=50)
-    ap.add_argument("-female_names_dir", type=str, required=False, default=None)
-    ap.add_argument("-n_synthesize_samples", type=int, required=False, default=0)
+    ap.add_argument("-vert_dir", type=str, required=True, help="directory that contains the caesar mesh vertices: *.npy files")
+    ap.add_argument("-vic_mesh_path", type=str, required=True, help="path to victoria template mesh file")
+    ap.add_argument("-out_dir",  type=str, required=True, help="ouput directory that contains everything output data")
+    ap.add_argument("-pca_k", type=int, required=False, default=50, help="the number of PCA components to keep. stick to 50 for now")
+    ap.add_argument("-female_names_file", type=str, required=False, help="path to txt file that contains caesar female names. this this file is provided, separate models for famale and female will be trained")
+    ap.add_argument("-n_synthesize_samples", type=int, required=False, default=0, help="the number of meshes to synthesize. if it is zero. synthesize no meshes")
+    ap.add_argument("-n_debug_samples", type=int, required=False, default=50, help="number of synthesized PCA values to export to mesh")
 
     args = ap.parse_args()
 
     os.makedirs(args.out_dir, exist_ok=True)
+
     vpaths = [path for path in Path(args.vert_dir).glob('*.pkl')]
     male_paths = None
     female_paths = None
-    if args.female_names_dir is not None:
-        female_names = set([path.stem for path in Path(args.female_names_dir).glob('*.*')])
+    if args.female_names_file is not None:
+        female_names = set()
+        with open(args.female_names_file, 'r') as file:
+            for line in file.readlines():
+                name = line.replace('\n','')
+                assert '.obj' not in name, 'incorrect name format'
+                female_names.add(name)
         male_paths = [path for path in vpaths if path.stem not in female_names]
         female_paths = [path for path in vpaths if path.stem in female_names]
 
@@ -178,19 +198,47 @@ def main():
         pca_model = train_pca(vpaths, NV=NV)
         joblib.dump(pca_model, filename=os.path.join(*[args.out_dir, 'vic_joint_pca_model.jlb']))
     else:
-        print(f'train male pca model: n files = {len(male_paths)}')
+        #########################################################################
+        print(f'train male pca model incrementally: n files = {len(male_paths)}')
         male_model   = train_pca(male_paths, NV=NV)
-        opath = os.path.join(*[args.out_dir, 'vic_male_pca_model.jlb'])
-        joblib.dump(male_model, filename=opath)
-        print(f'dump male model to file {opath}')
+        opath_male_model = os.path.join(*[args.out_dir, 'vic_male_pca_model.jlb'])
+        joblib.dump(male_model, filename=opath_male_model)
+        print(f'dump male model to file {opath_male_model}')
 
-        print(f'train female pca model: n files = {len(female_paths)}')
+        test_pca_comp_dir = os.path.join(*[args.out_dir, 'debug_pca_components_male'])
+        print(f'export male principal components to {test_pca_comp_dir}')
+        export_principal_components(out_dir=test_pca_comp_dir, pca_model=male_model, tpl_faces=tpl_faces, n_components=10, n_std_deviation=3.0)
+
+        male_pca_co_dir = os.path.join(*[args.out_dir, 'pca_coords', 'male'])
+        print(f'exporting male pca coordinates to {male_pca_co_dir}')
+        tool_export_pca_coords(opath_male_model, male_paths, male_pca_co_dir, synthesize_samples=args.n_synthesize_samples)
+
+        if args.n_debug_samples > 0:
+            debug_mesh_male_dir =  os.path.join(*[args.out_dir, 'debug_male_syned_mesh'])
+            print(f'exporting {args.n_debug_samples} random male pca meshes to {debug_mesh_male_dir}')
+            export_random_pca_mesh(model_path=opath_male_model, pca_dir=male_pca_co_dir, vic_mesh_path=args.vic_mesh_path, debug_out_dir=debug_mesh_male_dir, n_samples=args.n_debug_samples)
+
+        #########################################################################
+        print(f'\n\ntrain female pca model incrementally: n files = {len(female_paths)}')
         female_model = train_pca(female_paths, NV=NV)
-        opath = os.path.join(*[args.out_dir, 'vic_female_pca_model.jlb'])
-        joblib.dump(female_model, filename=opath)
-        print(f'dump female model to file {opath}')
+        opath_female_model = os.path.join(*[args.out_dir, 'vic_female_pca_model.jlb'])
+        joblib.dump(female_model, filename=opath_female_model)
+        print(f'dump female model to file {opath_female_model}')
 
-        tool_export_pca_coords(args, args.out_dir, synthesize_samples=args.n_synthesize_samples)
+        test_pca_comp_dir = os.path.join(*[args.out_dir, 'debug_pca_components_female'])
+        print(f'export male principal componets to {test_pca_comp_dir}')
+        export_principal_components(out_dir=test_pca_comp_dir, pca_model=female_model, tpl_faces=tpl_faces, n_components=10, n_std_deviation=3.0)
+
+        female_pca_co_dir = os.path.join(*[args.out_dir, 'pca_coords', 'female'])
+        print(f'exporting female pca coordinates to {female_pca_co_dir}')
+        tool_export_pca_coords(opath_female_model, female_paths, female_pca_co_dir, synthesize_samples=args.n_synthesize_samples)
+
+        if args.n_debug_samples > 0:
+            debug_mesh_female_dir =  os.path.join(*[args.out_dir, 'debug_female_syned_mesh'])
+            print(f'exporting {args.n_debug_samples} random female pca meshes to {debug_mesh_female_dir}')
+            export_random_pca_mesh(model_path=opath_female_model, pca_dir=female_pca_co_dir, vic_mesh_path=args.vic_mesh_path, debug_out_dir=debug_mesh_female_dir, n_samples=args.n_debug_samples)
+
+        #tool_export_pca_coords_male_female(args, args.out_dir, synthesize_samples=args.n_synthesize_samples)
 
 if __name__ == '__main__':
     main()
