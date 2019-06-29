@@ -161,6 +161,20 @@ def export_random_pca_mesh(model_path, pca_dir, vic_mesh_path, debug_out_dir, n_
         verts = verts.reshape(NV, 3)
         export_mesh(os.path.join(*[debug_out_dir, f'{path.stem}.obj']), verts=verts, faces=tpl_faces)
 
+def tool_transform_pca_to_verts(model_path, pca_dir, vert_dir):
+    os.makedirs(vert_dir, exist_ok=True)
+    for path in Path(vert_dir).glob("*.*"):
+        os.remove(str(path))
+
+    pca_model = joblib.load(filename=model_path)
+    co_paths = [path for path in Path(pca_dir).glob('*.*')]
+
+    for path in co_paths:
+        p = np.load(path)
+        verts = pca_model.inverse_transform(p)
+        verts = verts.reshape(-1, 3)
+        np.save(file = os.path.join(*[vert_dir, f'{path.stem}.npy']), arr=verts)
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("-vert_dir", type=str, required=True, help="directory that contains the caesar mesh vertices: *.npy files")
@@ -210,8 +224,12 @@ def main():
         export_principal_components(out_dir=test_pca_comp_dir, pca_model=male_model, tpl_faces=tpl_faces, n_components=10, n_std_deviation=3.0)
 
         male_pca_co_dir = os.path.join(*[args.out_dir, 'pca_coords', 'male'])
-        print(f'exporting male pca coordinates to {male_pca_co_dir}')
+        print(f'debug: exporting male pca coordinates to {male_pca_co_dir}')
         tool_export_pca_coords(opath_male_model, male_paths, male_pca_co_dir, synthesize_samples=args.n_synthesize_samples)
+
+        male_vert_dir = os.path.join(*[args.out_dir, 'verts', 'male'])
+        print(f'transforming male pca coordinates to vertex array (for projection to front/side silhouette)')
+        tool_transform_pca_to_verts(model_path=opath_male_model, pca_dir= male_pca_co_dir, vert_dir= male_vert_dir)
 
         if args.n_debug_samples > 0:
             debug_mesh_male_dir =  os.path.join(*[args.out_dir, 'debug_male_syned_mesh'])
@@ -230,15 +248,17 @@ def main():
         export_principal_components(out_dir=test_pca_comp_dir, pca_model=female_model, tpl_faces=tpl_faces, n_components=10, n_std_deviation=3.0)
 
         female_pca_co_dir = os.path.join(*[args.out_dir, 'pca_coords', 'female'])
-        print(f'exporting female pca coordinates to {female_pca_co_dir}')
+        print(f'debug: exporting female pca coordinates to {female_pca_co_dir}')
         tool_export_pca_coords(opath_female_model, female_paths, female_pca_co_dir, synthesize_samples=args.n_synthesize_samples)
+
+        female_vert_dir = os.path.join(*[args.out_dir, 'verts', 'female'])
+        print(f'transforming male pca coordinates to vertex array (for projection to front/side silhouette)')
+        tool_transform_pca_to_verts(model_path=opath_female_model, pca_dir= female_pca_co_dir, vert_dir= female_vert_dir)
 
         if args.n_debug_samples > 0:
             debug_mesh_female_dir =  os.path.join(*[args.out_dir, 'debug_female_syned_mesh'])
             print(f'exporting {args.n_debug_samples} random female pca meshes to {debug_mesh_female_dir}')
             export_random_pca_mesh(model_path=opath_female_model, pca_dir=female_pca_co_dir, vic_mesh_path=args.vic_mesh_path, debug_out_dir=debug_mesh_female_dir, n_samples=args.n_debug_samples)
-
-        #tool_export_pca_coords_male_female(args, args.out_dir, synthesize_samples=args.n_synthesize_samples)
 
 if __name__ == '__main__':
     main()
