@@ -23,6 +23,10 @@ python ./deploy/hm_pipeline.py -model_dir MODEL_DIR/deploy_models -in_txt_file T
 export PYTHONPATH="${PYTHONPATH}:./"
 python ./deploy/hm_measurement.py -obj path_to_obj_file -grp ./deploy_models/meta_data/victoria_measure_vert_groups.pkl -nbr ./deploy_models/meta_data/victoria_measure_contour_circ_neighbor_idxs.pkl
 ```
+
+# training
+for instruction to generate training data and training steps, please refer to the note ./notes/cnn_pipeline.md
+
 # documentation
 ## body reconstruction
 - [an overview of cnn-based pipeline](./notes/cnn_pipeline.md)

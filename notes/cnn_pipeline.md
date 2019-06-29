@@ -1,17 +1,24 @@
-# tale of content
-- [notations](#notation)
-- [training data preparation](#training-data-preparation)
-- [CNN architectures](#CNN-architectures)
-- [training process](#training-process)
+- [Notation](#notation)
+- [Data Generation](#data-generation)
+	- [Overview](#overview)
+	- [PCA Model Training](#pca-model-training)
+	- [Silhouette Generation](#silhouette-generation)
+	- [Post processing silhouette and prepare CNN training data](#post-processing-silhouette-and-prepare-cnn-training-data)
+- [Training process](#training-process)
+	- [Overview](#overview)
+	- [How to train](#how-to-train)
+		- [Training](#training)
+		- [Training error visualization](#training-error-visualization)
+- [CNN architectures](#cnn-architectures)
 
-# notation
+# Notation
 - caesar meshes with maxplank topology: mpii-caesar mesh
 - caesar meshes with victoria topology: vic-caesar mesh
 
 # Data Generation
 
 ## Overview
-- __what is a victoria-based PCA model?__
+- __What is a victoria-based PCA model?__
     - a victoria-based PCA model of 50 principal components has dimension of 50x72576x3 where 72576 is the number of victoria vertices and 3 represents 3 dimension x,y,z
     - each component of 72675x3 represents vertex devications from the mean victoria
 - __PCA models training__
@@ -87,7 +94,7 @@ python ./pca/tool_prepare_train_data_ml_fml.py
 -out_dir OUPUT_CNN_DATA_DIR
 ```
 
-# training process
+# Training process
 
 ## Overview
 Training consists of two main steps. First we train the front and side CNN models and then we train the joint model with the pre-trained weights from the front and side models. Training front and side model separately is required because it would help create better than models that learn distinctive features in front and side silhouettes. If we group all the training into one step, the model will bias toward the front silhouette while ignore the side silhouettes.
@@ -113,8 +120,8 @@ Training consists of two main steps. First we train the front and side CNN model
   - target:
     - NX51: 1 gender indicator + 50 pca values
 
-## how to train
-### training
+## How to train
+### Training
 - download the original dataset (4301 meshes) from [this link](https://drive.google.com/open?id=1c9eHv9NBo4PkfpRCHWix1wzCKumsICG3),
 or the synthesized dataset (62000) from [this link](https://drive.google.com/open?id=18Kaj8A18wEMiZmmi7y9k9QDmSsFrcQO_)
 - denote DATA_DIR point to the root directory of the dataset. For example, ```root_dir/sil_384_256_ml_fml_nosyn```
@@ -125,7 +132,7 @@ will be converted from Pytorch to Tensorflow graph and wrapped with additional i
     sh train_cnn.sh DATA_DIR
     ```
 - for more stable training,you can comment the code in the sn_train_cnn.sh to train modes one by one
-### training error visualization
+### Training error visualization
 - run tensorboard
     ```python
     cd DATASET_DIR/log
