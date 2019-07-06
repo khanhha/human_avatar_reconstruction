@@ -60,7 +60,7 @@ def align_face_to_mesh(face_verts, mesh_verts, vmap_face_to_mesh):
     mesh_verts[vmap_face_to_mesh] = face_verts - face_ver_ldm_co_0 +  mesh_ver_ldm_co_0
 
 
-from deploy.hm_head_embedder import HmHeadEmbedder
+from deploy.hm_head_model import HmHeadModel
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
     ap.add_argument("-face",  type=str, required=True)
@@ -84,10 +84,11 @@ if __name__ == '__main__':
 
     name_id = Path(sil_f_path).stem
 
-    meta_dir = '/home/khanhhh/data_1/projects/Oh/codes/human_estimation/data/meta_data/'
+    meta_dir = '/home/khanhhh/data_1/projects/Oh/codes/human_estimation/data/meta_data_shared/'
+    data_dir = '/home/khanhhh/data_1/projects/Oh/data/3d_human/deploy_models/'
     out_dir = '/home/khanhhh/data_1/projects/Oh/data/face/test_merge_face_body/'
 
-    head_embed  = HmHeadEmbedder(meta_dir)
+    head_embed  = HmHeadModel(meta_dir, model_dir=data_dir)
 
     tpl_mesh_tri_path = f'{meta_dir}/align_victoria_tri.obj'
     tpl_mesh_path = f'{meta_dir}align_victoria.obj'
@@ -119,17 +120,20 @@ if __name__ == '__main__':
     mesh = import_mesh_tex_obj(fpath=face_res_path)
     ctl_df_verts = mesh['v']
 
-    ctm_mesh_verts = head_embed.embed(customer_df_verts=ctm_mesh_verts, prn_facelib_verts=ctl_df_verts)
+    ctm_mesh_verts, prn_tex, image_face_landmarks = head_embed.predict(customer_df_verts=ctm_mesh_verts, image_rgb_front =face_img[:, :, ::-1])
+    prn_tex = prn_tex[:,:,::-1] #rgb to bgr
+
     use_default_blender_texture = False
     if use_default_blender_texture == True:
         face_warp = HmFaceWarp(meta_dir)
         texture = face_warp.warp(face_img, face_prn_kpts)
     else:
         rect_path = os.path.join(*[meta_dir, 'prn_texture_rectangle.txt'])
-        prn_texture_path = '/home/khanhhh/data_1/projects/Oh/data/face/2019-06-04-face-output/MVIMG_20190604_180645_texture.png'
-        prn_tex = cv.imread(prn_texture_path)
+        #prn_texture_path = '/home/khanhhh/data_1/projects/Oh/data/face/2019-06-04-face-output/MVIMG_20190604_180645_texture.png'
+        #prn_tex = cv.imread(prn_texture_path)
         face_embed = HmFPrnNetFaceTextureEmbedder(meta_dir=meta_dir, prn_facelib_rect_path=rect_path, texture_size=1024)
         texture = face_embed.embed(prn_tex)
+        #texture = face_embed.warp(face_img, image_face_landmarks)
 
     text_mesh_path = '/home/khanhhh/data_1/projects/Oh/codes/human_estimation/data/meta_data/victoria_template_textured_warped.obj'
     tex_mesh = import_mesh_tex_obj(text_mesh_path)

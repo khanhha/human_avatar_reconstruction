@@ -150,7 +150,7 @@ class HmFaceWarp():
         else:
             image = img
 
-        #TODO: currently we assume that the face complete like inside the rectagnle of[ 0:1024, 0:1024]. need to handle it more accurately
+        #TODO: currently we assume that the face complete like inside the rectangle of [0:1024, 0:1024]. need to handle it more accurately
         texture = np.zeros((1024, 1024, 3), dtype=np.uint8)
         w_max = min(texture.shape[1], img.shape[1])
         h_max = min(texture.shape[0], img.shape[0])
@@ -231,6 +231,7 @@ class HmFaceWarp():
 
 
 class HmFPrnNetFaceTextureEmbedder():
+
     def __init__(self, meta_dir, prn_facelib_rect_path, texture_size = 1024):
         self.texture_size = texture_size
         self.rect_uv = np.loadtxt(prn_facelib_rect_path)
@@ -242,7 +243,7 @@ class HmFPrnNetFaceTextureEmbedder():
 
         vic_tpl_vertex_groups_path = os.path.join(*[meta_dir, 'victoria_part_vert_idxs.pkl'])
 
-        vic_tpl_face_mesh_path = os.path.join(*[meta_dir, 'victoria_template_textured_warped.obj'])
+        vic_tpl_face_mesh_path = os.path.join(*[meta_dir, 'vic_mesh_textured_warped.obj'])
         vic_mesh = import_mesh_tex_obj(vic_tpl_face_mesh_path)
         verts_tex = vic_mesh['vt']
         faces_tex = vic_mesh['ft']
@@ -284,6 +285,21 @@ class HmFPrnNetFaceTextureEmbedder():
         # self.non_face_tex_mask[self.rect_center[1]-10:self.rect_center[1]+10, self.rect_center[0]-10:self.rect_center[0]+10] = 0.2
         # plt.imshow(self.face_tex_mask)
         # plt.show()
+
+
+        self.N_Facial_LD = 68
+
+        self.targets = self._load_target_texture_landmarks(meta_dir)
+        self.targets *= 1024
+        #TODO: forget why we have to invser the y coordinate
+        self.targets[:, 1] = 1024 - self.targets[:,1]
+        assert self.targets.shape[0] == self.N_Facial_LD
+
+        self.targets = self.targets.reshape((1, -1, 2))
+
+        self.matches = list()
+        for i in range(self.N_Facial_LD):
+            self.matches.append(cv.DMatch(i, i, 0))
 
     def _faces_from_verts(self, all_faces, verts):
         """
@@ -499,6 +515,62 @@ class HmFPrnNetFaceTextureEmbedder():
         #
         # return skin_texture
 
+    def _load_target_texture_landmarks(self, meta_dir):
+        mpath = os.path.join(*[meta_dir, 'vic_mesh_textured_warped.obj'])
+        mesh = import_mesh_tex_obj(mpath)
+        verts_tex = mesh['vt']
+        faces = mesh['f']
+        faces_tex = mesh['ft']
+
+        ld_idxs_path = os.path.join(*[meta_dir, 'victoria_face_landmarks.pkl'])
+        with open(ld_idxs_path, 'rb') as file:
+            vic_facial_ld_idxs_dict = pickle.load(file)
+            vic_facial_ld_v_idxs = []
+            for i in range(self.N_Facial_LD):
+                vic_facial_ld_v_idxs.append(vic_facial_ld_idxs_dict[i])
+            assert len(set(vic_facial_ld_v_idxs)) == len(vic_facial_ld_v_idxs)
+
+        v_vt_map = build_v_vt_map(faces, faces_tex)
+        vt_face_ld = []
+        for i in range(self.N_Facial_LD):
+            uv_tex_idxs = v_vt_map[vic_facial_ld_v_idxs[i]]
+            assert len(uv_tex_idxs) == 1
+            vt_face_ld.append(uv_tex_idxs[0])
+
+        vt_face_ld_co = verts_tex[vt_face_ld]
+
+        return vt_face_ld_co
+
+    def warp(self, image_rgb_front, image_face_landmarks):
+        #TODO: currently we assume that the face complete like inside the rectangle of [0:1024, 0:1024]. need to handle it more accurately
+        texture = np.zeros((1024, 1024, 3), dtype=np.uint8)
+        w_max = min(texture.shape[1], image_rgb_front.shape[1])
+        h_max = min(texture.shape[0], image_rgb_front.shape[0])
+        texture[0:h_max, 0:w_max, :] = image_rgb_front[0:h_max, 0:w_max,:]
+
+        sources = image_face_landmarks.reshape((1, -1, 2))
+
+        tps = cv.createThinPlateSplineShapeTransformer(10)
+        tps.estimateTransformation(self.targets, sources, self.matches)
+
+        tps.warpImage(texture, texture, flags=cv.INTER_CUBIC)
+
+        #TODO: remove in release
+        test = self.targets.copy().astype(np.int)
+        texture[test[0,:,1], test[0,:,0]] = (0, 0, 255)
+
+        #TODO: remove in release
+        # test_1 = sources.copy().astype(np.int)
+        # texture[test_1[0,:,1], test_1[0,:,0]] = (255, 0, 0)
+
+        #TODO: remove. we make black pixels white for the sake of visualization
+        #texture[texture[:,:,0] == 0] = (255,255,255)
+
+        # plt.imshow(texture)
+        # plt.show()
+
+        return texture
+
     def embed(self, prn_facelib_tex):
 
         assert prn_facelib_tex.shape[0] == prn_facelib_tex.shape[1], 'require square texture shape'
@@ -590,6 +662,7 @@ class HmFPrnNetFaceTextureEmbedder():
         head_texture = cv.seamlessClone(prn_facelib_tex, head_texture, prn_mask, mask_center, cv.NORMAL_CLONE)
         elapsed_time = time.time() - start_time
         print('seamless time: ', elapsed_time)
+
         #head_texture[self.rect_center[1]-self.embed_size:self.rect_center[1]+self.embed_size+1, self.rect_center[0]-self.embed_size:self.rect_center[0]+self.embed_size+1, :] = prn_facelib_tex
 
         return head_texture

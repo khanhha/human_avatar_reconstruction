@@ -3,27 +3,39 @@ from deformation.ffdt_deformation_lib import TemplateMeshDeform
 import pickle
 import numpy as np
 from common.obj_util import import_mesh_obj, export_mesh, import_mesh_tex_obj, export_mesh_tex_obj
-from common.transformations import rotation_matrix, unit_vector, angle_between_vectors, vector_product, affine_matrix_from_points
+from common.transformations import rotation_matrix, unit_vector, angle_between_vectors, vector_product, affine_matrix_from_points, decompose_matrix, compose_matrix, is_same_transform
 import math
 import os
 import pickle
 from deformation.ffdt_deformation_lib import  TemplateMeshDeform
+from prn_facelib.prn_face_wrapper import PrnFaceWrapper
 
 import sys
 sys.path.insert(0, '/home/khanhhh/data_1/sample_codes/libigl/python')
 import pyigl as igl
 
 def embbed_neck_seam_to_tpl_head(ctm_verts, tpl_head_verts, vneck_seam_map, vneck_seam_map_in_head):
+    """
+    two places where the customer head is linked to the whole mesh: face boundary and neck boundary(seam).
+    this function sets the neck seam vertices
+    :param ctm_verts:
+    :param tpl_head_verts:
+    :param vneck_seam_map:
+    :param vneck_seam_map_in_head:
+    :return:
+    """
     tpl_head_verts[vneck_seam_map_in_head] = ctm_verts[vneck_seam_map]
     return tpl_head_verts
 
 def embbed_face_to_tpl_head(tpl_head_verts, face_verts, vface_map_in_head):
-    #orientation face to match victoria face
-    # tmp = np.copy(face_verts[:, 2])
-    # face_verts[:,2] = face_verts[:,1]
-    # face_verts[:, 1] = tmp
-    # face_verts[:, 0] = -face_verts[:, 0]
-
+    """
+    apply an affine transformation to embed the customer prediction face to the customer mesh. This is required because
+    the customer face's orientation and translation are not aligned with the corresponding face in the customer mesh
+    :param tpl_head_verts:
+    :param face_verts:
+    :param vface_map_in_head:
+    :return:
+    """
     #scale face to match victoria's face
     org_face_verts = tpl_head_verts[vface_map_in_head]
     scale = (org_face_verts[:,2].max() - org_face_verts[:,2].min()) / (face_verts[:,2].max() - face_verts[:,2].min())
@@ -31,17 +43,23 @@ def embbed_face_to_tpl_head(tpl_head_verts, face_verts, vface_map_in_head):
     face_center = np.mean(face_verts, axis=0) #customer's face center
     org_face_center = np.mean(org_face_verts, axis=0) #victoria's face center
 
+    # a small set of facial keypoints on victoria face.
+    # to visualize these points
+    # load victoria mesh
+    # switch to the edit mode
+    # in the python console, type bpy.app.debug=True
+    # in the right property pannal, select show_indices
     match_idxs = [12170, 12184, 5559, 1142, 991, 13075, 7603, 9475, 13247, 6479, 13136, 13089]
-    test_tpl_face_verts = tpl_head_verts[vface_map_in_head].copy()
+    tmp_tpl_face_verts = tpl_head_verts[vface_map_in_head].copy()
 
     #temporary embed the customer face to extract keypoints
     face_verts = face_verts - face_center + org_face_center
     tpl_head_verts[vface_map_in_head] = face_verts
 
-    set_0 = test_tpl_face_verts[match_idxs, :].T
-    set_1 = face_verts[match_idxs, :].T
+    keypoint_set_0 = tmp_tpl_face_verts[match_idxs, :].T
+    keypoint_set_1 = face_verts[match_idxs, :].T
 
-    AT = affine_matrix_from_points(set_1, set_0, shear = False, scale=False)
+    AT = affine_matrix_from_points(keypoint_set_1, keypoint_set_0, shear = False, scale=False)
 
     tmp_ctm_faceverts = tpl_head_verts[vface_map_in_head]
     tmp_ctm_faceverts = np.hstack([tmp_ctm_faceverts, np.ones((tmp_ctm_faceverts.shape[0], 1))])
@@ -54,20 +72,56 @@ def embbed_face_to_tpl_head(tpl_head_verts, face_verts, vface_map_in_head):
 
     return tpl_head_verts
 
-def embed_tpl_head_to_cusomter(tpl_head_verts, ctm_verts, vhead_map, vneck_seam_map, vneck_seam_map_in_head):
-    ctm_head_verts = ctm_verts[vhead_map]
-    ctm_head_center = np.mean(ctm_head_verts, axis=0)
+def embed_tpl_head_to_cusomter(tpl_head_verts, ctm_verts, vhead_map,
+                               vneck_seam_map_in_head, vneck_map_in_head,
+                               vleye_map_in_head, vreye_map_in_head):
+    """
+    replace the head of the predicition by a transformed version of the origin Victoria head. this is required because the
+    prediction head is often strongly distorted.
+    :param tpl_head_verts: origin victoria head vertices
+    :param ctm_verts: the full customer vertices: body head
+    :param vhead_map: head vertex indices
+    :param vneck_seam_map: the seam vertices between head and body
+    :param vneck_seam_map_in_head: the relative index of the seam vertices in the head space
+    :return:
+    """
+    ctm_head_verts  = ctm_verts[vhead_map]
 
-    scale = (ctm_head_verts[:,2].max() - ctm_head_verts[:,2].min()) / (tpl_head_verts[:, 2].max() - tpl_head_verts[:, 2].min())
-    head_center = np.mean(tpl_head_verts, axis=0)
-    tpl_head_verts -= head_center
-    tpl_head_verts *= scale
-    tpl_head_verts += ctm_head_center
+    #ctm_head_center = np.mean(ctm_head_verts, axis=0)
+    #scale = (ctm_head_verts[:,2].max() - ctm_head_verts[:,2].min()) / (tpl_head_verts[:, 2].max() - tpl_head_verts[:, 2].min())
+    #head_center = np.mean(tpl_head_verts, axis=0)
+    #tpl_head_verts -= head_center
+    #tpl_head_verts *= scale
+    #tpl_head_verts += ctm_head_center
 
-    ctm_neck_seam_center = np.mean(ctm_verts[vneck_seam_map], axis=0)
-    neck_seam_center = np.mean(tpl_head_verts[vneck_seam_map_in_head], axis=0)
+    ###
+    #a random set of interge indices to the neck vertex set that is expected to cover enough neck vertex range
+    #np.random.seed(10)
+    #keypoint_idxs = np.random.randint(0, len(vneck_map_in_head), 20)
+    keypoint_idxs = np.array([265,125,527,320,369,123,156,496,8,73,256,490,40,502,420,371,528,356,239,395])
+    keypoint_set_0 = tpl_head_verts[keypoint_idxs, :].T
+    keypoint_set_1 = ctm_head_verts[keypoint_idxs, :].T
+    AT = affine_matrix_from_points(keypoint_set_0, keypoint_set_1, shear = False, scale=True)
+    #scale, shear, angles, trans, persp  = decompose_matrix(AT)
+    #angles[2] = 0.0
+    #AT = compose_matrix(scale, shear, angles, trans, persp)
+    tpl_head_verts = np.hstack([tpl_head_verts, np.ones((tpl_head_verts.shape[0], 1))])
+    tpl_head_verts = np.dot(AT, tpl_head_verts.T).T[:, :3]
+    ###
 
-    tpl_head_verts = tpl_head_verts - neck_seam_center + ctm_neck_seam_center
+    # fix incorrect head titled toward left or right
+    # this error happens due to the cusomter head orientation is incorrect, which leads to incorrect transformed template head
+    # we fix this by using the eye level direction to detect if the head is biased toward left or right and then rotate it back.
+    rot_center = np.mean(tpl_head_verts[vneck_seam_map_in_head], 0)
+
+    leye = np.mean(tpl_head_verts[vleye_map_in_head], 0)
+    reye = np.mean(tpl_head_verts[vreye_map_in_head], 0)
+    hor_dir = unit_vector(leye - reye)
+    x_axis = np.array([1.0, 0.0, 0.0])
+    R = rotation_matrix(angle_between_vectors(hor_dir, x_axis), vector_product(hor_dir, x_axis), rot_center)
+
+    tpl_head_verts = np.hstack([tpl_head_verts, np.ones((tpl_head_verts.shape[0], 1))])
+    tpl_head_verts = np.dot(R, tpl_head_verts.T).T[:, :3]
 
     return tpl_head_verts
 
@@ -148,15 +202,19 @@ def calc_head_tris_in_head_space(tpl_tris, vhead_map):
 
     return head_tris
 
-class HmHeadEmbedder:
 
-    def __init__(self, meta_dir):
-        vic_tpl_face_mesh_path = os.path.join(*[meta_dir, 'face_victoria.obj'])
-        vic_tpl_mesh_tri_path = os.path.join(*[meta_dir, 'align_victoria_tri.obj'])
-        prn_facelib_mesh_path = os.path.join(*[meta_dir, 'face_prn_facelib.obj'])
-        parameterization_path = os.path.join(*[meta_dir, 'global_face_vic_prnet_parameterization_v1.pkl'])
+class HmHeadModel:
+
+    def __init__(self, meta_dir, model_dir):
+
+        prn_datadir_prefix = os.path.join(*[model_dir, "prn_facelib_data"])
+        self.prn_wrapper = PrnFaceWrapper(texture_size = 256, prn_datadir_prefix = prn_datadir_prefix)
+
+        vic_tpl_face_mesh_path = os.path.join(*[meta_dir, 'victoria_face_mesh.obj'])
+        vic_tpl_mesh_tri_path = os.path.join(*[meta_dir, 'vic_mesh_only_triangle.obj'])
+        prn_facelib_mesh_path = os.path.join(*[meta_dir, 'prn_facelib_face_mesh.obj'])
+        parameterization_path = os.path.join(*[meta_dir, 'parameterization_vic_face_prn_facelib.pkl'])
         vic_tpl_vertex_groups_path = os.path.join(*[meta_dir, 'victoria_part_vert_idxs.pkl'])
-
 
         prn_face_mesh = import_mesh_tex_obj(fpath=prn_facelib_mesh_path)
         ctl_df_verts = prn_face_mesh['v']
@@ -191,15 +249,18 @@ class HmHeadEmbedder:
             vface_map = vparts['face']
             self.vneck_seam_map = vparts['neck_seam']
             self.vhead_map = vparts['head']
+            self.vneck_map = vparts['neck']
             vleye_map = vparts['leye']
             vreye_map = vparts['reye']
-            vupper_lip_map = vparts['upper_lip']
+            #vupper_lip_map = vparts['upper_lip']
+
+            print(self.vneck_seam_map.shape)
 
             self.vface_map_in_head = calc_vert_index_in_head_space(vface_map, self.vhead_map)
             self.vneck_seam_map_in_head = calc_vert_index_in_head_space(self.vneck_seam_map, self.vhead_map)
+            self.vneck_map_in_head = calc_vert_index_in_head_space(self.vneck_map, self.vhead_map)
             self.vleye_map_in_head = calc_vert_index_in_head_space(vleye_map, self.vhead_map)
             self.vreye_map_in_head = calc_vert_index_in_head_space(vreye_map, self.vhead_map)
-            self.vupper_lip_map_in_head = calc_vert_index_in_head_space(vupper_lip_map, self.vhead_map)
 
             self.head_tri_in_head = calc_head_tris_in_head_space(vic_tpl_tris, self.vhead_map)
             self.vic_tpl_head_verts = vic_tpl_verts[self.vhead_map]
@@ -214,7 +275,18 @@ class HmHeadEmbedder:
         verts[:, 1] = -tmp
         return verts
 
-    def embed(self, customer_df_verts, prn_facelib_verts):
+    def predict(self, customer_df_verts, image_rgb_front):
+        # predict prn face vertices
+        prn_facelib_verts, texture, image_face_kpt = self.prn_wrapper.predict(image_rgb_front)
+        image_face_kpt = image_face_kpt.round().astype(np.int32)
+
+        #test
+        # import matplotlib.pyplot as plt
+        # image_face_kpt = image_face_kpt.round().astype(np.int)
+        # image_rgb_front[image_face_kpt[:,1], image_face_kpt[:,0]] = (255,0,0)
+        # plt.imshow(image_rgb_front)
+        # plt.show()
+
         mean = np.mean(prn_facelib_verts, axis=0)
         ctl_df_verts = prn_facelib_verts - mean
         ctl_df_verts *= 0.01
@@ -230,8 +302,10 @@ class HmHeadEmbedder:
         tpl_head_verts = self.vic_tpl_head_verts.copy()
 
         tpl_head_verts = embed_tpl_head_to_cusomter(tpl_head_verts=tpl_head_verts, ctm_verts=customer_df_verts,
-                                                    vhead_map=self.vhead_map, vneck_seam_map=self.vneck_seam_map,
-                                                    vneck_seam_map_in_head=self.vneck_seam_map_in_head)
+                                                    vhead_map=self.vhead_map,
+                                                    vneck_seam_map_in_head=self.vneck_seam_map_in_head,
+                                                    vneck_map_in_head=self.vneck_map_in_head,
+                                                    vleye_map_in_head=self.vleye_map_in_head, vreye_map_in_head=self.vreye_map_in_head)
 
         new_head_verts = np.copy(tpl_head_verts)
         new_head_verts = embbed_face_to_tpl_head(tpl_head_verts=new_head_verts, face_verts=ctm_face_verts,
@@ -247,4 +321,4 @@ class HmHeadEmbedder:
 
         customer_df_verts[self.vhead_map] = new_head_verts_1
 
-        return customer_df_verts
+        return customer_df_verts, texture, image_face_kpt
