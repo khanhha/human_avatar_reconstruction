@@ -1,5 +1,6 @@
 
-# samples from the dataset
+# some samples with crotch/armpit artificts from the dataset
+left: origin maxplank caesar mesh | right: deformed vicotoria
 ![](.caesar_victoria_dataset_images/0d249d7e.png)
 ![](.caesar_victoria_dataset_images/a46f7955.png)
 ![](.caesar_victoria_dataset_images/7f4676a8.png)
