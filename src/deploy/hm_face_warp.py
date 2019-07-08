@@ -481,7 +481,8 @@ class HmFPrnNetFaceTextureEmbedder():
         #skin_sample = skin_sample[1800:2000,1620:1820, :]  \
         #img_path = '/home/khanhhh/data_1/projects/Oh/data/face/skin_texture_patch_forehead.jpg'
         #G0 = cv.imread(img_path)
-        G0 = face_texture[1:35,90:160, :]
+        #G0 = face_texture[1:35,90:160, :] #forehead
+        G0 = face_texture[80:125, 150:200,:] #cheek
         gpB = [G0]
         G = G0.copy()
         for i in range(10):
@@ -620,15 +621,12 @@ class HmFPrnNetFaceTextureEmbedder():
         #return face_texture
 
         mask = self.face_tex_mask.astype(np.uint8) * 255
-        mask_rect = cv.boundingRect(mask)
-        mask_center = (mask_rect[0]+int(mask_rect[2]/2), mask_rect[1]+int(mask_rect[3]/2))
         # print(mask_rect)
         # cv.drawMarker(face_texture, (mask_rect[0]+int(mask_rect[2]/2), mask_rect[1]+int(mask_rect[3]/2)), (0,0,255), markerSize=5, thickness=2)
         # plt.imshow(face_texture)
         # plt.imshow(mask, alpha=0.5)
         # plt.show()
         # exit()
-        prn_mask = mask[self.rect_center[1]-self.embed_size:self.rect_center[1]+self.embed_size+1, self.rect_center[0]-self.embed_size:self.rect_center[0]+self.embed_size+1]
         head_texture = self.synthesize_skin_texture_base_color(prn_facelib_tex)
         #head_texture = self.synthesize_skin_color_tiling(prn_facelib_tex)
         #head_texture = self.synthesise_skin_color_seamlesscloneing(prn_facelib_tex)
@@ -657,6 +655,18 @@ class HmFPrnNetFaceTextureEmbedder():
         # plt.imshow(head_texture_1[:,:,::-1])
         # plt.show()
         #head_texture = head_texture_1
+
+        #preprocess mask
+        prn_mask = mask[self.rect_center[1]-self.embed_size:self.rect_center[1]+self.embed_size+1, self.rect_center[0]-self.embed_size:self.rect_center[0]+self.embed_size+1]
+        black_mask = np.bitwise_and(prn_facelib_tex[:,:,0] < 5, prn_facelib_tex[:,:,1] < 5)
+        black_mask[prn_mask == 0] = 0
+        prn_mask[black_mask] = 0
+
+        mask_rect = cv.boundingRect(mask)
+        mask_center = (mask_rect[0]+int(mask_rect[2]/2), mask_rect[1]+int(mask_rect[3]/2))
+
+        #plt.imshow(mask)
+        #plt.show()
 
         start_time = time.time()
         head_texture = cv.seamlessClone(prn_facelib_tex, head_texture, prn_mask, mask_center, cv.NORMAL_CLONE)
