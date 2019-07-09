@@ -15,6 +15,12 @@
 - caesar meshes with maxplank topology: mpii-caesar mesh
 - caesar meshes with victoria topology: vic-caesar mesh
 
+# Datasets
+- Orginal MPII-Caesar [dataset](https://drive.google.com/open?id=1x1ChF_34GAA88lEMaybsPlghdk3DjKga) in OBJ format
+
+- MPII_caesae [dataset](https://drive.google.com/open?id=1dxneLcuc3m32EAgW_UjPv539pmX5ymVG) in Victoria's topology
+	- Due to Victoria's triangle list is very big (each mesh is around 5mb), the dataset just contains the vertex array of each mesh. For visualization, please use [this script](https://github.com/khanhha/human_estimation/blob/master/src/pca/vic_vert_to_mesh.py) to convert vertex array to obj file.
+
 # Data Generation
 
 ## Overview
