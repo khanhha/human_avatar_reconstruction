@@ -1,15 +1,21 @@
+<!-- @import "[TOC]" {cmd="toc" depthFrom=1 depthTo=6 orderedList=false} -->
+<!-- code_chunk_output -->
+
 - [Notation](#notation)
+- [Datasets](#datasets)
 - [Data Generation](#data-generation)
-	- [Overview](#overview)
-	- [PCA Model Training](#pca-model-training)
-	- [Silhouette Generation](#silhouette-generation)
-	- [Post processing silhouette and prepare CNN training data](#post-processing-silhouette-and-prepare-cnn-training-data)
+  - [Overview](#overview)
+  - [PCA Model Training](#pca-model-training)
+  - [Silhouette Generation](#silhouette-generation)
+  - [Post processing silhouette and prepare CNN training data](#post-processing-silhouette-and-prepare-cnn-training-data)
 - [Training process](#training-process)
-	- [Overview](#overview)
-	- [How to train](#how-to-train)
-		- [Training](#training)
-		- [Training error visualization](#training-error-visualization)
+  - [Overview](#overview-1)
+  - [How to train](#how-to-train)
+    - [Training](#training)
+    - [Training error visualization](#training-error-visualization)
 - [CNN architectures](#cnn-architectures)
+
+<!-- /code_chunk_output -->
 
 # Notation
 - caesar meshes with maxplank topology: mpii-caesar mesh
