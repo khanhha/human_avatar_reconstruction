@@ -20,7 +20,7 @@ if __name__ == '__main__':
     ap.add_argument("-meta_data_dir",  required=True, type=str, help="meta data directory")
     ap.add_argument("-in_txt_file",  required=True, type=str, help="the texture file to the input data directory. each line of the texture file have the following format:"
                                                                    "front_img  side_img  height_in_meter  gender  are_silhouette_or_not")
-    ap.add_argument("-save_sil", required=False, default= True, type=bool, help="save silhouettes that are calculated from RGB input images")
+    ap.add_argument("-save_sil", required=False, default=False, type=bool, help="save silhouettes that are calculated from RGB input images")
     ap.add_argument("-out_dir",  required=True, type=str, help="output directory")
 
     args = ap.parse_args()
@@ -41,17 +41,19 @@ if __name__ == '__main__':
     head_model = HmHeadModel(meta_dir=args.meta_data_dir, model_dir=args.model_dir)
 
     rect_path = os.path.join(*[args.meta_data_dir, 'prn_texture_in_victoria_texture.txt'])
-    face_texture_processor = HmFPrnNetFaceTextureEmbedder(meta_dir=args.meta_data_dir, prn_facelib_rect_path=rect_path,
-                                                          texture_size=1024)
+    face_texture_processor = HmFPrnNetFaceTextureEmbedder(meta_dir=args.meta_data_dir, prn_facelib_rect_path=rect_path, texture_size=1024)
+
     with open(args.in_txt_file, 'rt') as file:
         dir = Path(args.in_txt_file).parent
 
         for idx, l in enumerate(file.readlines()):
             if l[0] == '#':
                 continue
+            l = l.replace('\n','')
             comps = l.split(' ')
-            if len(comps) != 5:
-                print("ignore line: ", comps)
+            if len(comps) != 5 and len(comps) != 6:
+                print("ignore line: ", comps, f'len(comps) = {len(comps)}')
+                continue
 
             print(comps)
 
@@ -61,16 +63,21 @@ if __name__ == '__main__':
             gender = float(comps[3])
             is_sil = int(comps[4])
 
+            if len(comps) == 6:
+                face_img_path = os.path.join(*[dir, comps[5]])
+            else:
+                face_img_path = front_img_path
+
             assert gender == 0.0 or gender == 1.0 , 'unexpected gender. just accept 1 or 0'
             assert is_sil == 0 or is_sil == 1, 'unexpected sil flag. just accept 1 or 0'
             assert height >= 1.0 and height  <= 2.5, 'unexpected height. not in range of [1.0, 2.5]'
 
-            assert Path(front_img_path).exists() and Path(side_img_path).exists()
+            assert Path(front_img_path).exists() and Path(side_img_path).exists() and Path(face_img_path).exists()
 
-            print(f'\nprocess image pair {comps[0]} - {comps[1]}. height = {height}. gender = {gender}. is_sil = {is_sil}')
             if not is_sil:
                 img_f = cv.imread(front_img_path)
                 img_s = cv.imread(side_img_path)
+                img_face_org = cv.imread(face_img_path)
 
                 verts, faces, sil_f, sil_s = model.predict(img_f, img_s, height, gender)
 
@@ -86,10 +93,10 @@ if __name__ == '__main__':
                     cv.imwrite(out_sil_s_path, sil_s)
                     print(f'\texported silhouette {out_sil_f_path} - {out_sil_s_path}')
 
-                verts, prn_tex, img_face_landmarks = head_model.predict(customer_df_verts=verts, image_rgb_front=img_f[:, :, ::-1])
-                prn_tex = prn_tex[:,:,::-1]
+                verts, prn_remap_tex, img_face, img_face_landmarks = head_model.predict(customer_df_verts=verts, image_rgb_front=img_face_org[:, :, ::-1])
+                #prn_tex = prn_tex[:,:,::-1]
 
-                texture = face_texture_processor.embed(prn_tex)
+                texture = face_texture_processor.embed(prn_remap_tex, img_face, img_face_landmarks)
 
                 out_mesh = {'v': verts, 'vt': tex_mesh['vt'], 'f': tex_mesh['f'], 'ft': tex_mesh['ft']}
 

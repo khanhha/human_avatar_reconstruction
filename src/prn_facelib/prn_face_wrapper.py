@@ -56,19 +56,19 @@ class PrnFaceWrapper:
         img_kpt = np.vstack([img_face_points[self.prn.uv_kpt_ind[1, :], self.prn.uv_kpt_ind[0, :], 0],
                              img_face_points[self.prn.uv_kpt_ind[1, :], self.prn.uv_kpt_ind[0, :], 1]]).T
 
-        #set all pixels outside the convex hull of facial landmarks as black
-        convex_idxs = [i for i in range(17)] + [26,25,24] + [19,18,17]
-        polygon_pnts = img_kpt[convex_idxs, :].reshape(1,-1,2)
-        polygon_pnts = polygon_pnts.astype(np.int32)
-        mask = np.zeros(image.shape[:2], np.uint8)
-        cv.fillConvexPoly(mask, polygon_pnts, 1)
-        mask = mask.astype(np.bool)
-        mask = np.bitwise_not(mask)
-        image[mask,:] = (0,0,0)
+        # set all pixels outside the convex hull of facial landmarks as black
+        # convex_idxs = [i for i in range(17)] + [26,25,24] + [19,18,17]
+        # polygon_pnts = img_kpt[convex_idxs, :].reshape(1,-1,2)
+        # polygon_pnts = polygon_pnts.astype(np.int32)
+        # mask = np.zeros(image.shape[:2], np.uint8)
+        # cv.fillConvexPoly(mask, polygon_pnts, 1)
+        # mask = mask.astype(np.bool)
+        # mask = np.bitwise_not(mask)
+        # image[mask,:] = (0,0,0)
+        #
+        # texture = cv.remap(image, pos_interpolated[:, :, :2].astype(np.float32), None, interpolation=cv.INTER_CUBIC,
+        #                     borderMode=cv.BORDER_CONSTANT, borderValue=(0))
+        # #debug
+        # texture[self.prn.uv_kpt_ind[1, :], self.prn.uv_kpt_ind[0, :], :] = (255, 0, 0)
 
-        texture = cv.remap(image, pos_interpolated[:, :, :2].astype(np.float32), None, interpolation=cv.INTER_CUBIC,
-                            borderMode=cv.BORDER_CONSTANT, borderValue=(0))
-        #debug
-        texture[self.prn.uv_kpt_ind[1, :], self.prn.uv_kpt_ind[0, :], :] = (255, 0, 0)
-
-        return save_vertices, texture, img_kpt
+        return save_vertices, pos_interpolated[:,:,:2].astype(np.float32), img_kpt, image

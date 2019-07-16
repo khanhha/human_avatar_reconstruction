@@ -277,7 +277,7 @@ class HmHeadModel:
 
     def predict(self, customer_df_verts, image_rgb_front):
         # predict prn face vertices
-        prn_facelib_verts, texture, image_face_kpt = self.prn_wrapper.predict(image_rgb_front)
+        prn_facelib_verts, remap_tex, image_face_kpt, image_rgb_front = self.prn_wrapper.predict(image_rgb_front)
         image_face_kpt = image_face_kpt.round().astype(np.int32)
 
         #test
@@ -321,4 +321,4 @@ class HmHeadModel:
 
         customer_df_verts[self.vhead_map] = new_head_verts_1
 
-        return customer_df_verts, texture, image_face_kpt
+        return customer_df_verts, remap_tex, image_rgb_front, image_face_kpt

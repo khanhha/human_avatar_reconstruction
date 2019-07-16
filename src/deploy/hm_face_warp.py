@@ -13,11 +13,13 @@ import os
 from collections import defaultdict, Counter
 from sklearn import mixture
 from sklearn.cluster import KMeans
+from sklearn.mixture import BayesianGaussianMixture
 from src.deploy.multi_resol_texture_syn import  multiResolution_textureSynthesis
 from src.deploy.patchBasedTextureSynthesis import patchBasedTextureSynthesis
 from tex_syn.preprocess import *
 from tex_syn.generate import *
 import time
+
 def shape_to_np(shape, dtype="int"):
     # initialize the list of (x, y)-coordinates
     coords = np.zeros((68, 2), dtype=dtype)
@@ -343,12 +345,6 @@ class HmFPrnNetFaceTextureEmbedder():
 
         return faces
 
-    def synthesize_skin_color_1(self, texture):
-        img_path = '/home/khanhhh/data_1/projects/Oh/data/face/2019-06-04-face/MVIMG_20190604_180645.jpg'
-        skin_sample = cv.imread(img_path)
-        skin_sample = skin_sample[2500:2900,1300:1800, :]
-        return cv.resize(skin_sample, dsize=(self.texture_size, self.texture_size))
-
     def synthesize_skin_color_tiling(self, face_texture):
         #path = '/home/khanhhh/data_1/projects/Oh/data/face/skin_texture_patch.jpg'
         #path = '/home/khanhhh/data_1/projects/Oh/data/face/skin_texture_patch_cheek.jpg'
@@ -474,6 +470,68 @@ class HmFPrnNetFaceTextureEmbedder():
 
         return syn_tex
 
+
+    def _facial_masks(self, img_kpts, shape):
+        convex_idxs = [i for i in range(17)] + [26, 25, 24] + [19, 18, 17]
+        polygon_pnts = img_kpts[convex_idxs, :].reshape(1, -1, 2).astype(np.int32)
+
+        mask = np.zeros(shape[:2], np.uint8)
+        mask = cv.fillConvexPoly(mask, polygon_pnts, 1).astype(np.bool)
+        mask_nonface = np.bitwise_not(mask)
+
+        eye_idxs = [17, 18, 19] + [24, 25, 26] + [45, 46] + [40, 41, 36]
+        mouth_idxs = [i for i in range(48, 59 + 1)]
+
+        eye_mask = np.zeros(shape[:2], np.uint8)
+        eye_mask = cv.fillConvexPoly(eye_mask, img_kpts[eye_idxs, :].reshape(1, -1, 2).astype(np.int32), 1).astype(np.bool)
+
+        mouth_mask = np.zeros(shape[:2], np.uint8)
+        mouth_mask = cv.fillConvexPoly(mouth_mask, img_kpts[mouth_idxs, :].reshape(1, -1, 2).astype(np.int32),
+                                       1).astype(np.bool)
+
+        mask_nonface = np.bitwise_or(np.bitwise_or(mask_nonface, mouth_mask), eye_mask)
+        mask = np.bitwise_not(mask_nonface)
+
+        return mask, eye_mask, mouth_mask
+
+    def _estimate_skin_color(self, face_img, facial_mask, hsv=False):
+        if hsv:
+            face_img = cv.cvtColor(face_img, cv.COLOR_BGR2HSV)
+
+        n_classes = 5
+        colors = face_img[facial_mask, :]
+        cov_type = 'full'
+        #gmm = GaussianMixture(n_components=n_classes, covariance_type=cov_type, max_iter=20, random_state=0)
+        gmm = BayesianGaussianMixture(n_components=n_classes, covariance_type=cov_type, max_iter=20, random_state=0)
+        cls_preds = gmm.fit_predict(colors)
+        sorted_idxs = np.argsort(-gmm.weights_)
+        best_idx = sorted_idxs[0]
+        best_colors_mask = cls_preds == best_idx
+        best_colors = colors[best_colors_mask]
+        best_color = np.mean(best_colors, axis=0).astype(np.uint8)
+
+        # Debug code
+        # x0,x1, y0, y1 = self._rect_face(mask)
+        #
+        # out_imgs = []
+        # for i in sorted_idxs:
+        #     cls_color = gmm.means_[i, :].astype(np.uint8)
+        #     print(gmm.weights_[i])
+        #     img_1 = face_img.copy()
+        #     img_1[mask_nonface] = cls_color
+        #     d = 150
+        #     img_1 = img_1[y0 - d:y1 + d, x0 - d:x1 + d, :]
+        #     out_imgs.append(img_1)
+        #
+        # if hsv:
+        #     for i in range(len(out_imgs)):
+        #         img = out_imgs[i]
+        #         img = cv.cvtColor(img, cv.COLOR_HSV2BGR)
+        #         out_imgs[i] = img
+        # return out_imgs, best_color
+
+        return best_color
+
     def synthesize_skin_texture_base_color(self, face_texture):
         #titling from the original image
         #img_path = '/home/khanhhh/data_1/projects/Oh/data/face/2019-06-04-face/MVIMG_20190604_180645.jpg'
@@ -501,20 +559,6 @@ class HmFPrnNetFaceTextureEmbedder():
         # plt.show()
 
         return skin_texture
-        # img_path = '/home/khanhhh/data_1/projects/Oh/data/face/skin_texture_patch_forehead_base_color.jpg'
-        # skin_patch = cv.imread(img_path)
-        # tiling = False
-        # if tiling:
-        #     skin_texture = np.zeros((self.texture_size, self.texture_size, 3), np.uint8)
-        #     for i in range(0, self.texture_size, skin_patch.shape[0]):
-        #         for j in range(0, self.texture_size, skin_patch.shape[1]):
-        #             i1 = min(i+skin_patch.shape[0], self.texture_size)
-        #             j1 = min(j+skin_patch.shape[1], self.texture_size)
-        #             skin_texture[i:i1, j:j1, :] = skin_patch[0:i1-i, 0:j1-j, :]
-        # else:
-        #     skin_texture = cv.resize(skin_patch, (self.texture_size, self.texture_size), interpolation=cv.INTER_AREA)
-        #
-        # return skin_texture
 
     def _load_target_texture_landmarks(self, meta_dir):
         mpath = os.path.join(*[meta_dir, 'vic_mesh_textured_warped.obj'])
@@ -572,101 +616,87 @@ class HmFPrnNetFaceTextureEmbedder():
 
         return texture
 
-    def embed(self, prn_facelib_tex):
+    def _fix_skin_color(self, face_img, landmarks):
+
+        face_mask, eye_mask, mouth_mask = self._facial_masks(landmarks, face_img.shape)
+        skin_color = self._estimate_skin_color(face_img, face_mask)
+
+        face_mask = face_mask.astype(np.uint8)*255
+        face_fg_mask = cv.morphologyEx(face_mask, cv.MORPH_ERODE, cv.getStructuringElement(cv.MORPH_RECT, (10,10)))
+        face_fg_mask = face_fg_mask == 255
+
+        face_mask[:] = cv.GC_PR_BGD
+        face_mask[face_fg_mask] = cv.GC_FGD
+
+        #find a better mask
+        bgdModel = np.zeros((1, 65), np.float64)
+        fgdModel = np.zeros((1, 65), np.float64)
+        cv.grabCut(face_img, face_mask, None, bgdModel, fgdModel, 3, cv.GC_INIT_WITH_MASK)
+        face_mask = np.where((face_mask == cv.GC_BGD) | (face_mask == cv.GC_PR_BGD), 0, 1).astype(np.bool)
+        face_mask = np.bitwise_or(np.bitwise_or(face_mask, eye_mask) , mouth_mask)
+        face_mask = face_mask.astype(np.uint8)*255
+
+        face_bgr = np.zeros(face_img.shape, np.uint8)
+        face_bgr[:,:,:] = skin_color
+
+        # plt.clf()
+        # plt.subplot(121)
+        # plt.imshow(face_img)
+        # plt.imshow(face_fg_mask, alpha=0.3)
+        # plt.subplot(122)
+        # plt.imshow(face_img)
+        # plt.imshow(face_mask_1, alpha=0.3)
+        # plt.show()
+
+        face_mask_rect   = cv.boundingRect(face_mask)
+        face_mask_center = (face_mask_rect[0]+int(face_mask_rect[2]/2), face_mask_rect[1]+int(face_mask_rect[3]/2))
+
+        face_img_1 = cv.seamlessClone(face_img, face_bgr, face_mask, face_mask_center, cv.NORMAL_CLONE)
+
+        face_img_test = face_img.copy()
+        face_img_test[np.bitwise_not(face_mask==255)] = skin_color
+        # plt.clf()
+        # plt.subplot(131)
+        # plt.imshow(face_img)
+        # plt.subplot(132)
+        # plt.imshow(face_img_test)
+        # plt.subplot(133)
+        # plt.imshow(face_img_1)
+        # plt.show()
+
+        return face_img_1, skin_color
+
+    def embed(self, prn_remap_tex, face_img, landmarks):
+        face_img, skin_color = self._fix_skin_color(face_img, landmarks)
+
+        prn_facelib_tex = cv.remap(face_img, prn_remap_tex, None, interpolation=cv.INTER_AREA, borderMode=cv.BORDER_CONSTANT, borderValue=(0))
 
         assert prn_facelib_tex.shape[0] == prn_facelib_tex.shape[1], 'require square texture shape'
 
         face_texture = np.zeros(shape=(self.texture_size, self.texture_size, 3), dtype=np.uint8)
 
         if (2*self.embed_size + 1) != prn_facelib_tex.shape[0]:
-            prn_facelib_tex = cv.resize(prn_facelib_tex, (2*self.embed_size + 1, 2*self.embed_size + 1), interpolation=cv.INTER_CUBIC)
-
-        # #debug
-        # prn_facelib_tex[:2, :, :] = (255,0,0)
-        # prn_facelib_tex[:, :2, :] = (255,0,0)
-        # prn_facelib_tex[-2:,:, :] = (255,0,0)
-        # prn_facelib_tex[:,-2:, :] = (255,0,0)
+            prn_facelib_tex = cv.resize(prn_facelib_tex, (2*self.embed_size + 1, 2*self.embed_size + 1), interpolation=cv.INTER_AREA)
 
         face_texture[self.rect_center[1]-self.embed_size:self.rect_center[1]+self.embed_size+1, self.rect_center[0]-self.embed_size:self.rect_center[0]+self.embed_size+1, :] = prn_facelib_tex
 
-        # skin_sample = np.reshape(skin_sample, newshape=(-1,3))
-        # rand_idxs = np.random.randint(0, skin_sample.shape[0], self.texture_size*self.texture_size)
-        # skin_sample_1 = skin_sample[rand_idxs, :]
-        # skin_sample_1.shape=(self.texture_size, self.texture_size, 3)
-
-
-        # upsample approach
-        # img_path = '/home/khanhhh/data_1/projects/Oh/data/face/2019-06-04-face/MVIMG_20190604_180645.jpg'
-        # skin_sample = cv.imread(img_path)
-        # skin_sample = skin_sample[1800:2000,1620:1820, :]
-        # skin_sample_1 = cv.resize(skin_sample, dsize=(self.texture_size, self.texture_size))
-
-        #sample from texture
-        #skin_sample = texture[430:490, 570:620, :] #cheek
-        # skin_sample = texture[340:380, 510:560, :] #forehead
-        # skin_sample_1 = np.zeros((self.texture_size, self.texture_size, 3), np.uint8)
-        # for i in range(0, self.texture_size, skin_sample.shape[0]):
-        #      for j in range(0, self.texture_size, skin_sample.shape[1]):
-        #          i1 = min(i+skin_sample.shape[0], self.texture_size)
-        #          j1 = min(j+skin_sample.shape[1], self.texture_size)
-        #          skin_sample_1[i:i1, j:j1, :] = skin_sample[0:i1-i, 0:j1-j, :]
-
-        #skin_sample_1 = self.synthesize_skin_color(texture)
-        #skin_sample_1 = self.synthesize_skin_color_1(texture)
-
-        #head_texture = self.synthesize_skin_color_2(face_texture)
-        #cv.imwrite('/home/khanhhh/data_1/projects/Oh/data/face/test_merge_face_body/test_f_victoria_head_tex_synthesis.jpg', head_texture)
-
-        #face_texture[np.bitwise_not(self.face_tex_mask), :] = head_texture[np.bitwise_not(self.face_tex_mask), :]
-        #return face_texture
-
-        mask = self.face_tex_mask.astype(np.uint8) * 255
-        # print(mask_rect)
-        # cv.drawMarker(face_texture, (mask_rect[0]+int(mask_rect[2]/2), mask_rect[1]+int(mask_rect[3]/2)), (0,0,255), markerSize=5, thickness=2)
-        # plt.imshow(face_texture)
-        # plt.imshow(mask, alpha=0.5)
-        # plt.show()
-        # exit()
-        head_texture = self.synthesize_skin_texture_base_color(prn_facelib_tex)
-        #head_texture = self.synthesize_skin_color_tiling(prn_facelib_tex)
-        #head_texture = self.synthesise_skin_color_seamlesscloneing(prn_facelib_tex)
-        # tmp_path = '/home/khanhhh/data_1/projects/Oh/data/face/test_merge_face_body/tmp.png'
-        # from pathlib import Path
-        # if not Path(tmp_path).exists():
-        #     head_texture = self.synthesize_skin_color_quilting(prn_facelib_tex)
-        #     cv.imwrite(tmp_path, head_texture)
-        # else:
-        #     head_texture = cv.imread(tmp_path)
-
-        # head_texture_color_base_1 = cv.cvtColor(head_texture_color_base, cv.COLOR_BGR2HSV)
-        # head_texture_1 = cv.cvtColor(head_texture, cv.COLOR_BGR2HSV)
-        # head_texture_color_base_1 = head_texture_color_base.copy()
-        # head_texture_1 = head_texture.copy()
-        #
-        # head_texture_1 = 0.5 *( head_texture_color_base_1 + head_texture_1)
-        # head_texture_1 = head_texture_1.astype(np.uint8)
-        # head_texture_1 = cv.cvtColor(head_texture_1, cv.COLOR_HSV2BGR)
-        #
-        # plt.subplot(131)
-        # plt.imshow(head_texture_color_base[:,:,::-1])
-        # plt.subplot(132)
-        # plt.imshow(head_texture[:,:,::-1])
-        # plt.subplot(133)
-        # plt.imshow(head_texture_1[:,:,::-1])
-        # plt.show()
-        #head_texture = head_texture_1
+        head_texture = np.zeros((self.texture_size, self.texture_size, 3), dtype=np.uint8)
+        head_texture[:,:,:] = skin_color
 
         #preprocess mask
-        prn_mask = mask[self.rect_center[1]-self.embed_size:self.rect_center[1]+self.embed_size+1, self.rect_center[0]-self.embed_size:self.rect_center[0]+self.embed_size+1]
-        black_mask = np.bitwise_and(prn_facelib_tex[:,:,0] < 5, prn_facelib_tex[:,:,1] < 5)
-        black_mask[prn_mask == 0] = 0
-        prn_mask[black_mask] = 0
+        mask = self.face_tex_mask.astype(np.uint8) * 255
+        prn_mask = mask[self.rect_center[1]-self.embed_size : self.rect_center[1]+self.embed_size+1, self.rect_center[0]-self.embed_size:self.rect_center[0]+self.embed_size+1]
+        # black_mask = np.bitwise_and(prn_facelib_tex[:,:,0] < 5, prn_facelib_tex[:,:,1] < 5)
+        # black_mask[prn_mask == 0] = 0
+        # prn_mask[black_mask] = 0
 
-        mask_rect = cv.boundingRect(mask)
+        # plt.clf()
+        # plt.imshow(face_img)
+        # plt.imshow(prn_mask, alpha=0.1)
+        # plt.show()
+
+        mask_rect   = cv.boundingRect(mask)
         mask_center = (mask_rect[0]+int(mask_rect[2]/2), mask_rect[1]+int(mask_rect[3]/2))
-
-        #plt.imshow(mask)
-        #plt.show()
 
         start_time = time.time()
         head_texture = cv.seamlessClone(prn_facelib_tex, head_texture, prn_mask, mask_center, cv.NORMAL_CLONE)
@@ -675,16 +705,7 @@ class HmFPrnNetFaceTextureEmbedder():
 
         #head_texture[self.rect_center[1]-self.embed_size:self.rect_center[1]+self.embed_size+1, self.rect_center[0]-self.embed_size:self.rect_center[0]+self.embed_size+1, :] = prn_facelib_tex
 
-        return head_texture
-
-        # height, width, channels = head_texture.shape
-        # center = (int(width / 2), int(height / 2))
-        # head_texture = cv.seamlessClone(face_texture, head_texture, mask, center, cv.NORMAL_CLONE)
-        # cv.drawMarker(head_texture, center, (0,0,255), markerSize=10, thickness=5)
-        # plt.imshow(face_texture[:,:,::-1])
-        # plt.imshow(head_texture[:,:,::-1], alpha=0.5)
-        # plt.show()
-        #return head_texture
+        return head_texture[:,:,::-1]
 
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
