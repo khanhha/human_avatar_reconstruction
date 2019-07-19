@@ -4,7 +4,7 @@
 
 - [Pipeline](#pipeline)
   - [Run PRN facelib.](#run-prn-facelib)
-  - [Input image adjustment (optional stage)](#input-image-adjustment-optional-stage)
+  - [Adjust input image (optional stage)](#adjust-input-image-optional-stage)
     - [Idea](#idea)
     - [Problems with seamless cloning.](#problems-with-seamless-cloning)
   - [Texuture mapping](#texuture-mapping)
@@ -15,21 +15,19 @@
 ## Run PRN facelib.
 The result consists of the following information
 - Position map: a 3-channel image of size (256x256) that contains (x,y,z) coordinates of the 3D face.
- This position map is the direct output of the convolution neural network of the PRN facelib. 
- From this (x,y,z) position map, we can infer the depth map, texture map and landmark positions.
-  Below is the plotting of the (x,y) channels of the position map over the input image.
+This position map is the direct output of the convolution neural network of the PRN facelib.
+From this (x,y,z) position map, we can infer the depth map, texture map and landmark positions.
+Below is the plotting of the (x,y) channels of the position map over the input image.
 ![](images/.skin_texture_pipeline_images/pos_map.png)
 - 68 facial landmarks: these landmarks are extracted directly from the position map image using
- a pre-defined set of x,y indices to the position map.
-  Note that these x,y values are different from the (x,y,z) values stored in the position map.
-   Below are 68 landmarks plotted on the face image. Due to the position map is incorrect, the landmarks are incorrect as well, as shown by the red points inside the green contour.
+a pre-defined set of x,y indices to the position map. Note that these x,y values are different from the (x,y,z) values stored in the position map. Below are 68 landmarks plotted on the face image. Due to the position map is incorrect, the landmarks are incorrect as well, as shown by the red points inside the green contour.
 ![](images/.skin_texture_pipeline_images/landmarks.png)
 
-- Texture map: It is made of the (x,y) channels of the position map. 
+- Texture map: It is made of the (x,y) channels of the position map.
 Specifically, it is a mapping from the facial region of the input image to a rectangular texture of (256x256). Below is the visuaslization of a texture extracted using this texture map. The black/white area along jaw is due tu the inaccuracy of the position map in that region.
 ![](images/.skin_texture_pipeline_images/texture_map.png)
 
-## Input image adjustment (optional stage)
+## Adjust input image (optional stage)
 The texture map (x,y channels of position map) maps (R,G,B) pixels from the facial region of the input image to the 256x256 texture map. There are two problems regardign this mapping.
 - Because the position map is incorrect, it also maps some background area along jaw from the input image to the texture, as explained in the previous stage.
 - The texture map also maps hair to the texture.
