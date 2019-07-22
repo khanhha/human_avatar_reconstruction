@@ -5,7 +5,8 @@
 - [Pipeline](#pipeline)
   - [Run PRN facelib.](#run-prn-facelib)
   - [Adjust input image (optional stage)](#adjust-input-image-optional-stage)
-    - [Idea](#idea)
+    - [Idea 1](#idea-1)
+    - [Idea 2](#idea-2)
     - [Problems with seamless cloning.](#problems-with-seamless-cloning)
   - [Texuture mapping](#texuture-mapping)
 
@@ -38,7 +39,7 @@ The texture map (x,y channels of position map) maps (R,G,B) pixels from the faci
 
 ![](images/.skin_texture_pipeline_images/hair.png)
 
-### Idea
+### Idea 1
 - Apply grabcut to detect skin region. The foreground mask for grabcut is created by exclude the eye and lip polygons from the convex polygon of the 68 landmarks, and then erode with a kernel of 10x10 to make sure that there is no wall/background color inside the foreground mask.
 
 ![](images/.skin_texture_pipeline_images/grabcut.png)
@@ -47,6 +48,11 @@ The texture map (x,y channels of position map) maps (R,G,B) pixels from the faci
 - Apply seamless cloning to transfer the facial area with grab-cut mask to the skin background image. The middle figure shows result without cloning, just replace every pixels outside the skin mask by estimated color. The right-most figure shows the result with seamless cloning.
 
 ![](images/.skin_texture_pipeline_images/seamless_cloning.png)
+
+### Idea 2
+One of the two main motivations behind skin segmentation is that the (x,y,y) position map from the PRN facelib covers some background region, which bring background pixels into the final texture. There are two other approaches to solve this problem.
+- Because the error just often occur along the jaw area, we can pre-define a mask over the Victoria texture map that specifies possible error regions so that we can replace them by skin color later. This approach is very simple. It could be very effective if we could have a good skin color estimation and a smooth seam between the real facial region and skin color regions. 
+- Another approach is that we can post-process the (x,y,z) position map by warping them in a a way that (x,y) locations will stay inside the facial region. To do this, we can use OpenCV to detect another 68 facial landmarks, which can be used as target for warping  
 
 ### Problems with seamless cloning.
 -  Seamless cloning modifies the foreground object color (in our case, the foreground is the facial region) to match to the background color. Therefore, when the background color (estimated skin color) is too far away from the face color, it will change the face color. As an example, you can see the color of the lion in the below figure is transformed toward green to match the background color. For more examples about seamless cloning, check [this link](http://www.ctralie.com/Teaching/PoissonImageEditing/)
