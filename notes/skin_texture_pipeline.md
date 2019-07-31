@@ -51,8 +51,8 @@ The texture map (x,y channels of position map) maps (R,G,B) pixels from the faci
 
 ### Idea 2
 One of the two main motivations behind skin segmentation is that the (x,y,y) position map from the PRN facelib covers some background region, which bring background pixels into the final texture. There are two other approaches to solve this problem.
-- Because the error just often occur along the jaw area, we can pre-define a mask over the Victoria texture map that specifies possible error regions so that we can replace them by skin color later. This approach is very simple. It could be very effective if we could have a good skin color estimation and a smooth seam between the real facial region and skin color regions. 
-- Another approach is that we can post-process the (x,y,z) position map by warping them in a a way that (x,y) locations will stay inside the facial region. To do this, we can use OpenCV to detect another 68 facial landmarks, which can be used as target for warping  
+- Because the error just often occur along the jaw area, we can pre-define a mask over the Victoria texture map that specifies possible error regions so that we can replace them by skin color later. This approach is very simple. It could be very effective if we could have a good skin color estimation and a smooth seam between the real facial region and skin color regions.
+- Another approach is that we can post-process the (x,y,z) position map by warping them in a a way that (x,y) locations will stay inside the facial region. To do this, we can use OpenCV to detect another 68 facial landmarks to be used as target for warping algorithm. However, there could be two further problems with this approach. Firstly, we are also not sure about how good the OpenCV/Dlib landmarks are. Warping based on just facial landmarks might not enough because some points in the (x,y,z) position maps lie outside the polygon formed by the facial landmarks. Therefore, even that facial landmarks are well aligned with facial contours, the position map could still cover some background regions.
 
 ### Problems with seamless cloning.
 -  Seamless cloning modifies the foreground object color (in our case, the foreground is the facial region) to match to the background color. Therefore, when the background color (estimated skin color) is too far away from the face color, it will change the face color. As an example, you can see the color of the lion in the below figure is transformed toward green to match the background color. For more examples about seamless cloning, check [this link](http://www.ctralie.com/Teaching/PoissonImageEditing/)
@@ -71,3 +71,11 @@ One of the two main motivations behind skin segmentation is that the (x,y,y) pos
 - step 2: Map the PRN facelib texture to the Victoria texture space. the yellow mask is a predefined texture mask that specifies our interest region inside the PRN texture space. We will use seamless cloning again here to clone this yellow region to the Victoria texture space
 
 ![](images/.skin_texture_pipeline_images/prn_tex_to_vic_tex.png)
+
+
+# Problems
+## Position map outisde factial region causes backgound in the final texture
+### Experiment 1: make background black in a hope to increase PRN facelib accurarcy
+Result: prediction result is still similar. Background still interferes with texture
+
+![](.skin_texture_pipeline_images/f0ebd802.png)
