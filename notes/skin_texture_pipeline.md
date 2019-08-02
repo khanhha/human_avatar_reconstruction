@@ -9,7 +9,6 @@
     - [Idea 2](#idea-2)
     - [Problems with seamless cloning.](#problems-with-seamless-cloning)
   - [Texuture mapping](#texuture-mapping)
-
 <!-- /code_chunk_output -->
 
 # Pipeline
@@ -78,4 +77,31 @@ One of the two main motivations behind skin segmentation is that the (x,y,y) pos
 ### Experiment 1: make background black in a hope to increase PRN facelib accurarcy
 Result: prediction result is still similar. Background still interferes with texture
 
-![](.skin_texture_pipeline_images/f0ebd802.png)
+![](images/.skin_texture_pipeline_images/f0ebd802.png)
+
+## incorrect nostril color
+The below picture visualizes the black artifact under nostril. Specifically, the bottom of nostril
+has black color but the nostril itself is kind of brighter.
+
+![](images/.skin_texture_pipeline_images/0bc8c8b0.png)
+
+The below figure visualize the mapping/warping from the input image to the PRN texture. 
+
+The blue points in the left image denotes the (x,y) coordinates of 3D points in the position map from PRN facelib. 
+In other words, these blue points represent an orthogonal projection of vertices of the 3D face mesh (the position map) onto the input image face; 
+therefore, one blue point in the left image could be the projections of multiple 3D points in the 3D face mesh. 
+
+The right image is the PRN facelib texture. Because this is a texture, each of its pixels is mapped uniquely to
+one 3D point in the 3D mesh. Also, each of its pixel is mapped to one blue point in the left image; however, this could b
+many-to-one mapping because one blue point could be the projection of multiple 3D points, as explained earlier.  
+This mapping is basically how the PRN facelib texture is constructed.
+
+***Why the nostril bottom is not black like its bottom***: I think this is one disadvantage of constructing texture 
+directly from the input image. The nostril itself is invisible in the input image; therefore, there is no way that its
+color in the texture could be constructed. How could we construct one thing that does not exist? 
+
+***Solution_1***: 
+replace black shadown pixels with skin color in the input image (left image below)
+***Solution_2***
+replace black shadown pixels with skin color in the PRN texture (right image below) 
+![](images/.skin_texture_pipeline_images/d95e07b8.png)
