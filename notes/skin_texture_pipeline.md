@@ -103,6 +103,6 @@ color in the texture could be constructed. How could we construct one thing that
 ***Solution_1***: 
 replace black shadown pixels with skin color in the input image (left image below)
 <br/>
-***Solution_2***
+***Solution_2***:
 replace black shadown pixels with skin color in the PRN texture (right image below) 
 ![](images/.skin_texture_pipeline_images/d95e07b8.png)
