@@ -259,9 +259,33 @@ class HmFPrnNetFaceTextureEmbedder():
         # we need the mask of face without eye, mouth for estimating skin color
         self.face_parser = FaceParser(model_dir=model_dir)
 
+        self.face_detector = dlib.get_frontal_face_detector()
+        shape_predictor_path = '/home/khanhhh/data_1/projects/Oh/codes/human_estimation/data/shape_predictor_68_face_landmarks.dat'
+        self.face_landmarks_predictor = dlib.shape_predictor(shape_predictor_path)
+
         vic_tpl_vertex_groups_path = os.path.join(*[meta_dir, 'victoria_part_vert_idxs.pkl'])
         vic_tpl_face_mesh_path = os.path.join(*[meta_dir, 'vic_mesh_textured_warped.obj'])
         self._build_face_texture_masks(vic_tpl_vertex_groups_path, vic_tpl_face_mesh_path)
+
+    def _detect_face_landmark(self, img):
+        gray = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
+
+        # detect faces in the grayscale image
+        rects = self.face_detector(gray, 1)
+        # loop over the face detections
+        for (i, rect) in enumerate(rects):
+            # determine the facial landmarks for the face region, then
+            # convert the facial landmark (x, y)-coordinates to a NumPy
+            # array
+            shape = self.face_landmarks_predictor(gray, rect)
+            shape = face_utils.shape_to_np(shape)
+
+            shape = shape.astype(np.int32)
+            shape = shape.reshape((-1, 2))
+            return shape
+
+        return None
+
 
     def _build_face_texture_masks(self, vic_tpl_vertex_groups_path, vic_tpl_face_mesh_path):
         """
@@ -539,101 +563,6 @@ class HmFPrnNetFaceTextureEmbedder():
 
         return ls_
 
-    def _blend_images(self, A, B, m, level = 8, debug = False):
-        A = A.astype(np.float32)/255.0
-        B = B.astype(np.float32)/255.0
-        if debug:
-            plt.subplot(121)
-            plt.imshow(A)
-            plt.imshow(m, alpha=0.4)
-            plt.subplot(122)
-            plt.imshow(B)
-            plt.show()
-
-        N = level
-        # generate Gaussian pyramid for A,B and mask
-        GA = A.copy()
-        GB = B.copy()
-        GM = m.copy()
-        gpA = [GA]
-        gpB = [GB]
-        gpM = [GM]
-        for i in range(N):
-            GA  = cv2.pyrDown(GA)
-            GB  = cv2.pyrDown(GB)
-            GM = cv2.pyrDown(GM)
-
-            gpA.append(GA)
-            gpB.append(GB)
-            gpM.append(GM)
-
-        # generate Laplacian Pyramids for A,B and masks
-        lpA  = [gpA[N]]  # the bottom of the Lap-pyr holds the last (smallest) Gauss level
-        lpB  = [gpB[N]]
-        gpMr = [gpM[N]]
-        for i in range(N, 0, -1):
-            # Laplacian: subtarct upscaled version of lower level from current level
-            # to get the high frequencies
-            up_gpA = cv2.pyrUp(gpA[i], dstsize=(gpA[i - 1].shape[1], gpA[i - 1].shape[0]))
-            up_gpB = cv2.pyrUp(gpB[i], dstsize=(gpB[i - 1].shape[1], gpB[i - 1].shape[0]))
-            LA = np.subtract(gpA[i - 1], up_gpA)
-            LB = np.subtract(gpB[i - 1], up_gpB)
-            lpA.append(LA)
-            lpB.append(LB)
-            gpMr.append(gpM[i - 1])  # also reverse the masks
-
-        # Now blend images according to mask in each level
-        LS = []
-        for la, lb, gm in zip(lpA, lpB, gpMr):
-            if debug:
-                plt.subplot(141)
-                plt.imshow(la)
-                plt.subplot(142)
-                plt.imshow(lb)
-                plt.subplot(143)
-                plt.imshow(gm)
-
-            bld_weights = np.dstack([gm, gm, gm])
-            ls = la * bld_weights + lb * (1.0-bld_weights)
-
-            if debug:
-                plt.subplot(144)
-                plt.imshow(ls)
-                plt.show()
-
-            LS.append(ls)
-
-        # now reconstruct
-        ls_ = LS[0]
-        for i in range(1, N):
-            ls_ = cv2.pyrUp(ls_, dstsize=(LS[i].shape[1], LS[i].shape[0]))
-
-            if debug:
-                plt.subplot(131)
-                plt.imshow(LS[i])
-                plt.subplot(132)
-                plt.imshow(ls_)
-
-            ls_ = ls_ + LS[i]
-
-            if debug:
-                plt.subplot(133)
-                plt.imshow(ls_)
-                plt.show()
-
-        ls_ = (ls_*255.0)
-        ls_ = np.clip(ls_, 0, 255.0).astype(np.uint8)
-
-        if debug:
-            plt.subplot(121)
-            plt.imshow(A)
-            plt.imshow(m, alpha=0.3)
-            plt.subplot(122)
-            plt.imshow(ls_)
-            plt.show()
-
-        return ls_
-
     def _fix_skin_color_use_segmentation(self, face_img, face_seg, blend_mode = 'pyramid'):
         face_mask = (face_seg == 1)
         skin_color = self._estimate_skin_color(face_img, face_mask, hsv=False)
@@ -750,11 +679,95 @@ class HmFPrnNetFaceTextureEmbedder():
         # plt.savefig(f'/home/khanhhh/data_1/projects/Oh/data/face/google_front_faces/debug_cloning/{G_debug_id}_blend_input_img.png', dpi=500)
         return face_img_1, skin_color
 
-    def embed(self, prn_remap_tex, face_img, landmarks = None):
+    def _fix_nostril_color(self, img, landmarks):
+        # segmentation
+        dyn_seg = False
+        if not dyn_seg:
+            # two nostril centers share the same y coordinate
+            l_ntr_center = 0.3*landmarks[30,:] + 0.7*landmarks[33,:]
+            r_ntr_center = l_ntr_center.copy()
+            # calculate x coordinate for two nostril centers
+            l_ntr_center[0] = 0.5*(landmarks[31,0] + landmarks[32,0])
+            r_ntr_center[0] = 0.5*(landmarks[34,0] + landmarks[35,0])
+            l_ntr_center = l_ntr_center.astype(np.int32)
+            r_ntr_center = r_ntr_center.astype(np.int32)
+            radius = np.linalg.norm(landmarks[31,:] - landmarks[32,:])
+            radius = int(radius)
+            mask = np.zeros(img.shape[:2], dtype=np.uint8)
+            cv.circle(mask, (l_ntr_center[0], l_ntr_center[1]), radius, (255,255,255), thickness=cv.FILLED)
+            cv.circle(mask, (r_ntr_center[0], r_ntr_center[1]), radius, (255,255,255), thickness=cv.FILLED)
+
+            # the mid region between two nostril
+            # we also fill in this region for uniformity with two filled nostrils
+            # other, the mid region still looks drak in some case while two nostrils look bright
+            mid_idxs = [30, 32, 33, 34]
+            mid_nostril_points = landmarks[mid_idxs,:].reshape((1,-1,2)).astype(np.int32)
+            cv.fillPoly(mask, mid_nostril_points, (255,255,255))
+
+            img_1 = cv.inpaint(img, mask, 3, cv.INPAINT_TELEA)
+            # plt.axis('off')
+            # plt.subplot(131)
+            # plt.imshow(img)
+            # plt.subplot(132)
+            # plt.imshow(img)
+            # plt.imshow(mask, alpha=0.4)
+            # plt.subplot(133)
+            # plt.imshow(img_1)
+            # dir = "/home/khanhhh/data_1/projects/Oh/data/face/google_front_faces/debug_nostril/"
+            # os.makedirs(dir, exist_ok=True)
+            # plt.savefig(f'{dir}/{np.random.randint(1000)}.png', dpi=500)
+            #plt.show()
+            return img_1
+        else:
+            nostril_idxs = [30, 31, 33, 35]
+            nostril_points = landmarks[nostril_idxs,:].astype(np.float32)
+            nostril_points[2, :] = nostril_points[0,:] + 1.2 *(nostril_points[2,:] - nostril_points[0,:])
+            nostril_points[1,:] = nostril_points[2,:] + 1.5*(nostril_points[1,:] - nostril_points[2,:])
+            nostril_points[3,:] = nostril_points[2,:] + 1.5*(nostril_points[3,:] - nostril_points[2,:])
+            nostril_points = nostril_points.astype(np.int32)
+
+            ymin, ymax = nostril_points[:,0].min(), nostril_points[:,0].max()
+            xmin, xmax = nostril_points[:,1].min(), nostril_points[:,1].max()
+
+            mask = np.zeros(img.shape[:2], dtype=np.uint8)
+            mask[xmin:xmax, ymin:ymax] = 1
+            mask = mask > 0
+            model = BayesianGaussianMixture(n_components=3)
+            cls_preds = model.fit_predict(img[mask])
+            sorted_idxs = np.argsort(model.weights_)
+            best_idx = sorted_idxs[0]
+            best_colors_mask = cls_preds == best_idx
+            mask_1 = mask.copy()
+            mask_1[mask] = best_colors_mask
+            mask_1 = mask_1.astype(np.uint8)*255
+            mask_1 = cv.morphologyEx(mask_1, cv.MORPH_DILATE, cv.getStructuringElement(cv.MORPH_RECT, (5,5)))
+            img_1 = cv.inpaint(img, mask_1, 3, cv.INPAINT_TELEA)
+
+            # plt.subplot(141)
+            # plt.imshow(img)
+            # plt.imshow(mask, alpha=0.3)
+            # plt.subplot(142)
+            # plt.imshow(img)
+            # plt.imshow(mask_1, alpha=0.3)
+            # plt.subplot(143)
+            # plt.imshow(img)
+            # plt.subplot(144)
+            # plt.imshow(img_1)
+            #
+            # dir = "/home/khanhhh/data_1/projects/Oh/data/face/google_front_faces/debug_nostril/"
+            # os.makedirs(dir, exist_ok=True)
+            # plt.savefig(f'{dir}/{np.random.randint(1000)}.png', dpi=500)
+            #plt.show()
+            return img_1
+
+    def embed(self, prn_remap_tex, face_img):
         face_seg = self.face_parser.parse_face(face_img)
 
         # face_img, skin_color = self._fix_skin_color_use_landmarks(face_img, landmarks)
         face_img, skin_color = self._fix_skin_color_use_segmentation(face_img, face_seg)
+
+        landmarks = self._detect_face_landmark(face_img)
+        face_img = self._fix_nostril_color(face_img, landmarks)
 
         prn_facelib_tex = cv.remap(face_img, prn_remap_tex, None, interpolation=cv.INTER_AREA, borderMode=cv.BORDER_CONSTANT, borderValue=(0))
 
@@ -807,4 +820,4 @@ if __name__ == '__main__':
         prn_remap_tex = data['prn_remap_tex']
         img_face = data['img_face']
         img_face_landmarks = data['img_face_landmarks']
-        texture = face_texture_processor.embed(prn_remap_tex, img_face, img_face_landmarks)
+        texture = face_texture_processor.embed(prn_remap_tex, img_face)
