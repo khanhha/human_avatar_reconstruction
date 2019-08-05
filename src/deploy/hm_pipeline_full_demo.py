@@ -43,7 +43,7 @@ if __name__ == '__main__':
 
     face_extractor = FaceExtractor(model_dir=args.model_dir)
 
-    face_texture_processor = HmFPrnNetFaceTextureEmbedder(meta_dir=args.meta_data_dir, model_dir=args.model_dir)
+    face_texture_processor = HmFPrnNetFaceTextureEmbedder(meta_dir=args.meta_data_dir)
 
     with open(args.in_txt_file, 'rt') as file:
         dir = Path(args.in_txt_file).parent
@@ -121,11 +121,12 @@ if __name__ == '__main__':
                 out_path = os.path.join(*[args.out_dir, f'{Path(front_img_path).stem}_{Path(face_img_path).stem}.obj'])
                 export_mesh_tex_obj(out_path, out_mesh, img_tex=texture[:,:,::-1])
 
-                plt.subplot(121)
-                plt.imshow(img_face)
-                plt.subplot(122)
-                plt.imshow(texture[:,:,::-1])
-                plt.savefig(os.path.join(*[args.out_dir, f'{Path(front_img_path).stem}_{Path(face_img_path).stem}_debug.jpg']))
+                # debug
+                # plt.subplot(121)
+                # plt.imshow(img_face)
+                # plt.subplot(122)
+                # plt.imshow(texture[:,:,::-1])
+                # plt.savefig(os.path.join(*[args.out_dir, f'{Path(front_img_path).stem}_{Path(face_img_path).stem}_debug.jpg']))
             else:
                 img_f = cv.imread(front_img_path, cv.IMREAD_GRAYSCALE)
                 img_s = cv.imread(side_img_path, cv.IMREAD_GRAYSCALE)

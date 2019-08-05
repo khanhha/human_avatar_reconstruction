@@ -8,6 +8,10 @@ import os
 from pathlib import Path
 from face_parse.face_parser import FaceParser
 
+# this class does 3 thing
+# cut the facial region from the input image. resize it so that its width is equal to resize_face_width
+# predict 68 facial landmarks
+# predict face segmentation map that defines lips, nose, eye-brows regions.
 class FaceExtractor():
 
     def __init__(self, model_dir, resize_face_width = 512):
@@ -46,10 +50,9 @@ class FaceExtractor():
 
     def extract(self, img, debug_name=None):
         """
-
         :param img: RGB image
-        :param debug_name:
-        :return:
+        :param debug_name: for debugging
+        :return: face image that contains just facial region, 68x2 facial landamrks, segmentation map
         """
         ldms = self._detect_face_landmark(img)
         if ldms is None:

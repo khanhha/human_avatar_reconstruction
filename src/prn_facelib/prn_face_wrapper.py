@@ -21,10 +21,9 @@ class PrnFaceWrapper:
 
     def predict(self, image, face_landmarks):
         """
-
-        :param image:
-        :param face_landmarks: 68x2 points
-        :return:
+        :param image: RGB image. its maxium size must be smaller than 1000
+        :param face_landmarks: 68x2 facial landmarks. They are required for PRN facelib to extract its interest region
+        :return: face vertices in PRN facelib topology and texture mapping
         """
         assert len(image.shape) ==3 and image.shape[2] == 3, 'incorrect image shape'
 

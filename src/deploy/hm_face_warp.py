@@ -239,9 +239,14 @@ class HmFaceWarp():
         return vt_face_ld_co
 
 
+# this class has following features
+# estimate skin color
+# replace hair, background in the input image with estimated skin color
+# map the input image to the PRN texture using the PRN texture map
+# embed the PRN texture map to Victoria texture, which has larger size and also contains body region
 class HmFPrnNetFaceTextureEmbedder():
 
-    def __init__(self, meta_dir, model_dir, texture_size = 1024):
+    def __init__(self, meta_dir, texture_size = 1024):
         self.texture_size = texture_size
         prn_facelib_rect_path = os.path.join(*[meta_dir, 'prn_texture_in_victoria_texture.txt'])
         assert Path(prn_facelib_rect_path).exists(), f"there is no file prn_texture_in_victoria_texture.txt in meta_dir {meta_dir}"
@@ -431,10 +436,10 @@ class HmFPrnNetFaceTextureEmbedder():
     def _blend_images_opt(self, A, B, m, level=5, debug=False):
         """
         blend images: optimized version
-        :param A:
-        :param B:
-        :param m:
-        :param level:
+        :param A: face image
+        :param B: normally background image filled in with estiamted skin color
+        :param m: masking that defie the facial region in the face image
+        :param level: the level of Laplacin pyramid for blending
         :param debug:
         :return:
         """
@@ -503,6 +508,12 @@ class HmFPrnNetFaceTextureEmbedder():
         return ls_
 
     def _fix_skin_color_use_segmentation(self, face_img, face_seg, blend_mode = 'pyramid'):
+        """
+        :param face_img: face image
+        :param face_seg: face segmentation map from the Pytorch face parsing model
+        :param blend_mode: for testing mode. should be only 'pyramid'
+        :return:
+        """
         face_mask = (face_seg == 1)
         skin_color = self._estimate_skin_color(face_img, face_mask, hsv=False)
         #1:face
@@ -513,20 +524,12 @@ class HmFPrnNetFaceTextureEmbedder():
         face_bgr = np.empty_like(face_img)
         face_bgr[:,:,:] = skin_color
 
-        # plt.clf()
-        # plt.subplot(121)
-        # plt.imshow(face_img)
-        # plt.subplot(122)
-        # plt.imshow(face_img)
-        # plt.imshow(final_mask, alpha=0.3)
-        # plt.show()
         if blend_mode == 'cloning':
             face_mask_rect   = cv.boundingRect(final_mask)
             face_mask_center = (face_mask_rect[0]+int(face_mask_rect[2]/2), face_mask_rect[1]+int(face_mask_rect[3]/2))
             face_img = cv.cvtColor(face_img, cv.COLOR_RGB2HSV_FULL)
             face_bgr = cv.cvtColor(face_bgr, cv.COLOR_RGB2HSV_FULL)
             face_img_1 = cv.seamlessClone(face_img, face_bgr, final_mask, face_mask_center, cv.NORMAL_CLONE)
-            face_img = cv.cvtColor(face_img, cv.COLOR_HSV2RGB_FULL)
             face_img_1 = cv.cvtColor(face_img_1, cv.COLOR_HSV2RGB_FULL)
         else:
             # erode that mask so the seam is inside the facial region.
@@ -547,6 +550,11 @@ class HmFPrnNetFaceTextureEmbedder():
         return face_img_1, skin_color
 
     def _fix_nostril_color(self, img, landmarks):
+        """
+        :param img: face image
+        :param landmarks: 68x2 landamrks
+        :return:
+        """
         # segmentation
         dyn_seg = False
         if not dyn_seg:

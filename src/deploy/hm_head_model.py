@@ -11,7 +11,8 @@ from deformation.ffdt_deformation_lib import  TemplateMeshDeform
 from prn_facelib.prn_face_wrapper import PrnFaceWrapper
 
 import sys
-sys.path.insert(0, '/home/khanhhh/data_1/sample_codes/libigl/python')
+#sys.path.insert(0, '/home/khanhhh/data_1/sample_codes/libigl/python')
+sys.path.insert(0, '../../third_parties/libigl/python/')
 import pyigl as igl
 
 def embbed_neck_seam_to_tpl_head(ctm_verts, tpl_head_verts, vneck_seam_map, vneck_seam_map_in_head):
@@ -203,6 +204,7 @@ def calc_head_tris_in_head_space(tpl_tris, vhead_map):
     return head_tris
 
 
+#predict head vertices fron a face image and texture mapping from the input image to texture
 class HmHeadModel:
 
     def __init__(self, meta_dir, model_dir):
@@ -277,8 +279,8 @@ class HmHeadModel:
 
     def predict(self, customer_df_verts, image_rgb_front, face_landmarks):
         """
-        :param customer_df_verts:
-        :param image_rgb_front:
+        :param customer_df_verts: the Nx3 vertices from the body model. this model alread has head, but it's incorrect.
+        :param image_rgb_front: input face image.
         :param face_landmarks: 68x2 points
         :return:
         """

@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 from common.obj_util import import_mesh_obj, export_mesh
 
+#this module predicts a 3D human mesh from front, side images, height and gender
 class HumanRGBModel:
 
     def __init__(self, hmshape_model_path, hmsil_model_path, mesh_path):
@@ -20,6 +21,18 @@ class HumanRGBModel:
         self.tpl_faces = faces
 
     def predict(self, rgb_img_f, rgb_img_s, height, gender):
+        """
+        predict a 3D human mesh from front side RGB images, height and gender
+        :param rgb_img_f:
+        :param rgb_img_s:
+        :param height: in meter, for exp 1.6
+        :param gender: 0 for female and 1 for male
+        :return:
+        # verts: NX3 points
+        # faces: template face list
+        # sil_f: front silhouette
+        # sil_s: side silhouette
+        """
         sil_f = self.hmsil_model.extract_silhouette(rgb_img_f)
         sil_s = self.hmsil_model.extract_silhouette(rgb_img_s)
         sil_f = sil_f.astype(np.float32)/255.0
@@ -34,6 +47,15 @@ class HumanRGBModel:
         return verts, faces, sil_f, sil_s
 
     def predict_sil(self, sil_f, sil_s, height, gender):
+        """
+        :param sil_f: front silhouete
+        :param sil_s: side silhouete
+        :param height:  in meter
+        :param gender:  0 for female and 1 for male
+        :return:
+        verts: Nx3 points
+        faces: template face list
+        """
         verts = self.hmshape_model.predict(sil_f=sil_f, sil_s=sil_s, height=height, gender=gender)
         verts = verts[0]
         verts = verts.reshape(verts.shape[0]//3, 3)
