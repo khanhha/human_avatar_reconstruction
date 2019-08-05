@@ -5,6 +5,7 @@ import os.path as osp
 import numpy as np
 import torchvision.transforms as transforms
 import cv2 as cv
+from pathlib import Path
 
 class FaceParser:
     def __init__(self, model_dir):
@@ -12,6 +13,7 @@ class FaceParser:
         self.net = BiSeNet(n_classes=n_classes)
         self.net.cuda()
         save_pth = osp.join(*[model_dir, "face_parsing_model.pth"])
+        assert Path(save_pth).exists(), "face_parsing_model.pth does not exist at this path: " + save_pth
         self.net.load_state_dict(torch.load(save_pth))
         self.net.eval()
 
@@ -20,8 +22,11 @@ class FaceParser:
             transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
         ])
 
-    # RGB image
     def parse_face(self, img):
+        """
+        :param img: RGB image
+        :return: segmentation map
+        """
         resized = False
         if img.shape[0] != 512 or img.shape[1] != 512:
             img_1 = cv.resize(img, dsize=(img.shape[1], img.shape[0]), interpolation=cv.INTER_LINEAR)

@@ -92,7 +92,7 @@ class PRN:
                 kpt = image_info
                 if kpt.shape[0] > 3:
                     kpt = kpt.T
-                left = np.min(kpt[0, :]); right = np.max(kpt[0, :]); 
+                left = np.min(kpt[0, :]); right = np.max(kpt[0, :])
                 top = np.min(kpt[1,:]); bottom = np.max(kpt[1,:])
             else:  # bounding box
                 bbox = image_info

@@ -275,17 +275,15 @@ class HmHeadModel:
         verts[:, 1] = -tmp
         return verts
 
-    def predict(self, customer_df_verts, image_rgb_front):
+    def predict(self, customer_df_verts, image_rgb_front, face_landmarks):
+        """
+        :param customer_df_verts:
+        :param image_rgb_front:
+        :param face_landmarks: 68x2 points
+        :return:
+        """
         # predict prn face vertices
-        prn_facelib_verts, remap_tex, image_face_kpt, image_rgb_front = self.prn_wrapper.predict(image_rgb_front)
-        image_face_kpt = image_face_kpt.round().astype(np.int32)
-
-        #test
-        # import matplotlib.pyplot as plt
-        # image_face_kpt = image_face_kpt.round().astype(np.int)
-        # image_rgb_front[image_face_kpt[:,1], image_face_kpt[:,0]] = (255,0,0)
-        # plt.imshow(image_rgb_front)
-        # plt.show()
+        prn_facelib_verts, remap_tex = self.prn_wrapper.predict(image_rgb_front, face_landmarks)
 
         mean = np.mean(prn_facelib_verts, axis=0)
         ctl_df_verts = prn_facelib_verts - mean
@@ -321,4 +319,4 @@ class HmHeadModel:
 
         customer_df_verts[self.vhead_map] = new_head_verts_1
 
-        return customer_df_verts, remap_tex, image_rgb_front, image_face_kpt
+        return customer_df_verts, remap_tex

@@ -19,20 +19,24 @@ class PrnFaceWrapper:
         self.texture_size = texture_size
         pass
 
-    def predict(self, image):
+    def predict(self, image, face_landmarks):
         """
-        :param image:  RGB uint8 image
+
+        :param image:
+        :param face_landmarks: 68x2 points
+        :return:
         """
         assert len(image.shape) ==3 and image.shape[2] == 3, 'incorrect image shape'
 
         [h, w, c] = image.shape
 
         max_size = max(image.shape[0], image.shape[1])
-        if max_size > 1000:
-            image = rescale(image, 1000. / max_size)
-            image = (image * 255).astype(np.uint8)
+        assert max_size < 1000, "PRN facelib: unexpected input image size"
+        # if max_size > 1000:
+        #     image = rescale(image, 1000. / max_size)
+        #     image = (image * 255).astype(np.uint8)
 
-        pos = self.prn.process(image)  # use dlib to detect face
+        pos = self.prn.process(image, face_landmarks.T)  # use dlib to detect face
 
         vertices = self.prn.get_vertices(pos)
         save_vertices = vertices.copy()
@@ -52,9 +56,9 @@ class PrnFaceWrapper:
         #
         # image[test[self.prn.uv_kpt_ind[1, :],self.prn.uv_kpt_ind[0, :],1], test[self.prn.uv_kpt_ind[1, :],self.prn.uv_kpt_ind[0, :],0]] = (255.0, 0, 0)
 
-        img_face_points = pos_interpolated
-        img_kpt = np.vstack([img_face_points[self.prn.uv_kpt_ind[1, :], self.prn.uv_kpt_ind[0, :], 0],
-                             img_face_points[self.prn.uv_kpt_ind[1, :], self.prn.uv_kpt_ind[0, :], 1]]).T
+        #img_face_points = pos_interpolated
+        #img_kpt = np.vstack([img_face_points[self.prn.uv_kpt_ind[1, :], self.prn.uv_kpt_ind[0, :], 0],
+        #                     img_face_points[self.prn.uv_kpt_ind[1, :], self.prn.uv_kpt_ind[0, :], 1]]).T
 
         # set all pixels outside the convex hull of facial landmarks as black
         # convex_idxs = [i for i in range(17)] + [26,25,24] + [19,18,17]
@@ -71,4 +75,4 @@ class PrnFaceWrapper:
         # #debug
         # texture[self.prn.uv_kpt_ind[1, :], self.prn.uv_kpt_ind[0, :], :] = (255, 0, 0)
 
-        return save_vertices, pos_interpolated[:,:,:2].astype(np.float32), img_kpt, image
+        return save_vertices, pos_interpolated[:,:,:2].astype(np.float32)

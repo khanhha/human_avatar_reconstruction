@@ -12,6 +12,7 @@ from common.obj_util import import_mesh_obj, export_mesh
 from deploy.hm_pipeline import HumanRGBModel
 from deploy.hm_head_model import HmHeadModel
 from deploy.hm_face_warp import HmFPrnNetFaceTextureEmbedder
+from face_utils.face_extractor import FaceExtractor
 from common.obj_util import import_mesh_tex_obj, export_mesh_tex_obj
 
 if __name__ == '__main__':
@@ -35,9 +36,12 @@ if __name__ == '__main__':
     tex_mesh = import_mesh_tex_obj(text_mesh_path)
 
     assert Path(shape_model_path).exists() and Path(deeplab_path).exists()
+
     body_model = HumanRGBModel(hmshape_model_path=shape_model_path, hmsil_model_path=deeplab_path, mesh_path=vic_mesh_path)
 
     head_model = HmHeadModel(meta_dir=args.meta_data_dir, model_dir=args.model_dir)
+
+    face_extractor = FaceExtractor(model_dir=args.model_dir)
 
     face_texture_processor = HmFPrnNetFaceTextureEmbedder(meta_dir=args.meta_data_dir, model_dir=args.model_dir)
 
@@ -94,11 +98,15 @@ if __name__ == '__main__':
                     cv.imwrite(out_sil_s_path, sil_s)
                     print(f'\texported silhouette {out_sil_f_path} - {out_sil_s_path}')
 
-                verts, prn_remap_tex, img_face, img_face_landmarks = head_model.predict(customer_df_verts=verts, image_rgb_front=img_face_org[:, :, ::-1])
+                img_face, img_face_landmarks, img_face_seg = face_extractor.extract(img_face_org)
+                #from BGR to RGB
+                img_face = img_face[:,:,::-1]
 
-                from deploy import hm_face_warp
-                hm_face_warp.G_debug_id = Path(face_img_path).stem
+                verts, prn_remap_tex  = head_model.predict(customer_df_verts=verts, image_rgb_front=img_face, face_landmarks=img_face_landmarks)
 
+                # debug code
+                # from deploy import hm_face_warp
+                # hm_face_warp.G_debug_id = Path(face_img_path).stem
                 # tmp_dir ='/home/khanhhh/data_1/projects/Oh/data/face/google_front_faces/tmp_data/'
                 # data={'prn_remap_tex':prn_remap_tex, 'img_face':img_face, 'img_face_landmarks':img_face_landmarks}
                 # import pickle
@@ -106,12 +114,12 @@ if __name__ == '__main__':
                 #     pickle.dump(obj=data, file=file)
                 # exit()
 
-                texture = face_texture_processor.embed(prn_remap_tex, img_face)
+                texture = face_texture_processor.embed(prn_remap_tex, img_face, img_face_seg, img_face_landmarks)
 
                 out_mesh = {'v': verts, 'vt': tex_mesh['vt'], 'f': tex_mesh['f'], 'ft': tex_mesh['ft']}
 
                 out_path = os.path.join(*[args.out_dir, f'{Path(front_img_path).stem}_{Path(face_img_path).stem}.obj'])
-                export_mesh_tex_obj(out_path, out_mesh, img_tex=texture)
+                export_mesh_tex_obj(out_path, out_mesh, img_tex=texture[:,:,::-1])
 
                 plt.subplot(121)
                 plt.imshow(img_face)
@@ -123,11 +131,6 @@ if __name__ == '__main__':
                 img_s = cv.imread(side_img_path, cv.IMREAD_GRAYSCALE)
                 ret_0, img_f = cv.threshold(img_f, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU)
                 ret_1, img_s = cv.threshold(img_s, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU)
-                # plt.subplot(121)
-                # plt.imshow(img_f)
-                # plt.subplot(122)
-                # plt.imshow(img_s)
-                # plt.show()
                 verts, faces = body_model.predict_sil(img_f, img_s, height, gender)
 
                 out_path = os.path.join(*[args.out_dir, f'{Path(front_img_path).stem}_{idx}.obj'])

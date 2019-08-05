@@ -255,37 +255,9 @@ class HmFPrnNetFaceTextureEmbedder():
         self.rect_center[1] = 1.0 - self.rect_center[1]
         self.rect_center = np.round(self.texture_size * self.rect_center).astype(np.int)
 
-        # load face segmentation model
-        # we need the mask of face without eye, mouth for estimating skin color
-        self.face_parser = FaceParser(model_dir=model_dir)
-
-        self.face_detector = dlib.get_frontal_face_detector()
-        shape_predictor_path = '/home/khanhhh/data_1/projects/Oh/codes/human_estimation/data/shape_predictor_68_face_landmarks.dat'
-        self.face_landmarks_predictor = dlib.shape_predictor(shape_predictor_path)
-
         vic_tpl_vertex_groups_path = os.path.join(*[meta_dir, 'victoria_part_vert_idxs.pkl'])
         vic_tpl_face_mesh_path = os.path.join(*[meta_dir, 'vic_mesh_textured_warped.obj'])
         self._build_face_texture_masks(vic_tpl_vertex_groups_path, vic_tpl_face_mesh_path)
-
-    def _detect_face_landmark(self, img):
-        gray = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
-
-        # detect faces in the grayscale image
-        rects = self.face_detector(gray, 1)
-        # loop over the face detections
-        for (i, rect) in enumerate(rects):
-            # determine the facial landmarks for the face region, then
-            # convert the facial landmark (x, y)-coordinates to a NumPy
-            # array
-            shape = self.face_landmarks_predictor(gray, rect)
-            shape = face_utils.shape_to_np(shape)
-
-            shape = shape.astype(np.int32)
-            shape = shape.reshape((-1, 2))
-            return shape
-
-        return None
-
 
     def _build_face_texture_masks(self, vic_tpl_vertex_groups_path, vic_tpl_face_mesh_path):
         """
@@ -378,39 +350,6 @@ class HmFPrnNetFaceTextureEmbedder():
                 faces.append(f_idx)
 
         return faces
-
-    def _facial_masks(self, img_kpts, shape):
-        """
-        build facial masks on input image using image keypoints
-        we need facial masks for
-        - foreground grab-cut
-        - skin color estiamtion
-        however, we have the CNN face parsing network now, so this function is not useful anymore
-        :param img_kpts:
-        :param shape:
-        :return:
-        """
-        convex_idxs = [i for i in range(17)] + [26, 25, 24] + [19, 18, 17]
-        polygon_pnts = img_kpts[convex_idxs, :].reshape(1, -1, 2).astype(np.int32)
-
-        full_mask = np.zeros(shape[:2], np.uint8)
-        full_mask = cv.fillConvexPoly(full_mask, polygon_pnts, 1).astype(np.bool)
-        mask_nonface = np.bitwise_not(full_mask)
-
-        eye_idxs = [17, 18, 19] + [24, 25, 26] + [45, 46] + [40, 41, 36]
-        mouth_idxs = [i for i in range(48, 59 + 1)]
-
-        eye_mask = np.zeros(shape[:2], np.uint8)
-        eye_mask = cv.fillConvexPoly(eye_mask, img_kpts[eye_idxs, :].reshape(1, -1, 2).astype(np.int32), 1).astype(np.bool)
-
-        mouth_mask = np.zeros(shape[:2], np.uint8)
-        mouth_mask = cv.fillConvexPoly(mouth_mask, img_kpts[mouth_idxs, :].reshape(1, -1, 2).astype(np.int32),
-                                       1).astype(np.bool)
-
-        mask_nonface = np.bitwise_or(np.bitwise_or(mask_nonface, mouth_mask), eye_mask)
-        mask = np.bitwise_not(mask_nonface)
-
-        return full_mask, mask, eye_mask, mouth_mask
 
     def _estimate_skin_color(self, face_img, facial_mask, hsv=False):
         """
@@ -607,78 +546,6 @@ class HmFPrnNetFaceTextureEmbedder():
         # plt.savefig(f'/home/khanhhh/data_1/projects/Oh/data/face/google_front_faces/debug_cloning/{G_debug_id}_blend_input_img.png', dpi=500)
         return face_img_1, skin_color
 
-    # unused currently.
-    # landmarks from PRN facelib are incorrect in many cases
-    def _fix_skin_color_use_landmarks(self, face_img, landmarks):
-
-        full_face_mask, face_mask, eye_mask, mouth_mask = self._facial_masks(landmarks, face_img.shape)
-        skin_color = self._estimate_skin_color(face_img, face_mask, hsv=False)
-
-        face_fg_mask = cv.morphologyEx(face_mask.astype(np.uint8)*255, cv.MORPH_ERODE, cv.getStructuringElement(cv.MORPH_RECT, (40,40)))
-        face_fg_mask = face_fg_mask == 255
-
-        grabcut_face_mask = np.zeros(face_mask.shape, dtype=np.uint8)
-        grabcut_face_mask[:] = cv.GC_PR_BGD
-        grabcut_face_mask[face_fg_mask] = cv.GC_FGD
-        #find a better mask
-        bgdModel = np.zeros((1, 65), np.float64)
-        fgdModel = np.zeros((1, 65), np.float64)
-        cv.grabCut(face_img, grabcut_face_mask, None, bgdModel, fgdModel, 4, cv.GC_INIT_WITH_MASK)
-        final_mask = np.where((grabcut_face_mask == cv.GC_BGD) | (grabcut_face_mask == cv.GC_PR_BGD), 0, 1).astype(np.bool)
-
-        #merge back with eye, mouth
-        final_mask = np.bitwise_or(np.bitwise_or(face_mask, final_mask) , np.bitwise_or(mouth_mask, eye_mask))
-        #fix hole
-        final_mask = binary_closing(final_mask, iterate_structure(generate_binary_structure(2,2),3))
-        final_mask = final_mask.astype(np.uint8)*255
-
-        face_bgr = np.zeros(face_img.shape, np.uint8)
-        face_bgr[:,:,:] = skin_color
-
-        # plt.clf()
-        # plt.subplot(121)
-        # plt.imshow(face_img)
-        # plt.imshow(face_fg_mask, alpha=0.3)
-        # plt.subplot(122)
-        # plt.imshow(face_img)
-        # plt.imshow(final_mask, alpha=0.3)
-        # plt.show()
-
-        if G_blending_alg == 'cloning':
-            face_mask_rect   = cv.boundingRect(final_mask)
-            face_mask_center = (face_mask_rect[0]+int(face_mask_rect[2]/2), face_mask_rect[1]+int(face_mask_rect[3]/2))
-            face_img = cv.cvtColor(face_img, cv.COLOR_RGB2HSV_FULL)
-            face_bgr = cv.cvtColor(face_bgr, cv.COLOR_RGB2HSV_FULL)
-            face_img_1 = cv.seamlessClone(face_img, face_bgr, final_mask, face_mask_center, cv.NORMAL_CLONE)
-            face_img = cv.cvtColor(face_img, cv.COLOR_HSV2RGB_FULL)
-            face_img_1 = cv.cvtColor(face_img_1, cv.COLOR_HSV2RGB_FULL)
-        elif G_blending_alg == 'alpha':
-            print('alpha blending')
-            blend_mask = final_mask.astype(np.float32)/255.0
-            for i in range(5):
-                blend_mask = cv.GaussianBlur(blend_mask, (25,25), sigmaX=0)
-            # plt.imshow(blend_mask, cmap='gray')
-            # plt.show()
-            face_img_1 = face_img.copy()
-            for i in range(3):
-                face_img_1[:,:,i] = (face_img[:,:,i] * blend_mask + face_bgr[:,:,i]*(1.0-blend_mask)).astype(np.uint8)
-        else:
-            final_mask = cv.morphologyEx(final_mask, cv.MORPH_ERODE, cv.getStructuringElement(cv.MORPH_RECT, (10,10)))
-            face_img_1 = self._blend_images_opt(face_img, face_bgr, (final_mask==255).astype(np.float32))
-
-        # face_img_test = face_img.copy()
-        # face_img_test[np.bitwise_not(final_mask==255)] = skin_color
-        # plt.clf()
-        # plt.subplot(131)
-        # plt.imshow(face_img)
-        # plt.subplot(132)
-        # plt.imshow(face_img_test)
-        # plt.subplot(133)
-        # plt.imshow(face_img_1)
-        # plt.show()
-        # plt.savefig(f'/home/khanhhh/data_1/projects/Oh/data/face/google_front_faces/debug_cloning/{G_debug_id}_blend_input_img.png', dpi=500)
-        return face_img_1, skin_color
-
     def _fix_nostril_color(self, img, landmarks):
         # segmentation
         dyn_seg = False
@@ -760,14 +627,18 @@ class HmFPrnNetFaceTextureEmbedder():
             #plt.show()
             return img_1
 
-    def embed(self, prn_remap_tex, face_img):
-        face_seg = self.face_parser.parse_face(face_img)
+    def embed(self, prn_remap_tex, face_img, face_seg, face_landmarks):
+        """
 
-        # face_img, skin_color = self._fix_skin_color_use_landmarks(face_img, landmarks)
+        :param prn_remap_tex: warping map from the face_img to PRN texture
+        :param face_img: RGB image
+        :param face_seg: segmentation map from the face parsing model
+        :param face_landmarks:  68x2 landmarks
+        :return:
+        """
         face_img, skin_color = self._fix_skin_color_use_segmentation(face_img, face_seg)
 
-        landmarks = self._detect_face_landmark(face_img)
-        face_img = self._fix_nostril_color(face_img, landmarks)
+        face_img = self._fix_nostril_color(face_img, face_landmarks)
 
         prn_facelib_tex = cv.remap(face_img, prn_remap_tex, None, interpolation=cv.INTER_AREA, borderMode=cv.BORDER_CONSTANT, borderValue=(0))
 
@@ -803,7 +674,7 @@ class HmFPrnNetFaceTextureEmbedder():
         # plt.imshow(head_texture_1)
         # plt.show()
         # plt.savefig(f'/home/khanhhh/data_1/projects/Oh/data/face/google_front_faces/debug_cloning/{G_debug_id}_blend_prn_tex.png', dpi=500)
-        return head_texture_1[:,:,::-1]
+        return head_texture_1
 
 import pickle
 import matplotlib as mpl
