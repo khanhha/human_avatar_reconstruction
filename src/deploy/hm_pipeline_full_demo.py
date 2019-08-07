@@ -70,8 +70,8 @@ if __name__ == '__main__':
             else:
                 face_img_path = front_img_path
 
-            # if 'face_2.jpg' not in str(face_img_path):
-            #      continue
+            # if 'face_0.jpg' not in str(face_img_path):
+            #       continue
 
             assert gender == 0.0 or gender == 1.0 , 'unexpected gender. just accept 1 or 0'
             assert is_sil == 0 or is_sil == 1, 'unexpected sil flag. just accept 1 or 0'
@@ -114,7 +114,11 @@ if __name__ == '__main__':
                 #     pickle.dump(obj=data, file=file)
                 # exit()
 
-                texture = face_texture_processor.embed(prn_remap_tex, img_face, img_face_seg, img_face_landmarks)
+                skin_colors = HmFPrnNetFaceTextureEmbedder.estimate_skin_color(img_face, img_face_seg)
+                # we just take the best one
+                assert len(skin_colors) == 1
+                best_color = skin_colors[0]
+                texture = face_texture_processor.embed(prn_remap_tex, img_face, img_face_seg, img_face_landmarks, best_color, fix_nostril=False)
 
                 out_mesh = {'v': verts, 'vt': tex_mesh['vt'], 'f': tex_mesh['f'], 'ft': tex_mesh['ft']}
 

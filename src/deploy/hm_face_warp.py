@@ -356,29 +356,40 @@ class HmFPrnNetFaceTextureEmbedder():
 
         return faces
 
-    def _estimate_skin_color(self, face_img, facial_mask, hsv=False):
+    @staticmethod
+    def estimate_skin_color(face_img, face_img_seg, take_only_best = True, n_clusters = 5, hsv=False):
         """
         estimate skin colors using clustering method from pixel colors inside facial_mask
-        :param face_img: input face image
-        :param facial_mask: mask that mark skin regions in face_img
+        :param face_img: input BGR face image
+        :param face_img_seg: face segmentation, returned by the face parsing model
         :param hsv: apply clustering on hsv color space or not
         :return: color of largest cluster
         """
         if hsv:
             face_img = cv.cvtColor(face_img, cv.COLOR_BGR2Lab)
 
-        n_classes = 5
+        facial_mask = (face_img_seg == 1)
         colors = face_img[facial_mask, :]
 
         cov_type = 'full'
         #gmm = GaussianMixture(n_components=n_classes, covariance_type=cov_type, max_iter=20, random_state=0)
-        gmm = BayesianGaussianMixture(n_components=n_classes, covariance_type=cov_type, max_iter=20, random_state=0)
+        gmm = BayesianGaussianMixture(n_components=n_clusters, covariance_type=cov_type, max_iter=20, random_state=0)
         cls_preds = gmm.fit_predict(colors)
         sorted_idxs = np.argsort(-gmm.weights_)
-        best_idx = sorted_idxs[0]
-        best_colors_mask = cls_preds == best_idx
-        best_colors = colors[best_colors_mask]
-        best_color = np.mean(best_colors, axis=0).astype(np.uint8)
+
+        result_colors = []
+        #for the sake of performance
+        if take_only_best:
+            best_idx = sorted_idxs[0]
+            best_colors_mask = cls_preds == best_idx
+            best_colors = colors[best_colors_mask]
+            best_color = np.mean(best_colors, axis=0).astype(np.uint8)
+            result_colors.append(best_color)
+        else:
+            for i in range(n_clusters):
+                cls_mask = (cls_preds == sorted_idxs[i])
+                cls_color = np.mean(colors[cls_mask], axis=0).astype(np.uint8)
+                result_colors.append(cls_color)
 
         debug = False
         #plot estimated color as background in the face image
@@ -408,7 +419,7 @@ class HmFPrnNetFaceTextureEmbedder():
             for i, img in enumerate(out_imgs):
                 cv.imwrite(f'{dir}/{G_debug_id}_{i}.jpg', img[:,:,::-1])
 
-        return best_color
+        return result_colors
 
     def synthesize_skin_texture_base_color(self, face_texture):
         """
@@ -507,15 +518,13 @@ class HmFPrnNetFaceTextureEmbedder():
 
         return ls_
 
-    def _fix_skin_color_use_segmentation(self, face_img, face_seg, blend_mode = 'pyramid'):
+    def _fix_hair_and_background(self, face_img, face_seg, skin_color, blend_mode ='pyramid'):
         """
         :param face_img: face image
         :param face_seg: face segmentation map from the Pytorch face parsing model
         :param blend_mode: for testing mode. should be only 'pyramid'
         :return:
         """
-        face_mask = (face_seg == 1)
-        skin_color = self._estimate_skin_color(face_img, face_mask, hsv=False)
         #1:face
         #2,3,4,5: eyes
         #10,11,12: nose, two lips
@@ -547,7 +556,7 @@ class HmFPrnNetFaceTextureEmbedder():
         # plt.subplot(133)
         # plt.imshow(face_img_1)
         # plt.savefig(f'/home/khanhhh/data_1/projects/Oh/data/face/google_front_faces/debug_cloning/{G_debug_id}_blend_input_img.png', dpi=500)
-        return face_img_1, skin_color
+        return face_img_1
 
     def _fix_nostril_color(self, img, landmarks):
         """
@@ -580,18 +589,17 @@ class HmFPrnNetFaceTextureEmbedder():
             cv.fillPoly(mask, mid_nostril_points, (255,255,255))
 
             img_1 = cv.inpaint(img, mask, 3, cv.INPAINT_TELEA)
-            # plt.axis('off')
-            # plt.subplot(131)
-            # plt.imshow(img)
-            # plt.subplot(132)
-            # plt.imshow(img)
-            # plt.imshow(mask, alpha=0.4)
-            # plt.subplot(133)
-            # plt.imshow(img_1)
-            # dir = "/home/khanhhh/data_1/projects/Oh/data/face/google_front_faces/debug_nostril/"
-            # os.makedirs(dir, exist_ok=True)
-            # plt.savefig(f'{dir}/{np.random.randint(1000)}.png', dpi=500)
-            #plt.show()
+            plt.axis('off')
+            plt.subplot(131)
+            plt.imshow(img)
+            plt.subplot(132)
+            plt.imshow(img)
+            plt.imshow(mask, alpha=0.4)
+            plt.subplot(133)
+            plt.imshow(img_1)
+            dir = "/home/khanhhh/data_1/projects/Oh/data/face/google_front_faces/debug_nostril/"
+            os.makedirs(dir, exist_ok=True)
+            plt.savefig(f'{dir}/{np.random.randint(1000)}.png', dpi=500)
             return img_1
         else:
             nostril_idxs = [30, 31, 33, 35]
@@ -635,18 +643,22 @@ class HmFPrnNetFaceTextureEmbedder():
             #plt.show()
             return img_1
 
-    def embed(self, prn_remap_tex, face_img, face_seg, face_landmarks):
+    def embed(self, prn_remap_tex, face_img, face_seg, face_landmarks, skin_color, fix_nostril = True, fix_hair_and_background=True):
         """
 
         :param prn_remap_tex: warping map from the face_img to PRN texture
         :param face_img: RGB image
         :param face_seg: segmentation map from the face parsing model
         :param face_landmarks:  68x2 landmarks
+        :param fix_nostril: replace the black region below nostril with surrouding color or not
+        :param fix_hair_and_background: replace hari and background region in the input face image with face color, so that they won't appear in the final texture
         :return:
         """
-        face_img, skin_color = self._fix_skin_color_use_segmentation(face_img, face_seg)
+        if fix_hair_and_background:
+            face_img = self._fix_hair_and_background(face_img, face_seg, skin_color)
 
-        face_img = self._fix_nostril_color(face_img, face_landmarks)
+        if fix_nostril:
+            face_img = self._fix_nostril_color(face_img, face_landmarks)
 
         prn_facelib_tex = cv.remap(face_img, prn_remap_tex, None, interpolation=cv.INTER_AREA, borderMode=cv.BORDER_CONSTANT, borderValue=(0))
 
