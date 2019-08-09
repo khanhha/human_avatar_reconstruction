@@ -2,6 +2,7 @@
 - [perspective distortion](#perspective-distortion)
 - [cnn part segmentation input](#cnn-part-segmentation-input)
 - [A pose variant](#A-pose-variant)
+
 # perspective distortion
 - __There are 3 camera factors that we could cause perspective distortion__
   - __camera orientation is not straight up__
@@ -59,3 +60,37 @@
   - A-pose correction before feeding the silhouette to the network.
     - https://www.youtube.com/watch?v=P9fqm8vgdB8
     - https://libigl.github.io/tutorial/#bounded-biharmonic-weights
+
+# Influence of front/side silhouete location on result
+
+## Experiment description
+In this experiment, the front and side silhouettes are shifted to the left and side direction to see how does the result
+will change.
+
+- input image pair
+
+![](images/.cnn_improvement_list_images/95a9e716.png)
+
+- pre-processed silhouettes
+
+![](images/.cnn_improvement_list_images/a8495025.png)
+
+- side silhouettes are shifted toward left and right.
+
+![](images/.cnn_improvement_list_images/91103dcb.png)
+
+- front silhouettes are shifted toward left and right.
+
+![](images/.cnn_improvement_list_images/2aae2f93.png)
+
+## Result
+in both cases where side and front silhouettes are shifted, the 3D prediction meshes are exactly the same. 
+- shifted side silhouette result: 3 meshes are drawn over each other, and there is not difference
+in the side profile
+
+![](images/.cnn_improvement_list_images/529a3802.png)
+
+- shifted front silhouette result: 3 meshes are drawn over each other, and there is not difference
+in the front profile.
+
+![](images/.cnn_improvement_list_images/5dd29f10.png)
