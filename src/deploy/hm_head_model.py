@@ -9,7 +9,7 @@ import os
 import pickle
 from deformation.ffdt_deformation_lib import  TemplateMeshDeform
 from prn_facelib.prn_face_wrapper import PrnFaceWrapper
-
+from deploy.data_config import config_get_data_path
 import sys
 #sys.path.insert(0, '/home/khanhhh/data_1/sample_codes/libigl/python')
 sys.path.insert(0, '../../third_parties/libigl/python/')
@@ -209,14 +209,21 @@ class HmHeadModel:
 
     def __init__(self, meta_dir, model_dir):
 
-        prn_datadir_prefix = os.path.join(*[model_dir, "prn_facelib_data"])
+        #prn_datadir_prefix = os.path.join(*[model_dir, "prn_facelib_data"])
+        prn_datadir_prefix = config_get_data_path(model_dir, "prn_facelib_data_dir")
+
         self.prn_wrapper = PrnFaceWrapper(texture_size = 256, prn_datadir_prefix = prn_datadir_prefix)
 
-        vic_tpl_face_mesh_path = os.path.join(*[meta_dir, 'victoria_face_mesh.obj'])
-        vic_tpl_mesh_tri_path = os.path.join(*[meta_dir, 'vic_mesh_only_triangle.obj'])
-        prn_facelib_mesh_path = os.path.join(*[meta_dir, 'prn_facelib_face_mesh.obj'])
-        parameterization_path = os.path.join(*[meta_dir, 'parameterization_vic_face_prn_facelib.pkl'])
-        vic_tpl_vertex_groups_path = os.path.join(*[meta_dir, 'victoria_part_vert_idxs.pkl'])
+        #vic_tpl_face_mesh_path = os.path.join(*[meta_dir, 'victoria_face_mesh.obj'])
+        vic_tpl_face_mesh_path = config_get_data_path(meta_dir, 'victoria_face_mesh')
+        #vic_tpl_mesh_tri_path = os.path.join(*[meta_dir, 'vic_mesh_only_triangle.obj'])
+        vic_tpl_mesh_tri_path = config_get_data_path(meta_dir, 'victoria_triangle_mesh')
+        #prn_facelib_mesh_path = os.path.join(*[meta_dir, 'prn_facelib_face_mesh.obj'])
+        prn_facelib_mesh_path = config_get_data_path(meta_dir, 'prn_facelib_face_mesh')
+        #parameterization_path = os.path.join(*[meta_dir, 'parameterization_vic_face_prn_facelib.pkl'])
+        parameterization_path = config_get_data_path(meta_dir, 'parameterization_vic_face_prn_facelib')
+        #vic_tpl_vertex_groups_path = os.path.join(*[meta_dir, 'victoria_part_vert_idxs.pkl'])
+        vic_tpl_vertex_groups_path = config_get_data_path(meta_dir, 'victoria_part_vert_idxs')
 
         prn_face_mesh = import_mesh_tex_obj(fpath=prn_facelib_mesh_path)
         ctl_df_verts = prn_face_mesh['v']

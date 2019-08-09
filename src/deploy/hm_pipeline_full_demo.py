@@ -14,7 +14,7 @@ from deploy.hm_head_model import HmHeadModel
 from deploy.hm_face_warp import HmFPrnNetFaceTextureEmbedder
 from face_utils.face_extractor import FaceExtractor
 from common.obj_util import import_mesh_tex_obj, export_mesh_tex_obj
-
+from deploy.data_config import config_get_data_path
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
     ap.add_argument("-model_dir",  required=True, type=str, help="the direction where shape_model.jlb  and deeplab model are stored")
@@ -28,11 +28,14 @@ if __name__ == '__main__':
 
     os.makedirs(args.out_dir, exist_ok=True)
 
-    #shape_model_path = os.path.join(*[args.model_dir, 'shape_model_pytorch.pt'])
-    shape_model_path = os.path.join(*[args.model_dir, 'shape_model.jlb'])
-    deeplab_path = os.path.join(*[args.model_dir, 'deeplabv3_xception_ade20k_train_2018_05_29.tar.gz'])
-    vic_mesh_path = os.path.join(*[args.model_dir, 'vic_mesh.obj'])
-    text_mesh_path = os.path.join(*[args.meta_data_dir, 'vic_mesh_textured_warped.obj'])
+    #shape_model_path = os.path.join(*[args.model_dir, 'shape_model.jlb'])
+    shape_model_path = config_get_data_path(args.model_dir, 'shape_model')
+    #deeplab_path = os.path.join(*[args.model_dir, 'deeplabv3_xception_ade20k_train_2018_05_29.tar.gz'])
+    deeplab_path = config_get_data_path(args.model_dir, 'deeplab_tensorflow_model')
+    #vic_mesh_path = os.path.join(*[args.model_dir, 'vic_mesh.obj'])
+    vic_mesh_path  = config_get_data_path(args.model_dir, 'victoria_template_mesh')
+    #text_mesh_path = os.path.join(*[args.meta_data_dir, 'vic_mesh_textured_warped.obj'])
+    text_mesh_path = config_get_data_path(args.meta_data_dir, 'victoria_template_textured_mesh')
     tex_mesh = import_mesh_tex_obj(text_mesh_path)
 
     assert Path(shape_model_path).exists() and Path(deeplab_path).exists()
@@ -118,7 +121,7 @@ if __name__ == '__main__':
                 # we just take the best one
                 assert len(skin_colors) == 1
                 best_color = skin_colors[0]
-                texture = face_texture_processor.embed(prn_remap_tex, img_face, img_face_seg, img_face_landmarks, best_color, fix_nostril=False)
+                texture = face_texture_processor.embed(prn_remap_tex, img_face, img_face_seg, img_face_landmarks, best_color, fix_nostril=True)
 
                 out_mesh = {'v': verts, 'vt': tex_mesh['vt'], 'f': tex_mesh['f'], 'ft': tex_mesh['ft']}
 
@@ -138,6 +141,6 @@ if __name__ == '__main__':
                 ret_1, img_s = cv.threshold(img_s, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU)
                 verts, faces = body_model.predict_sil(img_f, img_s, height, gender)
 
-                out_path = os.path.join(*[args.out_dir, f'{Path(front_img_path).stem}_{idx}.obj'])
+                out_path = os.path.join(*[args.out_dir, f'{Path(front_img_path).stem}.obj'])
                 print(f'\texported obj object to path {out_path}')
                 export_mesh(out_path, verts=verts, faces=faces)

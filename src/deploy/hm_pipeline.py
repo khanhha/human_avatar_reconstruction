@@ -9,6 +9,7 @@ import argparse
 import os
 from pathlib import Path
 from common.obj_util import import_mesh_obj, export_mesh
+from deploy.data_config import  config_get_data_path
 
 #this module predicts a 3D human mesh from front, side images, height and gender
 class HumanRGBModel:
@@ -70,10 +71,9 @@ if __name__ == '__main__':
 
     args = ap.parse_args()
 
-    #shape_model_path = os.path.join(*[args.model_dir, 'shape_model_pytorch.pt'])
-    shape_model_path = os.path.join(*[args.model_dir, 'shape_model.jlb'])
-    deeplab_path = os.path.join(*[args.model_dir, 'deeplabv3_xception_ade20k_train_2018_05_29.tar.gz'])
-    vic_mesh_path = os.path.join(*[args.model_dir, 'vic_mesh.obj'])
+    shape_model_path = config_get_data_path(args.model_dir, 'shape_model')
+    deeplab_path = config_get_data_path(args.model_dir, 'deeplab_tensorflow_model')
+    vic_mesh_path  = config_get_data_path(args.model_dir, 'victoria_template_mesh')
 
     assert Path(shape_model_path).exists() and Path(deeplab_path).exists()
     model = HumanRGBModel(hmshape_model_path=shape_model_path, hmsil_model_path=deeplab_path, mesh_path=vic_mesh_path)

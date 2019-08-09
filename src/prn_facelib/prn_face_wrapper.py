@@ -15,7 +15,7 @@ from prn_facelib.utils.render_app import get_visibility, get_uv_mask, get_depth_
 
 class PrnFaceWrapper:
     def __init__(self, texture_size, prn_datadir_prefix):
-        self.prn = PRN(is_dlib=True, prefix=prn_datadir_prefix)
+        self.prn = PRN(is_dlib=False, prefix=prn_datadir_prefix)
         self.texture_size = texture_size
         pass
 

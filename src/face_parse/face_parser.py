@@ -6,14 +6,14 @@ import numpy as np
 import torchvision.transforms as transforms
 import cv2 as cv
 from pathlib import Path
+from deploy.data_config import config_get_data_path
 
 class FaceParser:
     def __init__(self, model_dir):
         n_classes = 19
         self.net = BiSeNet(n_classes=n_classes)
         self.net.cuda()
-        save_pth = osp.join(*[model_dir, "face_parsing_model.pth"])
-        assert Path(save_pth).exists(), "face_parsing_model.pth does not exist at this path: " + save_pth
+        save_pth = config_get_data_path(model_dir, "face_parsing_pytorch_model")
         self.net.load_state_dict(torch.load(save_pth))
         self.net.eval()
 

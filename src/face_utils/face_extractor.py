@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import os
 from pathlib import Path
 from face_parse.face_parser import FaceParser
+from deploy.data_config import config_get_data_path
 
 # this class does 3 thing
 # cut the facial region from the input image. resize it so that its width is equal to resize_face_width
@@ -17,8 +18,8 @@ class FaceExtractor():
     def __init__(self, model_dir, resize_face_width = 512):
         self.img_width = resize_face_width
         self.face_detector = dlib.get_frontal_face_detector()
-        shape_predictor_path = os.path.join(*[model_dir, 'dlib_shape_predictor_68_face_landmarks.dat'])
-        assert Path(shape_predictor_path).exists(), "dlib_shape_predictor_68_face_landmarks.dat does not exist at this path: " + shape_predictor_path
+        #shape_predictor_path = os.path.join(*[model_dir, 'dlib_shape_predictor_68_face_landmarks.dat'])
+        shape_predictor_path = config_get_data_path(model_dir, 'face_landmarks_dlib_model')
         self.face_landmarks_predictor = dlib.shape_predictor(shape_predictor_path)
 
         # load face segmentation model

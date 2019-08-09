@@ -19,6 +19,7 @@ import time
 from scipy.ndimage.morphology import binary_closing, generate_binary_structure, iterate_structure
 from face_parse.face_parser import FaceParser
 from pathlib import Path
+from deploy.data_config import config_get_data_path
 
 G_debug_id = 0
 
@@ -248,8 +249,9 @@ class HmFPrnNetFaceTextureEmbedder():
 
     def __init__(self, meta_dir, texture_size = 1024):
         self.texture_size = texture_size
-        prn_facelib_rect_path = os.path.join(*[meta_dir, 'prn_texture_in_victoria_texture.txt'])
-        assert Path(prn_facelib_rect_path).exists(), f"there is no file prn_texture_in_victoria_texture.txt in meta_dir {meta_dir}"
+        #prn_facelib_rect_path = os.path.join(*[meta_dir, 'prn_texture_in_victoria_texture.txt'])
+        #assert Path(prn_facelib_rect_path).exists(), f"there is no file prn_texture_in_victoria_texture.txt in meta_dir {meta_dir}"
+        prn_facelib_rect_path = config_get_data_path(meta_dir, "prn_texture_in_victoria_texture")
         self.rect_uv = np.loadtxt(prn_facelib_rect_path)
 
         # TODO: we assume the embed texture area is a square here
@@ -260,8 +262,10 @@ class HmFPrnNetFaceTextureEmbedder():
         self.rect_center[1] = 1.0 - self.rect_center[1]
         self.rect_center = np.round(self.texture_size * self.rect_center).astype(np.int)
 
-        vic_tpl_vertex_groups_path = os.path.join(*[meta_dir, 'victoria_part_vert_idxs.pkl'])
-        vic_tpl_face_mesh_path = os.path.join(*[meta_dir, 'vic_mesh_textured_warped.obj'])
+        #vic_tpl_vertex_groups_path = os.path.join(*[meta_dir, 'victoria_part_vert_idxs.pkl'])
+        vic_tpl_vertex_groups_path = config_get_data_path(meta_dir, 'victoria_part_vert_idxs')
+        #vic_tpl_face_mesh_path = os.path.join(*[meta_dir, 'vic_mesh_textured_warped.obj'])
+        vic_tpl_face_mesh_path = config_get_data_path(meta_dir, 'victoria_template_textured_mesh')
         self._build_face_texture_masks(vic_tpl_vertex_groups_path, vic_tpl_face_mesh_path)
 
     def _build_face_texture_masks(self, vic_tpl_vertex_groups_path, vic_tpl_face_mesh_path):
