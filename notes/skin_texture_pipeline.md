@@ -13,6 +13,9 @@
   - [Position map outisde factial region causes backgound in the final texture](#position-map-outisde-factial-region-causes-backgound-in-the-final-texture)
     - [Experiment 1: make background black in a hope to increase PRN facelib accurarcy](#experiment-1-make-background-black-in-a-hope-to-increase-prn-facelib-accurarcy)
   - [Incorrect nostril color problem](#incorrect-nostril-color-problem)
+    - [Current state](#current-state)
+    - [Problem description](#problem-description)
+  - [PRN facelib training data quality.](#prn-facelib-training-data-quality)
 
 <!-- /code_chunk_output -->
 
@@ -86,6 +89,12 @@ Result: prediction result is still similar. Background still interferes with tex
 ![](images/.skin_texture_pipeline_images/f0ebd802.png)
 
 ## Incorrect nostril color problem
+
+### Current state
+The problem is solved quite well so far by applying inpainting in the nostril region.
+![](images/.skin_texture_pipeline_images/b48bd75f.png)
+
+### Problem description
 The below picture visualizes the black artifact under nostril. Specifically, the bottom of nostril
 has black color but the nostril itself is kind of brighter.
 
@@ -93,22 +102,33 @@ has black color but the nostril itself is kind of brighter.
 
 The below figure visualize the mapping/warping from the input image to the PRN texture.
 
-The blue points in the left image denotes the (x,y) coordinates of 3D points in the position map from PRN facelib.
-In other words, these blue points represent an orthogonal projection of vertices of the 3D face mesh (the position map) onto the input image face;
-therefore, one blue point in the left image could be the projections of multiple 3D points in the 3D face mesh.
+The blue points in the left image denotes the (x,y) coordinates of 3D points in the position map from PRN facelib. In other words, these blue points represent an orthogonal projection of vertices of the 3D face mesh (the position map) onto the input image face; therefore, one blue point in the left image could be the projections of multiple 3D points in the 3D face mesh.
 
-The right image is the PRN facelib texture. Because this is a texture, each of its pixels is mapped uniquely to
-one 3D point in the 3D mesh. Also, each of its pixel is mapped to one blue point in the left image; however, this could b
-many-to-one mapping because one blue point could be the projection of multiple 3D points, as explained earlier.  
-This mapping is basically how the PRN facelib texture is constructed.
+The right image is the PRN facelib texture. Because this is a texture, each of its pixels is mapped uniquely to one 3D point in the 3D mesh. Also, each of its pixel is mapped to one blue point in the left image; however, this could be many-to-one mapping because one blue point could be the projection of multiple 3D points, as explained earlier. This mapping is basically how the PRN facelib texture is constructed.
 
-***Why the nostril bottom is not black like its bottom***: I think this is one disadvantage of constructing texture
-directly from the input image. The nostril itself is invisible in the input image; therefore, there is no way that its
+***Why the nostril bottom is not black like its bottom***: I think this is one disadvantage of constructing texture directly from the input image. The nostril itself is invisible in the input image; therefore, there is no way that its
 color in the texture could be constructed. How could we construct one thing that does not exist?
 
 ***Solution_1***:
 replace black shadown pixels with skin color in the input image (left image below)
-<br/>
 ***Solution_2***:
 replace black shadown pixels with skin color in the PRN texture (right image below)
 ![](images/.skin_texture_pipeline_images/d95e07b8.png)
+
+## PRN facelib training data quality.
+
+The PRN facelib uses the face dataset [300WLP](http://www.cbsr.ia.ac.cn/users/xiangyuzhu/projects/3DDFA/main.htm) as its training data. Each data record in the dataset consists of
+- a face image in any pose.
+- a set of parameters to a statistical 3D face model, which encodes the shape of the subject face. The PRN facelib uses these parameters to reconstruct the corresponding 3D face mesh, which is then transformed to the frontal orientation to create the position map, the prediction output, as presented in [this code](https://github.com/YadiraF/face3d/blob/master/examples/8_generate_posmap_300WLP.py)
+
+**The problem** is about the quality of these parameters. They are just results of [a fitting algorithm](http://www.cbsr.ia.ac.cn/users/xiangyuzhu/projects/3DDFA/main.htm) that fits the 3D face statistical model to each face image; therefore, they are not reliable ground truth to train PRN facelib.
+
+I brought up the statistical model to compare the 3D face for each face image. It is very hard to confirm that these 3D meshes match correctly with the corresponding face in the image. From this observation, it is very hard to improve precision of PRN facelib without a good training dataset.
+
+The Oh's suggestion to add face color segmentation as auxiliary input to the PRN facelib training might not work due to ground truth is not enough.
+
+The author of PRN facelib suggests the following ideas to improve geometry precision: "Due to the restriction of training data, the precision of reconstructed face from this demo has little detail. You can train the network with your own detailed data or do post-processing like shape-from-shading to add details."
+
+Below are several sample visualizations of training data. For more, please download from [the link](https://drive.google.com/open?id=14rjxSCDldbglqiXwyh0GC3vBbRG5D2DA)
+![](images/.skin_texture_pipeline_images/skin_texture_pipeline-87b90f4c.png)
+![](images/.skin_texture_pipeline_images/11f1c347.png)
