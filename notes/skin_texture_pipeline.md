@@ -136,7 +136,9 @@ Below are several sample visualizations of training data. For more, please downl
 ![](images/.skin_texture_pipeline_images/skin_texture_pipeline-87b90f4c.png)
 ![](images/.skin_texture_pipeline_images/11f1c347.png)
 
+<br/>
 # Improvement ideas
+
 ## Skin synthesis
 Currently, the face skin color is estimated as the mean color center of the largest cluster from the clusters of all skin pixel colors in the facial region. The estimated color is often affected by two factors
 - lighting: half of the face could be dark and the other half is bright
