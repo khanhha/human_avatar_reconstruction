@@ -16,8 +16,11 @@
     - [Current state](#current-state)
     - [Problem description](#problem-description)
   - [PRN facelib training data quality.](#prn-facelib-training-data-quality)
+- [Improvement ideas](#improvement-ideas)
+  - [Skin synthesis](#skin-synthesis)
 
 <!-- /code_chunk_output -->
+
 
 
 # Pipeline
@@ -132,3 +135,15 @@ The author of PRN facelib suggests the following ideas to improve geometry preci
 Below are several sample visualizations of training data. For more, please download from [the link](https://drive.google.com/open?id=14rjxSCDldbglqiXwyh0GC3vBbRG5D2DA)
 ![](images/.skin_texture_pipeline_images/skin_texture_pipeline-87b90f4c.png)
 ![](images/.skin_texture_pipeline_images/11f1c347.png)
+
+# Improvement ideas
+## Skin synthesis
+Currently, the face skin color is estimated as the mean color center of the largest cluster from the clusters of all skin pixel colors in the facial region. The estimated color is often affected by two factors
+- lighting: half of the face could be dark and the other half is bright
+- skin detail: skin detail like bumps could affect the center mean of the largest cluster.
+
+Another way to extract color skin is to reuse face vertex color information from the Microsoft Deep Reconstruction model which predicts parameters to a statistical face model. Specifically, the parameters include two parts: 80 shape parameters and 80 color parameters, which encode shape and color information from low to high frequencies, as depicted in below. (the model is similar to our PCA shape model, but with color components)
+![](images/.skin_texture_pipeline_images/30e51cb8.png)
+
+The idea is that we can ignore the lighting information and the high-frequency color parameters that represent high-level face details by just keeping, for example, the first 10 color parameters. We then apply clustering on vertex colors that belongs to a pre-defined skin region. Below is the result from my experiment of keeping 10, 40, and 80 colors parameters with no lighting parameters integrated. You can see the left-most image looks more smooth than the the two other images because it is reconstructed from first 10 low-frequency parameters.
+![](images/.skin_texture_pipeline_images/22eae893.png)
