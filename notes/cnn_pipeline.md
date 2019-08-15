@@ -52,13 +52,14 @@ The PCA model we use is a simplified version of [the SMPL model](http://files.is
 download [the dataset](https://drive.google.com/open?id=1dxneLcuc3m32EAgW_UjPv539pmX5ymVG)
 ```python
 export PYTHONPATH="${PYTHONPATH}:./"
-python ./pca/pca_vic_train.py -vert_dir CAESAR_VERT_DIR -vic_mesh_path VIC_OBJ_PATH -female_names_file TXT_FEMALE_NAMES_PATH -out_dir OUTPUT_DIR -n_synthesize_samples 100
+python ./pca/pca_vic_train.py -vert_dir CAESAR_VERT_DIR -vic_mesh_path VIC_OBJ_PATH -female_names_file TXT_FEMALE_NAMES_PATH -out_dir OUTPUT_DIR -n_synthesize_samples 0
 ```
 
 For further information about the parameters, please refer to the help from the code. In general, the code performs the following tasks
 - train two pca models for male and femle
 - export the first 10 principal components for each PCA model for the sake of debugging.
-- synthesize more PCA values for each model, if the param __n_synthesize_samples__ is greater than zero
+- synthesize more PCA values for each model, if the param __n_synthesize_samples__ is greater than zero. If you don't want to synthesize new meshes from the trained PCA model, set  __n_synthesize_samples__ = 0
+- export the mesh vertex arrays for all meshes to the folder PCA_MOEL_PATH/verts/. These vertex arrays will be the input for the Blender script to project mesh to silhouette.
 - export a number of OBJ debug meshes for PCA values.
 
 ## Silhouette Generation
@@ -70,14 +71,16 @@ Do the following steps to generate silhouettes.
  - start [the blender file](https://drive.google.com/open?id=1zUyAl8Jz21NT5r3yHKhRQcC5XuU_jpL9): caesar_project_silhouette.blend
  - press NUMPAD key 0 to make sure that the 3D view is in projection camera mode. This step must be done; otherwise, the generated silhouettes will be rendered from the view manipulation camera matrix of Blender.
  - generate male silhouettes
-    - update the path variables in the script file (sorry for this inconveniece. Run the script from console with arguments doesn't work)
+    - update the path variables in the script file (sorry for this inconveniece. Run the script from console with arguments doesn't work). PCA_MODEL_DIR points to the output folder in the previous training PCA stage.
         - pca_co_dir: points to the path: PCA_MOEL_PATH/verts/male
+          - "pca_co_dir" here points to the folder that contains vertex arrays (49963 vertices) of caesar meshes, not the PCA params directory. Sorry about the naming convention.
         - sil_root_dir: points to output male silhouette: TRAINIG_DATA_DIR/male_sil_raw
     - press "Run Script".
 
  - generate female silhouttes
     - update the path variables:
         - pca_co_dir: points to the path: PCA_MOEL_PATH/verts/female
+          - "pca_co_dir" here points to the folder that contains vertex arrays (49963 vertices) of caesar meshes, not the PCA params directory. Sorry about the naming convention.
         - sil_root_dir: points to output female silhouette: TRAINIG_DATA_DIR/female_sil_raw
     - press "Run Script"
 
