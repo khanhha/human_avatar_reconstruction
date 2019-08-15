@@ -43,7 +43,7 @@
   - As mentioned in figures of our CNN architectures, we reuse the Densenet architecture in the standard Pytorch library. However, this architecture just take in an RGB image while we just pass in binary image; therefore, we have to customize the first layer of the standard Densenet architecture to force it to take in binary input. With this customized architecture, we have to train the weight of Densenet from scratch instead of fine-tuning it with the pre-trained weights from the Pytorch library.      
 
 # A pose variant
-
+- [link to experiment result](https://drive.google.com/open?id=1p_SLMMV-UEoSdD8sJaX9JmLGnQpe7Qpf)
 - __below figures depicts the effect of A pose variants on the result__. It seems that the torso pose affects the results the most.
     - torso lean forward
     ![](./images/a_pose_lean_forward.jpg)
