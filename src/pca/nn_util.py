@@ -314,7 +314,7 @@ def crop_silhouette_height(sil, mask):
 
     sil = sil[head_tip_y:toe_tip_y, :]
 
-    return sil
+    return sil, (head_tip_y, toe_tip_y)
 
 def crop_silhouette_width(sil, mask):
     col_mask = np.sum(mask, axis=0)
@@ -324,14 +324,14 @@ def crop_silhouette_width(sil, mask):
 
     sil = sil[:, left_x:right_x]
 
-    return sil
+    return sil, (left_x, right_x)
 
 def crop_silhouette_pair_blender(sil_f, sil_s, size):
 
     th3, sil_f = cv.threshold(sil_f, 0, 255, cv.THRESH_BINARY_INV + cv.THRESH_OTSU)
     th3, sil_s = cv.threshold(sil_s, 0, 255, cv.THRESH_BINARY_INV + cv.THRESH_OTSU)
 
-    sil_f, sil_s = crop_silhouette_pair(sil_f, sil_s, mask_f=sil_f, mask_s=sil_s, target_h=size[0], target_w=size[1],
+    sil_f, sil_s, _, _ = crop_silhouette_pair(sil_f, sil_s, mask_f=sil_f, mask_s=sil_s, target_h=size[0], target_w=size[1],
                                         px_height=int(0.9 * size[0]))
 
     th3, sil_f = cv.threshold(sil_f, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU)
@@ -340,32 +340,62 @@ def crop_silhouette_pair_blender(sil_f, sil_s, size):
     return sil_f, sil_s
 
 def crop_silhouette_pair(img_f, img_s, mask_f, mask_s, px_height = 364, target_h = 384, target_w = 256):
-    img_f = crop_silhouette_height(img_f, mask_f)
-    img_s = crop_silhouette_height(img_s, mask_s)
-    img_f = crop_silhouette_width(img_f, mask_f)
-    img_s = crop_silhouette_width(img_s, mask_s)
+    Trans_f = None
+    Trans_s = None
+    if img_f is not None:
+        img_f, y_crop_range = crop_silhouette_height(img_f, mask_f)
+        img_f, x_crop_range = crop_silhouette_width(img_f, mask_f)
 
-    h_ratio = px_height / img_f.shape[0]
-    img_f = cv.resize(img_f, dsize= None, fx=h_ratio, fy=h_ratio, interpolation=cv.INTER_AREA)
-    h_ratio = px_height / img_s.shape[0]
-    img_s = cv.resize(img_s, dsize= None, fx=h_ratio, fy=h_ratio, interpolation=cv.INTER_AREA)
+        T_crop = np.array([[-x_crop_range[0], 0.0],
+                           [0.0,              -y_crop_range[0]]], dtype=np.float32)
 
-    ver_ext = int((target_h - img_f.shape[0]) / 2)
-    hor_ext = int((target_w - img_f.shape[1]) / 2)
-    img_f = cv.copyMakeBorder(img_f, top=ver_ext, bottom=ver_ext, left=hor_ext, right=hor_ext, borderType=cv.BORDER_CONSTANT)
+        h_ratio = px_height / img_f.shape[0]
+        img_f = cv.resize(img_f, dsize= None, fx=h_ratio, fy=h_ratio, interpolation=cv.INTER_AREA)
 
-    ver_ext = int((target_h - img_s.shape[0]) / 2)
-    hor_ext = int((target_w - img_s.shape[1]) / 2)
-    img_s = cv.copyMakeBorder(img_s, top=ver_ext, bottom=ver_ext, left=hor_ext, right=hor_ext, borderType=cv.BORDER_CONSTANT)
+        S = np.array([[h_ratio, 0.0],
+                      [0.0,     h_ratio]], dtype=np.float32)
 
-    #assert sil_s.shape[0] == sil_f.shape[0]
+        ver_ext = int((target_h - img_f.shape[0]) / 2)
+        hor_ext = int((target_w - img_f.shape[1]) / 2)
+        img_f = cv.copyMakeBorder(img_f, top=ver_ext, bottom=ver_ext, left=hor_ext, right=hor_ext, borderType=cv.BORDER_CONSTANT)
 
-    #for sure
-    if img_f.shape[0] != target_h or img_f.shape[1] != target_w:
-        img_f = cv.resize(img_f, dsize= (target_w, target_h), interpolation=cv.INTER_AREA)
+        T_pad = np.array([[hor_ext, 0.0],
+                          [0.0,     ver_ext]], dtype=np.float32)
 
-    if img_s.shape[0] != target_h or img_s.shape[1] != target_w:
-        img_s = cv.resize(img_s, dsize= (target_w, target_h), interpolation=cv.INTER_AREA)
+        if img_f.shape[0] != target_h or img_f.shape[1] != target_w:
+            img_f = cv.resize(img_f, dsize= (target_w, target_h), interpolation=cv.INTER_AREA)
+
+        Trans_f = np.matmul(S, T_crop)
+        Trans_f = np.matmul(T_pad, Trans_f)
+
+    if img_s is not None:
+        img_s, x_crop_range = crop_silhouette_height(img_s, mask_s)
+        img_s, y_crop_range = crop_silhouette_width(img_s, mask_s)
+
+        T_crop = np.array([[-x_crop_range[0], 0.0],
+                           [0.0,              -y_crop_range[0]]], dtype=np.float32)
+
+        h_ratio = px_height / img_s.shape[0]
+        img_s = cv.resize(img_s, dsize= None, fx=h_ratio, fy=h_ratio, interpolation=cv.INTER_AREA)
+
+        S = np.array([[h_ratio, 0.0],
+                      [0.0,     h_ratio]], dtype=np.float32)
+
+        ver_ext = int((target_h - img_s.shape[0]) / 2)
+        hor_ext = int((target_w - img_s.shape[1]) / 2)
+        img_s = cv.copyMakeBorder(img_s, top=ver_ext, bottom=ver_ext, left=hor_ext, right=hor_ext, borderType=cv.BORDER_CONSTANT)
+
+        T_pad = np.array([[hor_ext, 0.0],
+                          [0.0,     ver_ext]], dtype=np.float32)
+
+        #assert sil_s.shape[0] == sil_f.shape[0]
+
+        #for sure
+        if img_s.shape[0] != target_h or img_s.shape[1] != target_w:
+            img_s = cv.resize(img_s, dsize= (target_w, target_h), interpolation=cv.INTER_AREA)
+
+        Trans_s = np.matmul(S, T_crop)
+        Trans_s = np.matmul(T_pad, Trans_f)
 
     # plt.axes().set_aspect(1.0)
     # plt.subplot(121)
@@ -374,7 +404,7 @@ def crop_silhouette_pair(img_f, img_s, mask_f, mask_s, px_height = 364, target_h
     # plt.imshow(sil_s)
     # plt.show()
 
-    return img_f, img_s
+    return img_f, img_s, Trans_f, Trans_s
 
 def find_latest_model_path(dir):
     model_paths = []

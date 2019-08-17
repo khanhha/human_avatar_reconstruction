@@ -21,7 +21,7 @@ class HmShapePredPytorchModel():
         assert len(sil_s.shape) == 2
 
         size = self.image_input_shape
-        sil_f, sil_s = crop_silhouette_pair(sil_f, sil_s, mask_f=sil_f, mask_s=sil_s, target_h=size[0], target_w=size[1], px_height=int(0.9 * size[0]))
+        sil_f, sil_s, _, _ = crop_silhouette_pair(sil_f, sil_s, mask_f=sil_f, mask_s=sil_s, target_h=size[0], target_w=size[1], px_height=int(0.9 * size[0]))
 
         sil_f = sil_f[np.newaxis, np.newaxis, :]
         sil_s = sil_s[np.newaxis, np.newaxis, :]
