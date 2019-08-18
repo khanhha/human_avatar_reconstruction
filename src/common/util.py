@@ -175,7 +175,7 @@ def reconstruct_contour_fourier_zero_padding(fourier, use_radal=False):
 
     cpl_contour = ifft(fouriers)
     X = np.real(cpl_contour)
-    Y = np.imag(cpl_contour)
+    Y = np.imag(cpl_contourkhanhhh)
 
     fouriers_1 = fouriers[:8] + 12*[np.complex(0, 0)] + fouriers[8:] + 12*[np.complex(0, 0)]
     cpl_contour1 = ifft(fouriers_1)
@@ -374,8 +374,32 @@ def align_torso_contour(X, Y, anchor_pos_x = True, debug_path = None):
     return np.array(X_algn), np.array(Y_algn)
 
 
+def grab_contours(cnts):
+    # if the length the contours tuple returned by cv2.findContours
+    # is '2' then we are using either OpenCV v2.4, v4-beta, or
+    # v4-official
+    if len(cnts) == 2:
+        cnts = cnts[0]
+
+    # if the length of the contours tuple is '3' then we are using
+    # either OpenCV v3, v4-pre, or v4-alpha
+    elif len(cnts) == 3:
+        cnts = cnts[1]
+
+    # otherwise OpenCV has changed their cv2.findContours return
+    # signature yet again and I have no idea WTH is going on
+    else:
+        raise Exception(("Contours tuple must have length 2 or 3, "
+                         "otherwise OpenCV changed their cv2.findContours return "
+                         "signature yet again. Refer to OpenCV's documentation "
+                         "in that case"))
+
+    # return the actual contours array
+    return cnts
+
 def find_largest_contour(img_bi, app_type=cv.CHAIN_APPROX_TC89_L1):
-    cnt, contours, _ = cv.findContours(img_bi, cv.RETR_LIST, app_type)
+    contours = cv.findContours(img_bi, cv.RETR_LIST, app_type)
+    contours = grab_contours(contours)
     largest_cnt = None
     largest_area = -1
     for cnt in contours:

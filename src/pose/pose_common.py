@@ -72,14 +72,13 @@ class HumanPose:
     """
     body_parts: list of BodyPart
     """
-    __slots__ = ('body_parts', 'pairs', 'uidx_list', 'score', 'img_w', 'img_h')
+    __slots__ = ('body_parts', 'pairs', 'uidx_list', 'score', 'img_transform')
 
     def __init__(self, pairs):
-        self.img_w = 0
-        self.img_h = 0
         self.pairs = []
         self.uidx_list = set()
         self.body_parts = {}
+        self.img_transform = np.identity(3, dtype=np.float32)
         for pair in pairs:
             self.add_pair(pair)
         self.score = 0.0
@@ -87,6 +86,14 @@ class HumanPose:
     @staticmethod
     def _get_uidx(part_idx, idx):
         return '%d-%d' % (part_idx, idx)
+
+    @staticmethod
+    def homo_to_euc(pnt):
+        return np.array([pnt[0] / pnt[2], pnt[1] / pnt[2]])
+
+    @staticmethod
+    def euc_to_homo(pnt):
+        return np.array([pnt[0], pnt[1], 1.0])
 
     def add_pair(self, pair):
         self.pairs.append(pair)
@@ -99,24 +106,25 @@ class HumanPose:
         self.uidx_list.add(HumanPose._get_uidx(pair.part_idx1, pair.idx1))
         self.uidx_list.add(HumanPose._get_uidx(pair.part_idx2, pair.idx2))
 
-    def set_img_size(self, w, h):
-        self.img_w = w
-        self.img_h = h
+    @staticmethod
+    def build_img_transform(img_w, img_h):
+        T = np.array([[img_w, 0.0, 0.5],
+                       [0.0, img_h, 0.5],
+                       [0.0, 0.0, 1.0]], dtype=np.float32)
+        return T
+
+    def append_img_transform(self, T):
+        self.img_transform = np.matmul(T, self.img_transform)
 
     def point(self, part_enum):
         if part_enum.value not in self.body_parts:
             raise MissingPoseJoint(f'{part_enum.name}')
         p = self.body_parts[part_enum.value]
-        center = (int(p.x * self.img_w + 0.5), int(p.y * self.img_h + 0.5))
-        return np.array(center)
-
-    def adjust_point(self, part_enum, p):
-        if part_enum.value not in self.body_parts:
-            raise MissingPoseJoint(f'{part_enum.name}')
-        x = p[0] / float(self.img_w)
-        y = p[1] / float(self.img_h)
-        self.body_parts[part_enum.value].x = x
-        self.body_parts[part_enum.value].y = y
+        #assert self.img_w != 0 and self.img_h != 0, 'the image width and height needs to be set'
+        #center = np.array((int(p.x * self.img_w + 0.5), int(p.y * self.img_h + 0.5)))
+        center = np.array([p.x, p.y])
+        center = HumanPose.homo_to_euc(np.matmul(self.img_transform, HumanPose.euc_to_homo(center))).astype(np.int32)
+        return center
 
     def midhip(self):
         if self.is_valid(CocoPart.LHip) and self.is_valid(CocoPart.RHip):

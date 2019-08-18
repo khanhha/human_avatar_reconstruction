@@ -346,21 +346,24 @@ def crop_silhouette_pair(img_f, img_s, mask_f, mask_s, px_height = 364, target_h
         img_f, y_crop_range = crop_silhouette_height(img_f, mask_f)
         img_f, x_crop_range = crop_silhouette_width(img_f, mask_f)
 
-        T_crop = np.array([[-x_crop_range[0], 0.0],
-                           [0.0,              -y_crop_range[0]]], dtype=np.float32)
+        T_crop = np.array([[1.0, 0.0, -x_crop_range[0]],
+                           [0.0, 1.0, -y_crop_range[0]],
+                           [0.0, 0.0, 1.0]], dtype=np.float32)
 
         h_ratio = px_height / img_f.shape[0]
         img_f = cv.resize(img_f, dsize= None, fx=h_ratio, fy=h_ratio, interpolation=cv.INTER_AREA)
 
-        S = np.array([[h_ratio, 0.0],
-                      [0.0,     h_ratio]], dtype=np.float32)
+        S = np.array([[h_ratio, 0.0, 0.0],
+                      [0.0,     h_ratio, 0.0],
+                      [0.0, 0.0, 1.0]], dtype=np.float32)
 
         ver_ext = int((target_h - img_f.shape[0]) / 2)
         hor_ext = int((target_w - img_f.shape[1]) / 2)
         img_f = cv.copyMakeBorder(img_f, top=ver_ext, bottom=ver_ext, left=hor_ext, right=hor_ext, borderType=cv.BORDER_CONSTANT)
 
-        T_pad = np.array([[hor_ext, 0.0],
-                          [0.0,     ver_ext]], dtype=np.float32)
+        T_pad = np.array([[1.0, 0.0, hor_ext],
+                          [0.0, 1.0, ver_ext],
+                          [0.0, 0.0, 1.0]], dtype=np.float32)
 
         if img_f.shape[0] != target_h or img_f.shape[1] != target_w:
             img_f = cv.resize(img_f, dsize= (target_w, target_h), interpolation=cv.INTER_AREA)
@@ -372,21 +375,24 @@ def crop_silhouette_pair(img_f, img_s, mask_f, mask_s, px_height = 364, target_h
         img_s, x_crop_range = crop_silhouette_height(img_s, mask_s)
         img_s, y_crop_range = crop_silhouette_width(img_s, mask_s)
 
-        T_crop = np.array([[-x_crop_range[0], 0.0],
-                           [0.0,              -y_crop_range[0]]], dtype=np.float32)
+        T_crop = np.array([[1.0, 0.0, -x_crop_range[0]],
+                           [0.0, 1.0, -y_crop_range[0]],
+                           [0.0, 0.0, 1.0]], dtype=np.float32)
 
         h_ratio = px_height / img_s.shape[0]
         img_s = cv.resize(img_s, dsize= None, fx=h_ratio, fy=h_ratio, interpolation=cv.INTER_AREA)
 
-        S = np.array([[h_ratio, 0.0],
-                      [0.0,     h_ratio]], dtype=np.float32)
+        S = np.array([[h_ratio, 0.0, 0.0],
+                      [0.0,     h_ratio, 0.0],
+                      [0.0, 0.0, 1.0]], dtype=np.float32)
 
         ver_ext = int((target_h - img_s.shape[0]) / 2)
         hor_ext = int((target_w - img_s.shape[1]) / 2)
         img_s = cv.copyMakeBorder(img_s, top=ver_ext, bottom=ver_ext, left=hor_ext, right=hor_ext, borderType=cv.BORDER_CONSTANT)
 
-        T_pad = np.array([[hor_ext, 0.0],
-                          [0.0,     ver_ext]], dtype=np.float32)
+        T_pad = np.array([[1.0, 0.0, hor_ext],
+                          [0.0, 1.0, ver_ext],
+                          [0.0, 0.0, 1.0]], dtype=np.float32)
 
         #assert sil_s.shape[0] == sil_f.shape[0]
 

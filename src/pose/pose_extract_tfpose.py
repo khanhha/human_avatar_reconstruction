@@ -7,7 +7,7 @@ import pickle
 
 from tf_pose.estimator import TfPoseEstimator
 from tf_pose.networks import get_graph_path
-from measure.pose_common import HumanPose, PosePart
+from pose.pose_common import HumanPose, PosePart
 
 logger = logging.getLogger('TfPoseEstimator')
 logger.setLevel(logging.DEBUG)
@@ -58,31 +58,28 @@ class PoseExtractorTf:
 import shutil
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
-    ap.add_argument("-r", "--root_dir", required=True, help="image folder")
     ap.add_argument("-i", "--input_dir", required=True, help="image folder")
     ap.add_argument("-o", "--output_dir", required=True, help='output pose dir')
     ap.add_argument('-debug_name', required=False, type=str, default='')
     args = ap.parse_args()
-    DIR_IN = os.path.join(*[args.root_dir, args.input_dir]) + '/'
-    DIR_OUT = os.path.join(*[args.root_dir, args.output_dir]) + '/'
 
     debug_name = args.debug_name
 
-    os.makedirs(DIR_OUT, exist_ok=True)
+    os.makedirs(args.output_dir, exist_ok=True)
 
     extractor = PoseExtractorTf()
 
     error_files = []
-    for img_path in Path(DIR_IN).glob('*.*'):
+    for img_path in Path(args.input_dir).glob('*.*'):
         if debug_name != '' and debug_name not in img_path.stem:
             continue
         print(img_path)
         img = cv.imread(str(img_path))
         try:
             pose, img_pose = extractor.extract_single_pose(img, debug=True)
-            cv.imwrite(f'{DIR_OUT}/{img_path.stem}.png', img_pose)
+            cv.imwrite(f'{args.output_dir}/{img_path.stem}.png', img_pose)
             print(f'export pose to file {img_path}')
-            with open(f'{DIR_OUT}/{img_path.stem}.pkl', 'wb') as file:
+            with open(f'{args.output_dir}/{img_path.stem}.pkl', 'wb') as file:
                 pickle.dump(obj = pose, file=file)
         except Exception as exp:
             print('catched one exception: ', exp)
