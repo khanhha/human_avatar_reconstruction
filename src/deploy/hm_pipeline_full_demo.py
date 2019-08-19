@@ -87,7 +87,7 @@ if __name__ == '__main__':
                 img_s = cv.imread(side_img_path)
                 img_face_org = cv.imread(face_img_path)
 
-                verts, faces, sil_f, sil_s = body_model.predict(img_f, img_s, height, gender)
+                verts, faces, sil_f, sil_s = body_model.predict(img_f, img_s, height, gender, correct_silhouette=False)
 
                 #out_path = os.path.join(*[args.out_dir, f'{Path(front_img_path).stem}_org_head_{idx}.obj'])
                 #export_mesh(out_path, verts=verts, faces = tex_mesh['f'])

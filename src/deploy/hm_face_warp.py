@@ -13,7 +13,6 @@ from collections import defaultdict, Counter
 from sklearn import mixture
 from sklearn.cluster import KMeans
 from sklearn.mixture import BayesianGaussianMixture
-from src.deploy.patchBasedTextureSynthesis import patchBasedTextureSynthesis
 from tex_syn.generate import *
 import time
 from scipy.ndimage.morphology import binary_closing, generate_binary_structure, iterate_structure

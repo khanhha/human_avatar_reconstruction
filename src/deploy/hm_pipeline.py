@@ -10,7 +10,7 @@ import os
 from pathlib import Path
 from common.obj_util import import_mesh_obj, export_mesh
 from deploy.data_config import  config_get_data_path
-
+from pose.pose_extract_tfpose import PoseExtractorTf
 #this module predicts a 3D human mesh from front, side images, height and gender
 class HumanRGBModel:
 
@@ -19,9 +19,11 @@ class HumanRGBModel:
         #self.hmshape_model = HmShapePredPytorchModel(model_path=hmshape_model_path)
         self.hmshape_model = HmShapePredModel(model_path=hmshape_model_path)
         _, faces = import_mesh_obj(mesh_path)
+
+        self.extractor = PoseExtractorTf()
         self.tpl_faces = faces
 
-    def predict(self, rgb_img_f, rgb_img_s, height, gender):
+    def predict(self, rgb_img_f, rgb_img_s, height, gender, correct_silhouette = False):
         """
         predict a 3D human mesh from front side RGB images, height and gender
         :param rgb_img_f:
@@ -44,10 +46,21 @@ class HumanRGBModel:
         # axes[1].imshow(rgb_img_s)
         # axes[1].imshow(sil_s, alpha=0.5)
         # plt.show()
-        verts, faces = self.predict_sil(sil_f, sil_s, height, gender)
+        pose_f, pose_s = None, None
+        if correct_silhouette:
+            pose_f, img_pose_f = self.extractor.extract_single_pose(rgb_img_f, debug=True)
+            pose_s, img_pose_s = self.extractor.extract_single_pose(rgb_img_s, debug=True)
+            # plt.subplot(121)
+            # plt.imshow(img_pose_f)
+            # plt.subplot(122)
+            # plt.imshow(img_pose_s)
+            # plt.show()
+
+        verts, faces  = self.predict_sil(sil_f, sil_s, height, gender, pose_f=pose_f, pose_s=pose_s)
+
         return verts, faces, sil_f, sil_s
 
-    def predict_sil(self, sil_f, sil_s, height, gender):
+    def predict_sil(self, sil_f, sil_s, height, gender, pose_f = None, pose_s = None):
         """
         :param sil_f: front silhouete
         :param sil_s: side silhouete
@@ -57,7 +70,7 @@ class HumanRGBModel:
         verts: Nx3 points
         faces: template face list
         """
-        verts = self.hmshape_model.predict(sil_f=sil_f, sil_s=sil_s, height=height, gender=gender)
+        verts = self.hmshape_model.predict(sil_f=sil_f, sil_s=sil_s, height=height, gender=gender, pose_f=pose_f, pose_s=pose_s)
         verts = verts[0]
         verts = verts.reshape(verts.shape[0]//3, 3)
         return verts, self.tpl_faces

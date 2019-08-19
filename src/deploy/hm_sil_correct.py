@@ -27,15 +27,14 @@ class HmSilCorrector():
         pass
 
     def correct_f_sil(self, sil_f, pose=None):
-        size = (384, 256)
-        sil, _, trans_f, _ = crop_silhouette_pair(sil_f, None, sil_f, None, target_h=size[0], target_w=size[1],
-                                                  px_height=int(0.9 * size[0]))
+        sil, _, trans_f, _ = crop_silhouette_pair(sil_f, None, sil_f, None, target_h=self.size[0], target_w=self.size[1],
+                                                  px_height=int(0.9 * self.size[0]))
         sil = (sil > 0).astype(np.uint8) * 255
 
         if pose is None:
             return sil
 
-        pose.append_img_transform(HumanPose.build_img_transform(img_w=img_pose.shape[1], img_h = img_pose.shape[0]))
+        pose.append_img_transform(HumanPose.build_img_transform(img_w=sil_f.shape[1], img_h = sil_f.shape[0]))
         pose.append_img_transform(trans_f)
 
         lankle = pose.point(HmPart.LAnkle)
@@ -94,6 +93,10 @@ class HmSilCorrector():
         sil_corrected = np.zeros_like(sil)
         self.fill_silhouette(verts_1, B['triangles'], sil_corrected)
 
+        debug_dir = '/home/khanhhh/data_1/projects/Oh/data/3d_human/test_data/body_designer/result/'
+        cv.imwrite(filename=f'{debug_dir}/{np.random.randint(0,1000)}.png', img=sil_corrected)
+        #plt.imshow(sil_corrected)
+        #plt.show()
        # verts_1[:, 1] = sil.shape[0] - verts_1[:, 1]
        # A['vertices'][:, 1] = sil.shape[0] - A['vertices'][:, 1]
 
@@ -104,9 +107,8 @@ class HmSilCorrector():
         return sil_corrected
 
     def correct_s_sil(self, sil_s, pose):
-        size = (384, 256)
-        _, sil, _, trans_s = crop_silhouette_pair(None, sil_s, None, sil_s, target_h=size[0], target_w=size[1],
-                                                  px_height=int(0.9 * size[0]))
+        _, sil, _, trans_s = crop_silhouette_pair(None, sil_s, None, sil_s, target_h=self.size[0], target_w=self.size[1],
+                                                  px_height=int(0.9 * self.size[0]))
         sil = (sil > 0).astype(np.uint8) * 255
         return sil
 

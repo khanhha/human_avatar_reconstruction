@@ -401,7 +401,7 @@ def crop_silhouette_pair(img_f, img_s, mask_f, mask_s, px_height = 364, target_h
             img_s = cv.resize(img_s, dsize= (target_w, target_h), interpolation=cv.INTER_AREA)
 
         Trans_s = np.matmul(S, T_crop)
-        Trans_s = np.matmul(T_pad, Trans_f)
+        Trans_s = np.matmul(T_pad, Trans_s)
 
     # plt.axes().set_aspect(1.0)
     # plt.subplot(121)
