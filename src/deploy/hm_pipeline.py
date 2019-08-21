@@ -11,6 +11,9 @@ from pathlib import Path
 from common.obj_util import import_mesh_obj, export_mesh
 from deploy.data_config import  config_get_data_path
 from pose.pose_extract_tfpose import PoseExtractorTf
+from pose.pose_common import CocoPart as HmPart
+from pose.pose_common import HumanPose
+
 #this module predicts a 3D human mesh from front, side images, height and gender
 class HumanRGBModel:
 
@@ -23,7 +26,7 @@ class HumanRGBModel:
         self.extractor = PoseExtractorTf()
         self.tpl_faces = faces
 
-    def predict(self, rgb_img_f, rgb_img_s, height, gender, correct_silhouette = False):
+    def predict(self, rgb_img_f, rgb_img_s, height, gender, correct_sil_f = False, correct_sil_s = False):
         """
         predict a 3D human mesh from front side RGB images, height and gender
         :param rgb_img_f:
@@ -47,14 +50,13 @@ class HumanRGBModel:
         # axes[1].imshow(sil_s, alpha=0.5)
         # plt.show()
         pose_f, pose_s = None, None
-        if correct_silhouette:
+        if correct_sil_f:
             pose_f, img_pose_f = self.extractor.extract_single_pose(rgb_img_f, debug=True)
+            pose_f.append_img_transform(HumanPose.build_img_transform(img_w=rgb_img_f.shape[1], img_h=rgb_img_f.shape[0]))
+
+        if correct_sil_s:
             pose_s, img_pose_s = self.extractor.extract_single_pose(rgb_img_s, debug=True)
-            # plt.subplot(121)
-            # plt.imshow(img_pose_f)
-            # plt.subplot(122)
-            # plt.imshow(img_pose_s)
-            # plt.show()
+            pose_s.append_img_transform(HumanPose.build_img_transform(img_w=rgb_img_s.shape[1], img_h=rgb_img_s.shape[0]))
 
         verts, faces  = self.predict_sil(sil_f, sil_s, height, gender, pose_f=pose_f, pose_s=pose_s)
 

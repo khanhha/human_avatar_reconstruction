@@ -372,8 +372,8 @@ def crop_silhouette_pair(img_f, img_s, mask_f, mask_s, px_height = 364, target_h
         Trans_f = np.matmul(T_pad, Trans_f)
 
     if img_s is not None:
-        img_s, x_crop_range = crop_silhouette_height(img_s, mask_s)
-        img_s, y_crop_range = crop_silhouette_width(img_s, mask_s)
+        img_s, y_crop_range = crop_silhouette_height(img_s, mask_s)
+        img_s, x_crop_range = crop_silhouette_width(img_s, mask_s)
 
         T_crop = np.array([[1.0, 0.0, -x_crop_range[0]],
                            [0.0, 1.0, -y_crop_range[0]],

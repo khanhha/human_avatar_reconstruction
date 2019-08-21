@@ -35,8 +35,19 @@ class FaceExtractor():
 
         # detect faces in the grayscale image
         rects = self.face_detector(gray, 1)
-        # loop over the face detections
-        for (i, rect) in enumerate(rects):
+
+        if len(rects) > 0:
+            # find the largest face
+            rects_size = []
+            for rect in rects:
+                w = rect.right()  - rect.left()
+                h = rect.bottom() - rect.top()
+                m = 0.5*(w+h)
+                rects_size.append(m)
+
+            largest_idx =  np.argmax(np.array(rects_size))
+            rect = rects[largest_idx]
+
             # determine the facial landmarks for the face region, then
             # convert the facial landmark (x, y)-coordinates to a NumPy
             # array
@@ -46,8 +57,8 @@ class FaceExtractor():
             shape = shape.astype(np.float32)
             shape = shape.reshape((-1, 2))
             return shape
-
-        return None
+        else:
+            return None
 
     def extract(self, img, debug_name=None):
         """

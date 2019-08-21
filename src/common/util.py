@@ -40,6 +40,13 @@ def contour_center(X, Y):
 
 from scipy.interpolate import splprep, splev
 def resample_contour(X, Y, n_point):
+    """
+    this function assumes that the input points X and Y are very dense; other wise, it will create distortion at sparse contour segments
+    :param X:
+    :param Y:
+    :param n_point:
+    :return:
+    """
     okay = np.where(np.abs(np.diff(X)) + np.abs(np.diff(Y)) > 0)
     X = X[okay]
     Y = Y[okay]
