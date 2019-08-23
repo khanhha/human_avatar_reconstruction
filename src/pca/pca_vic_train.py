@@ -101,18 +101,6 @@ def convert_org_mesh_to_pca(model_path, out_dir, vert_paths):
             bar.update(1)
             bar.set_postfix(msg = f'{pca_co.min()}, {pca_co.max()}')
 
-def male_vert_paths(vert_dir, female_names_dir):
-    female_names = set([path.stem for path in Path(female_names_dir).glob('*.*')])
-    #Warning: there could be both pkl and obj file in this folder => always search for pkl file
-    all_paths = [path for path in Path(vert_dir).glob('*.pkl')]
-    return [path for path in all_paths if path.stem not in female_names]
-
-def female_vert_paths(vert_dir, female_names_dir):
-    female_names = set([path.stem for path in Path(female_names_dir).glob('*.*')])
-    #Warning: there could be both pkl and obj file in this folder => always search for pkl file
-    all_paths = [path for path in Path(vert_dir).glob('*.pkl')]
-    return [path for path in all_paths if path.stem in female_names]
-
 def tool_export_pca_coords(model_path, vert_paths, out_pca_dir, synthesize_samples=0):
     os.makedirs(out_pca_dir, exist_ok=True)
     print(f'\ttransforming {len(vert_paths)} original mesh to pca values')
@@ -122,38 +110,6 @@ def tool_export_pca_coords(model_path, vert_paths, out_pca_dir, synthesize_sampl
         gen_syn_pca_params(model_path=model_path, out_dir=out_pca_dir, n_samples=synthesize_samples)
 
 #test_syn_pca(model_path=model_path, pca_dir=out_pca_dir, vic_mesh_path=vic_mesh_path, debug_out_dir=debug_dir, n_samples=15)
-
-def tool_export_pca_coords_male_female(args, model_dir, vic_mesh_path, synthesize_samples=0):
-    vdir = args.vert_dir
-    female_names_dir = args.female_names_dir
-
-    vic_mesh_path = args.vic_mesh_path
-
-    model_path =   os.path.join(*[model_dir,   'vic_male_pca_model.jlb'])
-    out_dir =   os.path.join(*[model_dir,   'pca_coords', 'male'])
-    os.makedirs(out_dir, exist_ok=True)
-    vert_paths = male_vert_paths(vert_dir=vdir, female_names_dir=female_names_dir)
-    print(f'transforming {len(vert_paths)} original male mesh to pca values')
-    convert_org_mesh_to_pca(model_path=model_path, out_dir=out_dir, vert_paths=vert_paths)
-
-    if synthesize_samples > 0:
-        print(f'start synthesizing {synthesize_samples} male pca values. model path = {Path(model_path).name}')
-        debug_dir = os.path.join(*[model_dir, 'pca_coords', 'debug_male'])
-        gen_syn_pca_params(model_path=model_path, out_dir=out_dir, n_samples=30000)
-        export_random_pca_mesh(model_path=model_path, pca_dir=out_dir, vic_mesh_path=vic_mesh_path, debug_out_dir=debug_dir, n_samples=15)
-
-    model_path = os.path.join(*[model_dir, 'vic_female_pca_model.jlb'])
-    out_dir =   os.path.join(*[model_dir, 'pca_coords', 'female'])
-    os.makedirs(out_dir, exist_ok=True)
-    vert_paths = female_vert_paths(vert_dir=vdir, female_names_dir=female_names_dir)
-    print(f'transforming {len(vert_paths)} original female mesh to pca values')
-    convert_org_mesh_to_pca(model_path=model_path, out_dir=out_dir, vert_paths=vert_paths)
-
-    if synthesize_samples > 0:
-        print(f'start synthesizing {synthesize_samples} female pca values. model path = {Path(model_path).name}')
-        debug_dir = os.path.join(*[model_dir, 'pca_coords', 'debug_female'])
-        gen_syn_pca_params(model_path=model_path, out_dir=out_dir, n_samples=30000)
-        export_random_pca_mesh(model_path=model_path, pca_dir=out_dir, vic_mesh_path=vic_mesh_path, debug_out_dir=debug_dir, n_samples=15)
 
 def export_random_pca_mesh(model_path, pca_dir, vic_mesh_path, debug_out_dir, n_samples = 15):
     pca_model = joblib.load(filename=model_path)
