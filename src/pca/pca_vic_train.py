@@ -35,6 +35,22 @@ def export_principal_components(out_dir, pca_model, tpl_faces, n_components, n_s
         opath = join(*[out_dir, f'pca_component_{i}-{n_std_deviation}*standard_deviation.obj'])
         export_mesh(fpath=opath, verts=verts, faces=tpl_faces)
 
+def load_vertex_array(path):
+    out = None
+    if path.suffix == '.pkl':
+        with open(str(path), 'rb') as file:
+            verts = pickle.load(file)
+            out = verts.flatten()
+    if path.suffix == '.npy':
+        verts = np.load(str(path))
+        out = verts.flatten()
+    elif path.suffix == '.obj':
+        verts, _ = import_mesh_obj(str(path))
+        out = verts.flatten()
+    else:
+        assert 'unsupported vertex file format'
+    return out
+
 def train_pca(paths, NV):
 
     step_size = 100
@@ -53,10 +69,9 @@ def train_pca(paths, NV):
         bar.set_postfix(range=f"{i_start} : {i_end}. len={i_end-i_start}")
         V_tmp = np.zeros((i_end-i_start, NV*3), dtype=np.float)
         for i in range(i_end-i_start):
-            with open(str(paths[i_start+i]), 'rb') as file:
-                verts = pickle.load(file)
-                V_tmp[i,:] = verts.flatten()
-                del verts
+            path = paths[i_start+i]
+            V_tmp[i, :] = load_vertex_array(path)
+
         pca_model.partial_fit(V_tmp)
         del V_tmp
         gc.collect()
@@ -78,15 +93,13 @@ def convert_org_mesh_to_pca(model_path, out_dir, vert_paths):
     pca_model = joblib.load(filename=model_path)
     with tqdm(total=len(vert_paths)) as bar:
         for _, path in enumerate(vert_paths):
-            with open(str(path), 'rb') as file:
-                verts = pickle.load(file)
-                verts = verts.flatten()
-                pca_co = pca_model.transform(np.expand_dims(verts, axis=0))
-                pca_co = pca_co[0]
-                np.save(file=join(*[out_dir, f'{path.stem}.npy']), arr=pca_co)
+            verts = load_vertex_array(path)
+            pca_co = pca_model.transform(np.expand_dims(verts, axis=0))
+            pca_co = pca_co[0]
+            np.save(file=join(*[out_dir, f'{path.stem}.npy']), arr=pca_co)
 
-                bar.update(1)
-                bar.set_postfix(msg = f'{pca_co.min()}, {pca_co.max()}')
+            bar.update(1)
+            bar.set_postfix(msg = f'{pca_co.min()}, {pca_co.max()}')
 
 def male_vert_paths(vert_dir, female_names_dir):
     female_names = set([path.stem for path in Path(female_names_dir).glob('*.*')])
@@ -177,7 +190,7 @@ def tool_transform_pca_to_verts(model_path, pca_dir, vert_dir):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("-vert_dir", type=str, required=True, help="directory that contains the caesar mesh vertices: *.npy files")
+    ap.add_argument("-vert_dir", type=str, required=True, help="directory that contains the caesar mesh vertices: *.pkl files or *.obj files")
     ap.add_argument("-vic_mesh_path", type=str, required=True, help="path to victoria template mesh file")
     ap.add_argument("-out_dir",  type=str, required=True, help="ouput directory that contains everything output data")
     ap.add_argument("-pca_k", type=int, required=False, default=50, help="the number of PCA components to keep. stick to 50 for now")
@@ -189,7 +202,10 @@ def main():
 
     os.makedirs(args.out_dir, exist_ok=True)
 
-    vpaths = [path for path in Path(args.vert_dir).glob('*.pkl')]
+    vpaths = [path for path in Path(args.vert_dir).glob('*.*')]
+    extensions = set([path.suffix for path in vpaths])
+    assert len(extensions) ==1, f'vertex folder contains more than one file type: {extensions}'
+
     male_paths = None
     female_paths = None
     if args.female_names_file is not None:

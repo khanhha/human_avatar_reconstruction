@@ -14,6 +14,7 @@ if __name__ == '__main__':
     ap.add_argument("-tpl_mesh_path", type=str, required=True, help="victoria template mesh path")
     ap.add_argument("-vert_dir", type=str, required=True, help="directory contains pkl files")
     ap.add_argument("-out_dir", type=str, required=True, help="output directory")
+    ap.add_argument("-n_file", type=int, required=False, default=-1)
     args = ap.parse_args()
 
     os.makedirs(args.out_dir, exist_ok=True)
@@ -24,7 +25,12 @@ if __name__ == '__main__':
     paths = [path for path in Path(args.vert_dir).glob("*.pkl")]
 
     cnt = 0
-    for path in paths[:100]:
+    if args.n_file < 0:
+        n_files = len(paths)
+    else:
+        n_files = min(args.n_file, len(paths))
+
+    for path in paths[:n_files]:
         if cnt % 100 == 0:
             print(f'processed: {cnt}/{len(paths)}')
 
