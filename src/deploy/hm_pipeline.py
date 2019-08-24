@@ -58,6 +58,12 @@ class HumanRGBModel:
             pose_s, img_pose_s = self.extractor.extract_single_pose(rgb_img_s, debug=True)
             pose_s.append_img_transform(HumanPose.build_img_transform(img_w=rgb_img_s.shape[1], img_h=rgb_img_s.shape[0]))
 
+       # plt.subplot(121)
+       # plt.imshow(img_pose_f)
+       # plt.subplot(122)
+       # plt.imshow(img_pose_s)
+       # plt.show()
+
         verts, faces  = self.predict_sil(sil_f, sil_s, height, gender, pose_f=pose_f, pose_s=pose_s)
 
         return verts, faces, sil_f, sil_s

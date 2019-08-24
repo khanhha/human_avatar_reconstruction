@@ -167,17 +167,19 @@ class HmSilCorrector():
                     contour_edges.append((i, (i + 1) % N))
                 contour_edges = np.array(contour_edges)
 
+                hip  = HmSilCorrector.pose_joint_adjust_to_midpoint(contour, hip)
+                neck = HmSilCorrector.pose_joint_adjust_to_midpoint(contour, neck)
+                ankle = HmSilCorrector.pose_joint_adjust_to_midpoint(contour, ankle)
+
                 points = np.vstack([contour, neck, ankle, hip])
                 A = dict(vertices=points, segments=contour_edges, holes=[[0.0, 0.0], [0.0, 0.0]])
                 #A = dict(vertices=points)
                 B = tr.triangulate(A, 'qpa')
 
-                #B['vertices'][:, 1] = sil.shape[0] - B['vertices'][:, 1]
-                #A['vertices'][:, 1] = sil.shape[0] - A['vertices'][:, 1]
-                #B['vertices'] = verts
-                #B['triangles'] = triangles
-                #tr.compare(plt, A, B)
-                #plt.show()
+               # B['vertices'][:, 1] = sil.shape[0] - B['vertices'][:, 1]
+               # A['vertices'][:, 1] = sil.shape[0] - A['vertices'][:, 1]
+               # tr.compare(plt, A, B)
+               # plt.show()
 
                 verts = B['vertices']
                 triangles = B['triangles']
@@ -215,6 +217,41 @@ class HmSilCorrector():
         sil = cv.resize(sil, dsize=(self.size[1], self.size[0]), interpolation=cv.INTER_AREA)
 
         return sil
+
+    @staticmethod
+    def pose_joint_adjust_to_midpoint(contour, joint):
+        """
+        adjust the joint to the mid point, whose left and right distances to the contour are equal
+        :param contour:
+        :param joint:
+        :return:
+        """
+        left, right = HmSilCorrector.contour_joint_closest_points(contour, joint)
+        return 0.5*(left+right)
+
+    @staticmethod
+    def contour_joint_closest_points(contour, joint):
+        """
+        find the two closest points on left and right side of the contour
+        :param contour:
+        :param joint:
+        :return: if it fails to find the left and right points (when the joint is outside the contour), return the left and right points as the copies of the joint itself.
+        """
+        left_mask = contour[:,0] < joint[0]
+
+        #filter out points on the left and right side of the joint
+        left_points = contour[left_mask, :]
+        right_points = contour[np.bitwise_not(left_mask), :]
+
+        #find the closest points along the y direction
+        if left_points.shape[0] > 0 and right_points.shape[0] > 0:
+            left = left_points[np.argmin(np.abs(left_points[:,1]-joint[1])), :]
+            right = right_points[np.argmin(np.abs(right_points[:,1]-joint[1])), :]
+        else:
+            left = joint.copy()
+            right = joint.copy()
+
+        return left, right
 
     @staticmethod
     def pose_s_nose(pose_s):
