@@ -88,6 +88,59 @@ def avg_co(mesh, ld_idxs):
     avg_co /= len(ld_idxs)
     return avg_co
 
+def estimate_joint_positions(obj):
+    grp_names = []
+    for grp in obj.vertex_groups:
+        if 'joint_' in grp.name:
+            grp_names.append(grp.name)
+
+    grp_vert_idxs = {}
+    for name in grp_names:
+        grp_vert_idxs[name] = collect_vertex_group_idxs(obj, name)
+
+    joints = {}
+    for grp_name, vert_idxs in grp_vert_idxs.items():
+        avg = Vector((0.0, 0.0, 0.0))
+        for idx in vert_idxs:
+            avg = avg + obj.data.vertices[idx].co
+        avg = avg / float(len(vert_idxs))
+        joints[grp_name] = avg
+
+    print(joints)
+
+    return joints
+
+def set_joints(obj, joints):
+    obj.select = True
+    bpy.context.scene.objects.active = obj
+    bpy.ops.object.mode_set(mode='EDIT')
+
+    t = joints['joint_lshoulder']
+    obj.data.edit_bones['upper_arm.L'].head = obj.matrix_world.inverted() * t
+    obj.data.edit_bones["shoulder.L"].tail  = obj.matrix_world.inverted() * t
+
+    t = joints['joint_rshoulder']
+    obj.data.edit_bones['upper_arm.R'].head = obj.matrix_world.inverted() * t
+    obj.data.edit_bones["shoulder.R"].tail = obj.matrix_world.inverted() * t
+
+    t = joints['joint_lhip']
+    obj.data.edit_bones['spine.L'].tail = obj.matrix_world.inverted() * t
+    obj.data.edit_bones["thigh.L"].head = obj.matrix_world.inverted() * t
+
+    t = joints['joint_rhip']
+    obj.data.edit_bones['spine.R'].tail = obj.matrix_world.inverted() * t
+    obj.data.edit_bones["thigh.R"].head = obj.matrix_world.inverted() * t
+
+    t = joints['joint_rknee']
+    obj.data.edit_bones["thigh.R"].tail = obj.matrix_world.inverted() * t
+    obj.data.edit_bones['shin.R'].head = obj.matrix_world.inverted() * t
+
+    t = joints['joint_lknee']
+    obj.data.edit_bones["thigh.L"].tail = obj.matrix_world.inverted() * t
+    obj.data.edit_bones['shin.L'].head = obj.matrix_world.inverted() * t
+
+
+
 def project_synthesized():
     pca_co_dir = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/vic_pca_models_debug/verts/male/'
     sil_root_dir = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/caesar_images_iphone_male_debug/'
@@ -105,55 +158,60 @@ def project_synthesized():
     vic_tpl_mesh = vic_tpl_obj.data
     n_v = len(vic_tpl_mesh.vertices)
 
-    larm_v_idxs = collect_vertex_group_idxs(vic_tpl_obj, 'larm')
-    rarm_v_idxs = collect_vertex_group_idxs(vic_tpl_obj, 'rarm')
-    neck_v_idxs = collect_vertex_group_idxs(vic_tpl_obj, 'neck_landmark')
+    joints = estimate_joint_positions(vic_tpl_obj)
 
-    rarm_sample_v_idx = find_heightest_vert_idx(vic_tpl_obj, larm_v_idxs) #a sample vert1ex on right arm to collapse arm
-    larm_sample_v_idx = find_heightest_vert_idx(vic_tpl_obj, rarm_v_idxs) #a sample vertex on left arm to collapse arm
+    rig_obj = bpy.data.objects['metarig']
+    set_joints(rig_obj, joints)
 
-    paths = sorted([path for path in Path(pca_co_dir).glob('*.npy')])
+   # larm_v_idxs = collect_vertex_group_idxs(vic_tpl_obj, 'larm')
+   # rarm_v_idxs = collect_vertex_group_idxs(vic_tpl_obj, 'rarm')
+   # neck_v_idxs = collect_vertex_group_idxs(vic_tpl_obj, 'neck_landmark')
 
-    cam_obj = bpy.data.objects['Camera']
+   # rarm_sample_v_idx = find_heightest_vert_idx(vic_tpl_obj, larm_v_idxs) #a sample vert1ex on right arm to collapse arm
+   # larm_sample_v_idx = find_heightest_vert_idx(vic_tpl_obj, rarm_v_idxs) #a sample vertex on left arm to collapse arm
 
-    for i in range(len(paths)):
-        path = paths[i]
-        name = path.stem
+   # paths = sorted([path for path in Path(pca_co_dir).glob('*.npy')])
 
-        front_sil_path = os.path.join(*[sil_f_dir, name])
-        side_sil_path = os.path.join(*[sil_s_dir, name])
-        if Path(front_sil_path+'.png').exists() and  Path(side_sil_path+'.png').exists():
-            continue
-                
-        verts = np.load(path)
-        
-        for vi in range(n_v):
-            vic_tpl_mesh.vertices[vi].co[:] = verts[vi,:]
+   # cam_obj = bpy.data.objects['Camera']
 
-        transform_obj_caesar_pca(vic_tpl_obj, s = 10.0)
+   # for i in range(len(paths)):
+   #     path = paths[i]
+   #     name = path.stem
 
-        neck_ld_co = avg_co(vic_tpl_mesh, neck_v_idxs)
-        cam_obj.location[2] = neck_ld_co[2]
+   #     front_sil_path = os.path.join(*[sil_f_dir, name])
+   #     side_sil_path = os.path.join(*[sil_s_dir, name])
+   #     if Path(front_sil_path+'.png').exists() and  Path(side_sil_path+'.png').exists():
+   #         continue
+   #
+   #     verts = np.load(path)
+   #
+   #     for vi in range(n_v):
+   #         vic_tpl_mesh.vertices[vi].co[:] = verts[vi,:]
 
-        set_silhouette_silhouette_mode()
+   #     transform_obj_caesar_pca(vic_tpl_obj, s = 10.0)
 
-        bpy.data.scenes['Scene'].render.filepath = front_sil_path
-        bpy.ops.render.opengl(write_still=True, view_context=True)
+   #     neck_ld_co = avg_co(vic_tpl_mesh, neck_v_idxs)
+   #     cam_obj.location[2] = neck_ld_co[2]
 
-        # side veiw
-        bpy.ops.transform.rotate(value=-np.pi / 2.0, axis=(0.0, 0.0, 1.0))
-        bpy.ops.object.transform_apply(location=True, scale=True, rotation=True)
+   #     set_silhouette_silhouette_mode()
 
-        #collapse left and right arm to avoid arm intrusion in the side profile
-        larm_co = vic_tpl_mesh.vertices[larm_sample_v_idx].co[:]
-        for vi in larm_v_idxs:
-            vic_tpl_mesh.vertices[vi].co[:] = larm_co
+   #     bpy.data.scenes['Scene'].render.filepath = front_sil_path
+   #     bpy.ops.render.opengl(write_still=True, view_context=True)
 
-        rarm_co = vic_tpl_mesh.vertices[rarm_sample_v_idx].co[:]
-        for vi in rarm_v_idxs:
-            vic_tpl_mesh.vertices[vi].co[:] = rarm_co
+   #     # side veiw
+   #     bpy.ops.transform.rotate(value=-np.pi / 2.0, axis=(0.0, 0.0, 1.0))
+   #     bpy.ops.object.transform_apply(location=True, scale=True, rotation=True)
 
-        bpy.data.scenes['Scene'].render.filepath = side_sil_path
-        bpy.ops.render.opengl(write_still=True, view_context=True)
-        
+   #     #collapse left and right arm to avoid arm intrusion in the side profile
+   #     larm_co = vic_tpl_mesh.vertices[larm_sample_v_idx].co[:]
+   #     for vi in larm_v_idxs:
+   #         vic_tpl_mesh.vertices[vi].co[:] = larm_co
+
+   #     rarm_co = vic_tpl_mesh.vertices[rarm_sample_v_idx].co[:]
+   #     for vi in rarm_v_idxs:
+   #         vic_tpl_mesh.vertices[vi].co[:] = rarm_co
+
+   #     bpy.data.scenes['Scene'].render.filepath = side_sil_path
+   #     bpy.ops.render.opengl(write_still=True, view_context=True)
+   #
 project_synthesized()
