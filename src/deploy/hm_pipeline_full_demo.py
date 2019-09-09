@@ -29,7 +29,7 @@ if __name__ == '__main__':
     os.makedirs(args.out_dir, exist_ok=True)
 
     #shape_model_path = os.path.join(*[args.model_dir, 'shape_model.jlb'])
-    shape_model_path = config_get_data_path(args.model_dir, 'shape_model')
+    shape_model_path = config_get_data_path(args.model_dir, 'shape_model_s')
     #deeplab_path = os.path.join(*[args.model_dir, 'deeplabv3_xception_ade20k_train_2018_05_29.tar.gz'])
     deeplab_path = config_get_data_path(args.model_dir, 'deeplab_tensorflow_model')
     #vic_mesh_path = os.path.join(*[args.model_dir, 'vic_mesh.obj'])

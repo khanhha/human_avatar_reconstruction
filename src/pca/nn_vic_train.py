@@ -16,10 +16,7 @@ from tqdm import tqdm
 from sklearn.preprocessing import StandardScaler, Normalizer, MinMaxScaler, RobustScaler
 from sklearn.externals import joblib
 from pca.dense_net import JointMask
-from pca.nn_util import  load_target, ImgFullDataSet, load_height
-from pca.nn_util import create_pair_loader, find_latest_model_path, load_pca_model, adjust_learning_rate, network_input_size
-from pca.losses import SMPLLoss
-from ignite.engine import Events, create_supervised_trainer, create_supervised_evaluator
+from pca.nn_util import  load_target, ImgFullDataSet, ImgFullDataSetPoseVariants, load_height
 from ignite.metrics import Accuracy, Loss
 from ignite.engine.engine import Engine, State, Events
 from ignite.handlers import ModelCheckpoint, EarlyStopping
@@ -50,7 +47,7 @@ def create_summary_writer(args, model, data_loader, log_dir, clean_old_log = Tru
         print("Failed to save model graph: {}".format(e))
     return writer
 
-def create_loaders(args, target_trans = None, height_trans = None):
+def create_loaders(args, target_trans = None, height_trans = None, n_pose_variant = 0):
     sil_transform = transforms.Compose([transforms.ToTensor()])
 
     dir_sil_f = os.path.join(*[args.root_dir, 'sil_f'])
@@ -66,19 +63,36 @@ def create_loaders(args, target_trans = None, height_trans = None):
 
     heights = load_height(args.height_path)
 
-    train_ds= ImgFullDataSet(img_transform=sil_transform,
-                                  dir_f=train_f_dir, dir_s=train_s_dir,
-                                  dir_target=args.target_dir, id_to_heights=heights, target_transform=target_trans, height_transform=height_trans, use_input_gender=args.use_gender)
+    if n_pose_variant == 0:
+        train_ds= ImgFullDataSet(img_transform=sil_transform,
+                                      dir_f=train_f_dir, dir_s=train_s_dir,
+                                      dir_target=args.target_dir, id_to_heights=heights, target_transform=target_trans, height_transform=height_trans, use_input_gender=args.use_gender)
 
 
-    valid_ds= ImgFullDataSet(img_transform=sil_transform,
-                                  dir_f=valid_f_dir, dir_s=valid_s_dir,
-                                  dir_target=args.target_dir, id_to_heights=heights,  target_transform=target_trans,height_transform=height_trans, use_input_gender=args.use_gender)
+        valid_ds= ImgFullDataSet(img_transform=sil_transform,
+                                      dir_f=valid_f_dir, dir_s=valid_s_dir,
+                                      dir_target=args.target_dir, id_to_heights=heights,  target_transform=target_trans,height_transform=height_trans, use_input_gender=args.use_gender)
 
 
-    test_ds= ImgFullDataSet(img_transform=sil_transform,
-                                  dir_f=test_f_dir, dir_s=test_s_dir,
-                                  dir_target=args.target_dir, id_to_heights=heights,  target_transform=target_trans,height_transform=height_trans, use_input_gender=args.use_gender)
+        test_ds= ImgFullDataSet(img_transform=sil_transform,
+                                      dir_f=test_f_dir, dir_s=test_s_dir,
+                                      dir_target=args.target_dir, id_to_heights=heights,  target_transform=target_trans,height_transform=height_trans, use_input_gender=args.use_gender)
+    else:
+
+        train_ds= ImgFullDataSetPoseVariants(img_transform=sil_transform,
+                                 dir_f=train_f_dir, dir_s=train_s_dir,
+                                 dir_target=args.target_dir, id_to_heights=heights, target_transform=target_trans, height_transform=height_trans, use_input_gender=args.use_gender,
+                                             n_pose_variant=n_pose_variant)
+
+        valid_ds= ImgFullDataSetPoseVariants(img_transform=sil_transform,
+                                 dir_f=valid_f_dir, dir_s=valid_s_dir,
+                                 dir_target=args.target_dir, id_to_heights=heights,  target_transform=target_trans,height_transform=height_trans, use_input_gender=args.use_gender,
+                                             n_pose_variant=n_pose_variant)
+
+        test_ds= ImgFullDataSetPoseVariants(img_transform=sil_transform,
+                                dir_f=test_f_dir, dir_s=test_s_dir,
+                                dir_target=args.target_dir, id_to_heights=heights,  target_transform=target_trans,height_transform=height_trans, use_input_gender=args.use_gender,
+                                            n_pose_variant=n_pose_variant)
 
     train_loader = torch.utils.data.DataLoader(train_ds, batch_size=args.batch_size, shuffle=True, num_workers=4)
     valid_loader = torch.utils.data.DataLoader(valid_ds, batch_size=args.batch_size, shuffle=True, num_workers=4)
@@ -227,6 +241,11 @@ def run(args):
     model_dir = os.path.join(*[model_root_dir, args.model_type])
     os.makedirs(model_dir, exist_ok=True)
 
+    target_trans, height_trans = load_transformations()
+
+    print('create data loaders: train, valid, test')
+    train_loader, valid_loader, test_loader = create_loaders(args, target_trans=target_trans, height_trans=height_trans, n_pose_variant=args.n_pose_variant)
+
     #train the front and side model first
     if args.model_type in ['f', 's']:
         n_aux_input_feature = 1 #height
@@ -248,9 +267,6 @@ def run(args):
         #create  joint model from the front and side weights
         model = JointMask(model_f=model_f_wrap.model, model_s=model_s_wrap.model, num_classes=args.num_classes)
 
-    target_trans, height_trans = load_transformations()
-
-    train_loader, valid_loader, test_loader = create_loaders(args, target_trans=target_trans, height_trans=height_trans)
 
     log_dir = os.path.join(*[args.root_dir, 'log', args.model_type])
     writer = create_summary_writer(args, model, train_loader, log_dir)
@@ -280,7 +296,7 @@ def run(args):
     print(f'\theight_transform: {height_trans is not None}')
     print(f'\tuse height input: {args.use_height}')
     print(f'\tuse gender input: {args.use_gender}')
-
+    print(f'\tnumber of pose variant: {args.n_pose_variant}')
     def save_best_model_wrapper():
         # save final model
         best_model_path = find_model_path(model_dir, hint='model_best')
@@ -390,7 +406,7 @@ if __name__ == '__main__':
     ap.add_argument("-is_scale_height",  default=0, type=int, required=True)
     ap.add_argument('-use_height',  default=1, type=int, required=True)
     ap.add_argument('-use_gender',  default=1, type=int, required=True)
-
+    ap.add_argument('-n_pose_variant', default=0, type=int, required=False, help='number of pose varaint per subject. man0_pose0, ..., man0_pose29')
     args = ap.parse_args()
     assert args.use_height == True, 'only support height input currently'
     run(args)

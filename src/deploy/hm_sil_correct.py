@@ -94,26 +94,31 @@ class HmSilCorrector():
             ankle_dir = np.array([1.0, 0.0]) if lankle[0] < rankle[0] else np.array([-1.0, 0.0])
             midankle = 0.5*(lankle + rankle)
 
-            lankle_1 = midankle - 0.5*target_ankle_len*ankle_dir
-            rankle_1 = midankle + 0.5*target_ankle_len*ankle_dir
+            #0.5 is for standard A leg pose
+            leg_ext_factor = 0.5
+            lankle_1 = midankle - leg_ext_factor*target_ankle_len*ankle_dir
+            rankle_1 = midankle + leg_ext_factor*target_ankle_len*ankle_dir
 
             #target_wrist_len = np.linalg.norm(target_lwrist - target_rwrist)
             target_wrist_len = self.wrist_dst_shoulder_ratio * shoulder_len
             wrist_hor_dir = np.array([1.0, 0.0]) if lwrist[0] < rwrist[0] else np.array([-1.0, 0.0])
             mid_wrist = 0.5*(lwrist+rwrist)
-            lwrist_1 = mid_wrist - 0.5*target_wrist_len*wrist_hor_dir
-            rwrist_1 = mid_wrist + 0.5*target_wrist_len*wrist_hor_dir
+
+            #0.5 is for standard A arm pose
+            arm_ext_factor = 0.5
+            lwrist_1 = mid_wrist - arm_ext_factor*target_wrist_len*wrist_hor_dir
+            rwrist_1 = mid_wrist + arm_ext_factor*target_wrist_len*wrist_hor_dir
 
             verts_1 = self.solve_biharmonic(verts, triangles, [lankle_idx, rankle_idx, lwrist_idx, rwrist_idx], np.vstack([lankle_1, rankle_1, lwrist_1, rwrist_1]))
 
             sil_corrected = np.zeros_like(sil)
             self.fill_silhouette(verts_1, B['triangles'], sil_corrected)
 
-           # debug_dir = '/home/khanhhh/data_1/projects/Oh/data/3d_human/test_data/body_designer/result/'
-           # cv.imwrite(filename=f'{debug_dir}/{np.random.randint(0,1000)}.png', img=sil_corrected)
+            debug_dir = '/home/khanhhh/data_1/projects/Oh/data/3d_human/test_data/body_designer/corrected_silhouettes/'
+            cv.imwrite(filename=f'{debug_dir}/front_{np.random.randint(0,1000)}.png', img=sil_corrected)
 
-           # plt.imshow(sil_corrected)
-           # plt.show()
+            #plt.imshow(sil_corrected)
+            #plt.show()
 
            # verts_1[:, 1] = sil.shape[0] - verts_1[:, 1]
            # A['vertices'][:, 1] = sil.shape[0] - A['vertices'][:, 1]
@@ -189,6 +194,7 @@ class HmSilCorrector():
                 hip_idx = np.argmin(np.linalg.norm(verts - hip, axis=1))
 
                 neck_1 = neck.copy()
+                #neck_1[0] = neck[0] - 20
                 neck_1[0] = ankle[0]
                 ankle_1 = ankle.copy()
                 hip_1 = hip.copy()
@@ -201,8 +207,8 @@ class HmSilCorrector():
                 #plt.imshow(sil_corrected)
                 #plt.show()
 
-               # debug_dir = '/home/khanhhh/data_1/projects/Oh/data/3d_human/test_data/body_designer/result/'
-               # cv.imwrite(filename=f'{debug_dir}/{np.random.randint(0, 1000)}.png', img=sil_corrected)
+                debug_dir = '/home/khanhhh/data_1/projects/Oh/data/3d_human/test_data/body_designer/corrected_silhouettes/'
+                cv.imwrite(filename=f'{debug_dir}/side_{np.random.randint(0, 1000)}.png', img=sil_corrected)
 
                # verts_1[:, 1] = sil.shape[0] - verts_1[:, 1]
                # A['vertices'][:, 1] = sil.shape[0] - A['vertices'][:, 1]

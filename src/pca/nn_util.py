@@ -18,35 +18,6 @@ import re
 
 network_input_size = (384, 256)
 
-class ImgDataSet(Dataset):
-    def __init__(self, img_transform, img_paths, target_paths, target_transform=None):
-        self.img_transform = img_transform
-        self.img_paths = img_paths
-        self.target_paths = target_paths
-        self.target_transform = target_transform
-        assert len(self.img_paths) == len(self.target_paths)
-
-    def __getitem__(self, i):
-        fpath= self.img_paths[i]
-        img = Image.open(fpath)
-        img = self.img_transform(img)
-
-        # plt.imshow(np.asarray(img))
-        # plt.show()
-
-        target = np.load(self.target_paths[i]).astype(np.float32)
-        if self.target_transform is not None:
-            target = self.target_transform.transform(target.reshape(1,-1))
-        target = target.flatten()
-        #print(target.min(), target.max())
-        return img, target #torch.from_numpy(np.array(mask, dtype=np.int64))
-
-    def get_filepath(self, i):
-        return self.img_paths[i]
-
-    def __len__(self):
-        return len(self.img_paths)
-
 class ImgFullDataSet(Dataset):
     def __init__(self, img_transform, dir_f, dir_s, dir_target, id_to_heights, target_transform = None, height_transform = None, use_input_gender = False):
 
@@ -100,6 +71,7 @@ class ImgFullDataSet(Dataset):
         # s_paths = s_paths[:100]
         # f_paths = f_paths[:100]
 
+
         #gather the corresponding PCA target for each front-side silhouette pair
         y_paths = []
         if dir_target is not None:
@@ -152,6 +124,216 @@ class ImgFullDataSet(Dataset):
     def __len__(self):
         return len(self.img_paths_f)
 
+
+class ImgFullDataSetPoseVariants(Dataset):
+    def __init__(self, img_transform, dir_f, dir_s, dir_target, id_to_heights, target_transform=None,
+                 height_transform=None, use_input_gender=False, n_pose_variant = 0, shuffle_front_side_pairs = False):
+        """
+
+        :param img_transform:
+        :param dir_f:
+        :param dir_s:
+        :param dir_target:
+        :param id_to_heights:
+        :param target_transform:
+        :param height_transform:
+        :param use_input_gender:
+        :param n_pose_variant: number of pose variant per subject
+        :param shuffle_front_side_pairs: always match front_pose_0 to side_pose_0 or the matching should be random?
+        if it is random, it is assumed the ouput target of all pose_variants are the same.
+        """
+        print(f'create data loader (with pose variant) for folders: {dir_f}, {dir_s}, {dir_target}.')
+        self.n_pose_variant = n_pose_variant
+        self.shuffle_front_side_pairs = shuffle_front_side_pairs
+
+        paths_f, paths_s, paths_target = self._load_names(dir_f=dir_f, dir_s=dir_s, dir_target=dir_target)
+        assert len(paths_f) > 0 and len(paths_s) > 0, f'empty folder {dir_f}, {dir_s}'
+
+        paths_f, paths_s, paths_target = self._sort_subject_pose_variant_names(paths_f, paths_s, paths_target, n_pose_variant)
+
+        self.img_transform = img_transform
+        self.img_paths_f = paths_f
+        self.img_paths_s = paths_s
+        self.target_paths = paths_target
+        self.target_transform = target_transform
+
+        #verification
+        self.N_subject = self.count_unique_subjects(self.img_paths_f, self.img_paths_s)
+        assert len(self.img_paths_f) % n_pose_variant == 0, 'incorrect number of files: n_file % n_pose_variant_per_file != 0'
+        assert self.N_subject == int(len(self.img_paths_f)//n_pose_variant), 'incorrect number of files: something wrong'
+
+        if self.shuffle_front_side_pairs == True:
+            self.verify_targets(self.target_paths, self.N_subject, self.n_pose_variant)
+
+        print(f'\tN_subject = {self.N_subject}. N files with pose variant = {len(self.img_paths_f)}')
+
+        self.use_input_gender = use_input_gender
+        if use_input_gender:
+            self.genders = np.zeros(len(self.img_paths_f), np.uint8)
+            for idx, path in enumerate(self.img_paths_f):
+                if '_male' in path.stem:
+                    self.genders[idx] = 1
+                elif '_female' in path.stem:
+                    self.genders[idx] = 0
+                else:
+                    assert f'no gender hint in the file name. {path.stem}'
+
+        self.heights = []
+        for path in self.img_paths_f:
+            assert path.stem in id_to_heights, f'missing height for file name: {path.stem}'
+            h = id_to_heights[path.stem]
+            self.heights.append(h)
+
+        self.heights = np.array(self.heights).astype(np.float32).reshape(-1, 1)
+        self.height_transform = height_transform
+
+        # for the case where height and target data are not available
+        self.dummy_target = np.zeros(50)
+        self.dummy_height = np.zeros(1)
+
+    @staticmethod
+    def count_unique_subjects(f_paths, s_paths):
+        unq_names = set()
+        for fpath, spath in zip(f_paths, s_paths):
+            unq_fname = remove_pose_variant_in_file_name(fpath.name)
+            unq_sname = remove_pose_variant_in_file_name(spath.name)
+            assert unq_fname == unq_sname, 'mismatched front and side sil names after pose variatn posfix is removed'
+            unq_names.add(unq_fname)
+
+        return len(unq_names)
+
+    @staticmethod
+    def _load_names(dir_f, dir_s, dir_target):
+        # gather front and side silhouette names. for every front silhoette, the must be one corresponding side silhouette
+        names = set([path.name for path in Path(dir_f).glob('*.*')])
+        s_paths = []
+        f_paths = []
+        for name in names:
+            f_path = os.path.join(*[dir_f, name])
+            s_path = os.path.join(*[dir_s, name])
+            if Path(f_path).exists() == True and Path(s_path).exists() == True:
+                f_paths.append(Path(f_path))
+                s_paths.append(Path(s_path))
+            else:
+                assert False, f'missing front or side silhouette : {name}'
+
+        # TODO debug. for faster training test. comment the code after finish. the two below lines should never been included in the real traning time
+        # s_paths = s_paths[:100]
+        # f_paths = f_paths[:100]
+
+        # gather the corresponding PCA target for each front-side silhouette pair
+        y_paths = []
+        if dir_target is not None:
+            all_y_paths = dict([(path.stem, path) for path in Path(dir_target).glob('*.*')])
+            for x_path in f_paths:
+                assert x_path.stem in all_y_paths, f'missing target {x_path}'
+                y_paths.append(all_y_paths[x_path.stem])
+
+        return f_paths, s_paths, y_paths
+
+    @staticmethod
+    def verify_targets(target_paths, N_subject, N_pose_variant):
+        #check that all targets of pose variants of a subject are the same.
+        for i in range(N_subject):
+            j_0 = i*N_pose_variant
+            j_1 = (i+1)*N_pose_variant
+            target_0 = np.load(target_paths[j_0]).astype(np.float32)
+            #verify that all other target of other pose variants are the same
+            for j in range(j_0, j_1):
+                target_j = np.load(target_paths[j]).astype(np.float32)
+                same = np.allclose(target_0, target_j)
+                assert same, f'targets of pose variants are different for subject {i}'
+
+    @staticmethod
+    def _sort_subject_pose_variant_names(f_paths, s_paths, y_paths, n_pose_variant):
+        assert n_pose_variant > 0
+        verify_pose_variants_per_name(f_paths)
+        verify_pose_variants_per_name(s_paths)
+        verify_pose_variants_per_name(y_paths)
+        f_paths = sorted(f_paths)
+        s_paths = sorted(s_paths)
+        y_paths = sorted(y_paths)
+
+        #sanity check
+        for fpath,spath,ypath in zip(f_paths, s_paths, y_paths):
+            assert fpath.stem == spath.stem, 'mismatched front/side name after sorting'
+            assert fpath.stem == ypath.stem, 'mismathced front/target name after sorting'
+
+        #sanity check
+        assert len(f_paths)%n_pose_variant == 0
+        N_subject = len(f_paths)//n_pose_variant
+        for i in range(N_subject):
+            #pose variants index range
+            j0 = i*n_pose_variant
+            j1 = (i+1)*n_pose_variant
+            unq_name = remove_pose_variant_in_file_name(f_paths[j0].stem)
+            #all the pose variant names of this subject must share the same subject name
+            for j in range(j0, j1):
+                unq_name_1 = remove_pose_variant_in_file_name(f_paths[j].stem)
+                assert unq_name_1 == unq_name, 'something wrong. pose variant names of a single subject are not next to each other'
+
+        return f_paths, s_paths, y_paths
+
+    def __getitem__(self, subject_idx):
+        """
+        :param subject_idx: the index of the human subject. [0, len(img_path_f)//self.n_pose_variant]
+        :return:
+        """
+        #select a random pose variant for this human sujbect
+        i_base = subject_idx * self.n_pose_variant
+        i_front = i_base + np.random.randint(0, self.n_pose_variant)
+        # choose another random side pose if we're asked to. otherwise, use the same front pose index to select side pose
+        i_side  = i_base + np.random.randint(0, self.n_pose_variant) if self.shuffle_front_side_pairs else i_front
+
+        fpath = self.img_paths_f[i_front]
+        img_f = Image.open(fpath)
+        # plt.subplot(121)
+        # plt.imshow(np.asarray(img_f))
+        img_f = self.img_transform(img_f)
+
+        spath = self.img_paths_s[i_side]
+        img_s = Image.open(spath)
+        # plt.subplot(122)
+        # plt.imshow(np.asarray(img_s))
+        # plt.show()
+        img_s = self.img_transform(img_s)
+
+        #Warning: here we assume that targets for all the front and side pose variants are the same.
+        if len(self.target_paths) > 0:
+            target = np.load(self.target_paths[i_front]).astype(np.float32).reshape(1, -1)
+            if self.target_transform is not None:
+                target = self.target_transform.transform(target)
+            target = target.flatten()
+        else:
+            # dummy value
+            target = self.dummy_target
+
+        if len(self.heights) > 0:
+            aux = self.heights[i_front].reshape(1, -1)
+            if self.height_transform is not None:
+                aux = self.height_transform.transform(aux)
+                aux = aux.flatten()
+        else:
+            aux = self.dummy_height
+
+        if self.use_input_gender:
+            aux = np.hstack([aux, self.genders[i_front]])
+
+        return img_f, img_s, target, aux
+
+    def get_filepath(self, subject_idx):
+        #TODO. how to know the actual file path that we already returned?
+        idx = subject_idx * self.n_pose_variant
+        path = self.img_paths_f[idx]
+        unq_name = remove_pose_variant_in_file_name(path.name)
+        return Path(os.path.join(*[path.parent, unq_name]))
+
+    def __len__(self):
+        #this is very important here.
+        #we dont return the length of the actual file name list :img_paths_f, which include subject pose variant names.
+        #here we just return the number of actual subjects, after their pose variant names are removed.
+        #by doing it, it will be able to return a random pose variant each time pytorch training request for a subject image pairs.
+        return self.N_subject
 
 class ImgPairDataSet(Dataset):
 
@@ -327,7 +509,8 @@ def crop_silhouette_width(sil, mask):
     return sil, (left_x, right_x)
 
 def crop_silhouette_pair_blender(sil_f, sil_s, size):
-
+    #plt.imshow(sil_f)
+    #plt.show()
     th3, sil_f = cv.threshold(sil_f, 0, 255, cv.THRESH_BINARY_INV + cv.THRESH_OTSU)
     th3, sil_s = cv.threshold(sil_s, 0, 255, cv.THRESH_BINARY_INV + cv.THRESH_OTSU)
 
@@ -429,3 +612,38 @@ def find_latest_model_path(dir):
         return model_paths[max_idx]
     else:
         return None
+
+
+def remove_pose_variant_in_file_name(name):
+    parts = name.split('_')
+    pose_part = None
+    for part in parts:
+        if 'pose' in part:
+            pose_part = part
+            break
+    assert pose_part is not None, 'incorrect file name format. missing pose hint name'
+    new_name = name.replace(pose_part, '')
+    return new_name
+
+from collections import defaultdict
+def verify_pose_variants_per_name(paths, N_pose = 30):
+    """
+    verify that there are extact N_pose variants per human subject
+    :param paths:
+    :param N_pose:
+    """
+
+    #extract all the unique subject names [human0_pose1.*, human0_pose30] => human0
+    unique_names = set()
+    for path in paths:
+        unique_names.add(remove_pose_variant_in_file_name(Path(path).stem))
+
+    #count the number of pose variants per subject
+    counter = defaultdict(int)
+    for path in paths:
+        unq_name = remove_pose_variant_in_file_name(Path(path).stem)
+        counter[unq_name] += 1
+
+    #assert that there are exact the expected number of pose per subject
+    for k, value in counter.items():
+        assert value == N_pose, f'missing pose variants for object file name {k}. n_pose = {value} while it should be {N_pose}'

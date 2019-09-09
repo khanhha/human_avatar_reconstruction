@@ -234,7 +234,7 @@ def reset_pose(arm_obj):
 
     bpy.ops.object.mode_set(mode='OBJECT')
 
-def rotate_armature_random(arm_obj):
+def rotate_front_armature_random(arm_obj):
     reset_pose(arm_obj)
 
     bpy.ops.object.mode_set(mode='POSE')
@@ -266,10 +266,32 @@ def rotate_armature_random(arm_obj):
 
     bpy.ops.object.mode_set(mode='OBJECT')
 
+def rotate_side_armature_random(arm_obj):
+    reset_pose(arm_obj)
+    bpy.ops.object.mode_set(mode='POSE')
+
+    axis = 'Z'
+
+    hip_angle_range=[-10,15]
+    angle = np.random.rand()*(hip_angle_range[1] - hip_angle_range[0]) + hip_angle_range[0]
+    pbone = arm_obj.pose.bones['upper_hip']
+    pbone.rotation_mode = 'XYZ'
+    pbone.rotation_euler.rotate_axis(axis, math.radians(angle))
+
+    head_angle_range = [-15,15]
+    angle = np.random.rand()*(head_angle_range[1] - head_angle_range[0]) + head_angle_range[0]
+    pbone = arm_obj.pose.bones['head']
+    pbone.rotation_mode = 'XYZ'
+    pbone.rotation_euler.rotate_axis(axis, math.radians(angle))
+
+    bpy.ops.object.mode_set(mode='OBJECT')
+
 def project_synthesized():
     #pca_co_dir = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/vic_pca_models_debug/verts/male/'
-    pca_co_dir = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/vic_pca_models_nosyn/verts/male/'
+    verts_co_dir = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/vic_pca_models_nosyn/verts/male/'
     sil_root_dir = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/blender_images/nosyn/male/'
+    front_sil = False
+    side_sil = True
 
     sil_f_dir = os.path.join(*[sil_root_dir , 'sil_f_raw'])
     sil_s_dir = os.path.join(*[sil_root_dir , 'sil_s_raw'])
@@ -284,7 +306,6 @@ def project_synthesized():
     vic_tpl_mesh = vic_tpl_obj.data
     n_v = len(vic_tpl_mesh.vertices)
 
-
     armature_obj = bpy.data.objects['metarig']
 
     larm_v_idxs = collect_vertex_group_idxs(vic_tpl_obj, 'larm')
@@ -294,7 +315,7 @@ def project_synthesized():
     rarm_sample_v_idx = find_heightest_vert_idx(vic_tpl_obj, larm_v_idxs) #a sample vert1ex on right arm to collapse arm
     larm_sample_v_idx = find_heightest_vert_idx(vic_tpl_obj, rarm_v_idxs) #a sample vertex on left arm to collapse arm
 
-    paths = sorted([path for path in Path(pca_co_dir).glob('*.npy')])
+    paths = sorted([path for path in Path(verts_co_dir).glob('*.npy')])
 
     cam_front_obj = bpy.data.objects['Camera']
     cam_side_obj = bpy.data.objects['Camera_side']
@@ -302,6 +323,7 @@ def project_synthesized():
     #idx = np.random.randint(0, len(paths))
     #paths = [paths[idx]]
     #paths = [paths[15]]
+    #paths = paths[:5]
 
     #print('file idx: ', idx)
     N_pos_variants = 30
@@ -313,7 +335,7 @@ def project_synthesized():
         side_sil_paths = []
         processed_file = True
         for i in range(N_pos_variants):
-            name_i = name + '_' + str(i)
+            name_i = name + '_pose' + str(i)
             front_sil_path = os.path.join(*[sil_f_dir, name_i])
             side_sil_path = os.path.join(*[sil_s_dir, name_i])
             front_sil_paths.append(front_sil_path)
@@ -347,50 +369,49 @@ def project_synthesized():
         vic_tpl_obj.select = True
         armature_obj.select = True
         bpy.context.scene.objects.active = armature_obj #make the armature object active
+
+        #weight calculation: it could be disabled for fast debugging with a single object.
         bpy.ops.object.parent_set(type='ARMATURE_AUTO')
 
         #the file with posfix _0 is the original file
-        for i in range(N_pos_variants):
-           # set_silhouette_silhouette_mode()
+        if front_sil:
+            for i in range(N_pos_variants):
+                #make front camera active
+                select_single_obj(cam_front_obj)
+                bpy.context.scene.camera = cam_front_obj
 
-            #make front camera active
-            select_single_obj(cam_front_obj)
-            bpy.context.scene.camera = cam_front_obj
+                #hide the armature so that it won't appear in the silhouette
+                armature_obj.hide = True
+                bpy.data.scenes['Scene'].render.filepath = front_sil_paths[i]
+                bpy.ops.render.opengl(write_still=True, view_context=True)
+                armature_obj.hide = False
 
-            #hide the armature so that it won't appear in the silhouette
-            armature_obj.hide = True
-            bpy.data.scenes['Scene'].render.filepath = front_sil_paths[i]
-            bpy.ops.render.opengl(write_still=True, view_context=True)
-            armature_obj.hide = False
+                rotate_front_armature_random(armature_obj)
 
-            rotate_armature_random(armature_obj)
+            #reset pose after we're done
+            reset_pose(armature_obj)
 
-        #side silhouette processing
-        #currently, we dont do side pose variants, so just outputing 5 similar silhouettes
-        reset_pose(armature_obj)
+        if side_sil:
+            # collapse left and right arm to avoid arm intrusion in the side profile
+            larm_co = vic_tpl_mesh.vertices[larm_sample_v_idx].co[:]
+            for vi in larm_v_idxs:
+                vic_tpl_mesh.vertices[vi].co[:] = larm_co
 
-        # collapse left and right arm to avoid arm intrusion in the side profile
-        larm_co = vic_tpl_mesh.vertices[larm_sample_v_idx].co[:]
-        for vi in larm_v_idxs:
-            vic_tpl_mesh.vertices[vi].co[:] = larm_co
+            rarm_co = vic_tpl_mesh.vertices[rarm_sample_v_idx].co[:]
+            for vi in rarm_v_idxs:
+                vic_tpl_mesh.vertices[vi].co[:] = rarm_co
 
-        rarm_co = vic_tpl_mesh.vertices[rarm_sample_v_idx].co[:]
-        for vi in rarm_v_idxs:
-            vic_tpl_mesh.vertices[vi].co[:] = rarm_co
+            for i in range(N_pos_variants):
+                #make side camera active
+                select_single_obj(cam_side_obj)
+                bpy.context.scene.camera = cam_side_obj
 
-        for i in range(N_pos_variants):
-            # side veiw
-            #bpy.ops.transform.rotate(value=-np.pi / 2.0, axis=(0.0, 0.0, 1.0))
-            #bpy.ops.object.transform_apply(location=True, scale=True, rotation=True)
+                #hide the armature so that it won't appear in the silhouette
+                armature_obj.hide = True
+                bpy.data.scenes['Scene'].render.filepath = side_sil_paths[i]
+                bpy.ops.render.opengl(write_still=True, view_context=True)
+                armature_obj.hide = False
 
-            #make side camera active
-            select_single_obj(cam_side_obj)
-            bpy.context.scene.camera = cam_side_obj
-
-            #hide the armature so that it won't appear in the silhouette
-            armature_obj.hide = True
-            bpy.data.scenes['Scene'].render.filepath = side_sil_paths[i]
-            bpy.ops.render.opengl(write_still=True, view_context=True)
-            armature_obj.hide = False
+                rotate_side_armature_random(armature_obj)
 
 project_synthesized()

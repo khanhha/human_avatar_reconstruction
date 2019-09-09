@@ -19,13 +19,20 @@ def convert(model_path, out_path, vic_mesh_path):
     model_torch = model_wrapper.model
     model_torch.cuda()
     model_torch.eval()
-
+    model_type = model_wrapper.model_type
     with tempfile.TemporaryDirectory() as tmp_dir:
         # Export the trained model to ONNX
         dummy_x_f = Variable(torch.randn(1, 1, 384, 256)).cuda()  # one black and white 28 x 28 picture will be the input to the model
         dummy_x_s = Variable(torch.randn(1, 1, 384, 256)).cuda()  # one black and white 28 x 28 picture will be the input to the model
         dummy_h_g = Variable(torch.randn(1, 2)).cuda()  # one black and white 28 x 28 picture will be the input to the model
-        torch.onnx.export(model_torch, (dummy_x_f, dummy_x_s, dummy_h_g), f"{tmp_dir}/mnist.onnx")
+        if model_type=='joint':
+            torch.onnx.export(model_torch, (dummy_x_f, dummy_x_s, dummy_h_g), f"{tmp_dir}/mnist.onnx")
+        elif model_type=='f':
+            torch.onnx.export(model_torch, (dummy_x_f, dummy_h_g), f"{tmp_dir}/mnist.onnx")
+        elif model_type=='s':
+            torch.onnx.export(model_torch, (dummy_x_s, dummy_h_g), f"{tmp_dir}/mnist.onnx")
+        else:
+            assert False, 'unsupported model'
 
         # Load the ONNX file
         model = onnx.load(f'{tmp_dir}/mnist.onnx')
@@ -61,7 +68,7 @@ def convert(model_path, out_path, vic_mesh_path):
     print(f'the shape_model includes the following infromation:\n')
     print(f'\n\ttensor flow graph')
     print(f'\n\tinput image size')
-    print(f'\n\tmodel_type: f, s or joint')
+    print(f'\n\tmodel_type:{model_type}')
     print(f'\n\tpca_model: the male and female PCA models wrapped in a single class')
     print(f'\n\tPCA_target_transform: transform the [0,1] prediction from CNN to the true range of PCA model')
     print(f'\n\taux_input_transform: transform height input to the range of [0,1] to input to the model')

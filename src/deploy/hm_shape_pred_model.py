@@ -57,7 +57,14 @@ class HmShapePredModel():
 
                 sess.run(tf.global_variables_initializer())
 
-                feed_dict = { self.tf_graph_inputs[0] : sil_f, self.tf_graph_inputs[1] : sil_s, self.tf_graph_inputs[2] : aux }
+                if self.model_type == 'joint':
+                    feed_dict = { self.tf_graph_inputs[0] : sil_f, self.tf_graph_inputs[1] : sil_s, self.tf_graph_inputs[2] : aux }
+                elif self.model_type == 'f':
+                    feed_dict = { self.tf_graph_inputs[0] : sil_f, self.tf_graph_inputs[1] : aux }
+                elif self.model_type == 's':
+                    feed_dict = {self.tf_graph_inputs[0]: sil_s, self.tf_graph_inputs[1]: aux}
+                else:
+                    assert False, 'unsupported shape model type'
 
                 preds= sess.run(self.tf_graph_outputs, feed_dict=feed_dict)
                 pred = preds[0]
