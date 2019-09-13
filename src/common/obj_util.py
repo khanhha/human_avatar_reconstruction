@@ -98,6 +98,7 @@ def import_mesh_tex_obj(fpath):
     verts_tex = []
     faces =  []
     faces_tex =  []
+    verts_n = []
     with open(fpath, 'r') as obj:
         file = obj.read()
         lines = file.splitlines()
@@ -108,12 +109,15 @@ def import_mesh_tex_obj(fpath):
                     verts.append((float(elem[1]), float(elem[2]), float(elem[3])))
                 elif elem[0] == 'vt':
                     verts_tex.append((float(elem[1]), float(elem[2])))
-                elif elem[0] == 'vn' or elem[0] == 'vp':
+                elif elem[0] == 'vn':
+                    verts_n.append((float(elem[1]), float(elem[2]), float(elem[3])))
+                elif elem[0] == 'vp':
                     raise Exception('unsupported format')
                 elif elem[0] == 'f':
                     f = []
                     ft = []
                     for v_idx_str in elem[1:]:
+                        v_idx_str = v_idx_str.replace('//', '/')
                         v_idx = v_idx_str.split('/')
                         if len(v_idx) != 2:
                             raise Exception('unsupported format')
@@ -124,6 +128,7 @@ def import_mesh_tex_obj(fpath):
     mesh = {}
     mesh['v']   = np.array(verts)
     mesh['vt']  = np.array(verts_tex)
+    mesh['vn'] = np.array(verts_n)
     mesh['f']   = faces
     mesh['ft']  = faces_tex
     return mesh
