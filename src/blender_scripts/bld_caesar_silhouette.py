@@ -10,6 +10,7 @@ from collections import defaultdict
 import shutil
 import copy
 import sys
+import time
 
 scene = bpy.context.scene
 g_cur_file_name = ''
@@ -89,7 +90,7 @@ def avg_co(mesh, ld_idxs):
     avg_co /= len(ld_idxs)
     return avg_co
 
-def estimate_joint_positions(obj):
+def collect_joint_vertex_grp_cos(obj):
     grp_names = []
     for grp in obj.vertex_groups:
         if 'joint_' in grp.name:
@@ -101,14 +102,22 @@ def estimate_joint_positions(obj):
 
     joints = {}
     for grp_name, vert_idxs in grp_vert_idxs.items():
-        avg = Vector((0.0, 0.0, 0.0))
+        list_cos = []
         for idx in vert_idxs:
-            avg = avg + obj.data.vertices[idx].co
-        avg = avg / float(len(vert_idxs))
+            list_cos.append(obj.data.vertices[idx].co)
+
+        joints[grp_name] = list_cos
+
+    return joints
+
+def estimate_joint_positions(obj, grp_vert_cos):
+    joints = {}
+    for grp_name, vert_cos in grp_vert_cos.items():
+        avg = Vector((0.0, 0.0, 0.0))
+        for co in vert_cos:
+            avg = avg + co
+        avg = avg / float(len(vert_cos))
         joints[grp_name] = avg
-
-    #print(joints)
-
     return joints
 
 def set_joints(obj, joints):
@@ -118,23 +127,23 @@ def set_joints(obj, joints):
 
     bpy.ops.object.mode_set(mode='EDIT')
 
-    t = joints['joint_neck']
-    obj.data.edit_bones['shoulder.L'].head = obj.matrix_world.inverted() * t
-    obj.data.edit_bones['shoulder.R'].head = obj.matrix_world.inverted() * t
-    obj.data.edit_bones['head'].head = obj.matrix_world.inverted() * t
+    t = obj.matrix_world.inverted() * joints['joint_neck']
+    obj.data.edit_bones['shoulder.L'].head =  t
+    obj.data.edit_bones['shoulder.R'].head = t
+    obj.data.edit_bones['head'].head = t
 
     ####################################
     t = obj.matrix_world.inverted() * joints['joint_head']
     obj.data.edit_bones['head'].tail = t
 
     ####################################
-    t = joints['joint_lshoulder']
-    obj.data.edit_bones['upper_arm.L'].head = obj.matrix_world.inverted() * t
-    obj.data.edit_bones["shoulder.L"].tail  = obj.matrix_world.inverted() * t
+    t =  obj.matrix_world.inverted() *  joints['joint_lshoulder']
+    obj.data.edit_bones['upper_arm.L'].head = t
+    obj.data.edit_bones["shoulder.L"].tail  = t
 
-    t = joints['joint_rshoulder']
-    obj.data.edit_bones['upper_arm.R'].head = obj.matrix_world.inverted() * t
-    obj.data.edit_bones["shoulder.R"].tail = obj.matrix_world.inverted() * t
+    t =  obj.matrix_world.inverted() *  joints['joint_rshoulder']
+    obj.data.edit_bones['upper_arm.R'].head = t
+    obj.data.edit_bones["shoulder.R"].tail = t
 
     ##################################
     t = joints['joint_lbreast']
@@ -187,13 +196,13 @@ def set_joints(obj, joints):
     obj.data.edit_bones['pelvis.R'].tail = obj.matrix_world.inverted() * t
 
     #############################
-    t = joints['joint_rknee']
-    obj.data.edit_bones["thigh.R"].tail = obj.matrix_world.inverted() * t
-    obj.data.edit_bones['shin.R'].head = obj.matrix_world.inverted() * t
+    t =  obj.matrix_world.inverted() * joints['joint_rknee']
+    obj.data.edit_bones["thigh.R"].tail = t
+    obj.data.edit_bones['shin.R'].head = t
 
-    t = joints['joint_lknee']
-    obj.data.edit_bones["thigh.L"].tail = obj.matrix_world.inverted() * t
-    obj.data.edit_bones['shin.L'].head = obj.matrix_world.inverted() * t
+    t = obj.matrix_world.inverted() * joints['joint_lknee']
+    obj.data.edit_bones["thigh.L"].tail = t
+    obj.data.edit_bones['shin.L'].head = t
 
     ##############################
     t = joints['joint_rankle']
@@ -203,13 +212,13 @@ def set_joints(obj, joints):
     obj.data.edit_bones['shin.L'].tail = obj.matrix_world.inverted() * t
 
     #########################
-    t = joints['joint_relbow']
-    obj.data.edit_bones["upper_arm.R"].tail = obj.matrix_world. inverted() * t
-    obj.data.edit_bones['forearm.R'].head = obj.matrix_world.inverted() * t
+    t = obj.matrix_world.inverted() * joints['joint_relbow']
+    obj.data.edit_bones["upper_arm.R"].tail = t
+    obj.data.edit_bones['forearm.R'].head = t
 
-    t = joints['joint_lelbow']
-    obj.data.edit_bones["upper_arm.L"].tail = obj.matrix_world.inverted() * t
-    obj.data.edit_bones['forearm.L'].head = obj.matrix_world.inverted() * t
+    t = obj.matrix_world.inverted() * joints['joint_lelbow']
+    obj.data.edit_bones["upper_arm.L"].tail = t
+    obj.data.edit_bones['forearm.L'].head = t
 
     #################################
     t = joints['joint_rwrist']
@@ -288,9 +297,9 @@ def rotate_side_armature_random(arm_obj):
 
 def project_synthesized():
     #pca_co_dir = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/vic_pca_models_debug/verts/male/'
-    verts_co_dir = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/vic_pca_models_nosyn/verts/male/'
-    sil_root_dir = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/blender_images/nosyn/male/'
-    front_sil = False
+    verts_co_dir = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/vic_pca_models_syn/verts/female/'
+    sil_root_dir = '/home/khanhhh/Oh/blender_images/syn/female/'
+    front_sil = True
     side_sil = True
 
     sil_f_dir = os.path.join(*[sil_root_dir , 'sil_f_raw'])
@@ -304,7 +313,6 @@ def project_synthesized():
 
     vic_tpl_obj = bpy.data.objects['vic_template']
     vic_tpl_mesh = vic_tpl_obj.data
-    n_v = len(vic_tpl_mesh.vertices)
 
     armature_obj = bpy.data.objects['metarig']
 
@@ -325,9 +333,17 @@ def project_synthesized():
     #paths = [paths[15]]
     #paths = paths[:5]
 
+    joint_grp_vert_cos = collect_joint_vertex_grp_cos(vic_tpl_obj)
+
+    larm_cos = [vic_tpl_mesh.vertices[vi].co for vi in larm_v_idxs]
+    rarm_cos = [vic_tpl_mesh.vertices[vi].co for vi in rarm_v_idxs]
+
     #print('file idx: ', idx)
-    N_pos_variants = 30
-    for i in range(len(paths)):
+    N_pos_variants = 20
+    N_files = len(paths)
+    for i in range(N_files):
+        #time_start = time.time()
+        print('prog: ', i, '/', N_files)
         path = paths[i]
         name = path.stem
 
@@ -350,11 +366,11 @@ def project_synthesized():
            continue
 
         verts = np.load(path)
+        #print('verts.shape = ', verts.shape)
 
-        print('verts.shape = ', verts.shape)
-
-        for vi in range(n_v):
-            vic_tpl_mesh.vertices[vi].co[:] = verts[vi,:]
+        #for vi in range(n_v):
+        #    vic_tpl_mesh.vertices[vi].co[:] = verts[vi,:]
+        vic_tpl_mesh.vertices.foreach_set("co", verts.flatten())
 
         transform_obj_caesar_pca(vic_tpl_obj, s = 10.0)
 
@@ -362,9 +378,10 @@ def project_synthesized():
         cam_front_obj.location[2] = neck_ld_co[2]
         cam_side_obj.location[2] = neck_ld_co[2]
 
-        joints = estimate_joint_positions(vic_tpl_obj)
+        joints = estimate_joint_positions(vic_tpl_obj, joint_grp_vert_cos)
         set_joints(armature_obj, joints)
 
+        #t0 = time.time()
         #select both objects and make the armature object active
         vic_tpl_obj.select = True
         armature_obj.select = True
@@ -373,6 +390,9 @@ def project_synthesized():
         #weight calculation: it could be disabled for fast debugging with a single object.
         bpy.ops.object.parent_set(type='ARMATURE_AUTO')
 
+        #t1 = time.time()
+
+        #t2 = time.time()
         #the file with posfix _0 is the original file
         if front_sil:
             for i in range(N_pos_variants):
@@ -394,12 +414,16 @@ def project_synthesized():
         if side_sil:
             # collapse left and right arm to avoid arm intrusion in the side profile
             larm_co = vic_tpl_mesh.vertices[larm_sample_v_idx].co[:]
-            for vi in larm_v_idxs:
-                vic_tpl_mesh.vertices[vi].co[:] = larm_co
+            for co in larm_cos:
+                co[:] = larm_co
+            #for vi in larm_v_idxs:
+            #    vic_tpl_mesh.vertices[vi].co[:] = larm_co
 
             rarm_co = vic_tpl_mesh.vertices[rarm_sample_v_idx].co[:]
-            for vi in rarm_v_idxs:
-                vic_tpl_mesh.vertices[vi].co[:] = rarm_co
+            for co in rarm_cos:
+                co[:] = rarm_co
+            #for vi in rarm_v_idxs:
+            #    vic_tpl_mesh.vertices[vi].co[:] = rarm_co
 
             for i in range(N_pos_variants):
                 #make side camera active
@@ -413,5 +437,14 @@ def project_synthesized():
                 armature_obj.hide = False
 
                 rotate_side_armature_random(armature_obj)
+
+        #t3 = time.time()
+
+        reset_pose(armature_obj)
+
+        #time_end = time.time()
+        #print('time = ', time_end-time_start)
+        #print('parenting time = ', t1-t0)
+        #print('render time = ', t3-t2)
 
 project_synthesized()
