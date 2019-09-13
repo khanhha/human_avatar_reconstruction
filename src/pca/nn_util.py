@@ -645,5 +645,9 @@ def verify_pose_variants_per_name(paths, N_pose = 30):
         counter[unq_name] += 1
 
     #assert that there are exact the expected number of pose per subject
+    invalid = True
     for k, value in counter.items():
-        assert value == N_pose, f'missing pose variants for object file name {k}. n_pose = {value} while it should be {N_pose}'
+        if value != N_pose:
+            invalid = False
+            print(f'missing pose variants for object file name {k}. n_pose = {value} while it should be {N_pose}')
+    assert invalid, 'pose_verification_result: failed'

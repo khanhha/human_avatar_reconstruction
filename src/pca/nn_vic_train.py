@@ -82,17 +82,17 @@ def create_loaders(args, target_trans = None, height_trans = None, n_pose_varian
         train_ds= ImgFullDataSetPoseVariants(img_transform=sil_transform,
                                  dir_f=train_f_dir, dir_s=train_s_dir,
                                  dir_target=args.target_dir, id_to_heights=heights, target_transform=target_trans, height_transform=height_trans, use_input_gender=args.use_gender,
-                                             n_pose_variant=n_pose_variant)
+                                             n_pose_variant=n_pose_variant, shuffle_front_side_pairs=True)
 
         valid_ds= ImgFullDataSetPoseVariants(img_transform=sil_transform,
                                  dir_f=valid_f_dir, dir_s=valid_s_dir,
                                  dir_target=args.target_dir, id_to_heights=heights,  target_transform=target_trans,height_transform=height_trans, use_input_gender=args.use_gender,
-                                             n_pose_variant=n_pose_variant)
+                                             n_pose_variant=n_pose_variant, shuffle_front_side_pairs=True)
 
         test_ds= ImgFullDataSetPoseVariants(img_transform=sil_transform,
                                 dir_f=test_f_dir, dir_s=test_s_dir,
                                 dir_target=args.target_dir, id_to_heights=heights,  target_transform=target_trans,height_transform=height_trans, use_input_gender=args.use_gender,
-                                            n_pose_variant=n_pose_variant)
+                                            n_pose_variant=n_pose_variant, shuffle_front_side_pairs=True)
 
     train_loader = torch.utils.data.DataLoader(train_ds, batch_size=args.batch_size, shuffle=True, num_workers=4)
     valid_loader = torch.utils.data.DataLoader(valid_ds, batch_size=args.batch_size, shuffle=True, num_workers=4)

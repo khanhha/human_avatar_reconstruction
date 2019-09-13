@@ -95,6 +95,9 @@ def crop_a_pair(size, path_pair):
     sil_f = cv.imread(str(fpath))
     sil_s = cv.imread(str(spath))
 
+    assert sil_f is not None, f'{fpath} image does not exist'
+    assert sil_s is not None, f'{spath} image does not exist'
+
     background_intensity = 54
     epsilon = 5
 
@@ -357,13 +360,13 @@ if __name__ == '__main__':
     n_file = -1
     # copy pca target with the same name pattern to the out dir
     out_target_dir = os.path.join(*[args.out_dir, 'target'])
-    copy_target_prefix(args.target_fml_dir, out_target_dir, '_female', args.n_pose_variant, n_files=n_file)
-    copy_target_prefix(args.target_ml_dir,  out_target_dir, '_male', args.n_pose_variant, n_files=n_file)
+    #copy_target_prefix(args.target_fml_dir, out_target_dir, '_female', args.n_pose_variant, n_files=n_file)
+    #copy_target_prefix(args.target_ml_dir,  out_target_dir, '_male', args.n_pose_variant, n_files=n_file)
 
-    out_height_path = os.path.join(*[args.out_dir, 'height.txt'])
-    dump_heights(pca_in_dir=out_target_dir,
-                 pca_ml_model_path=args.pca_ml_model_path, pca_fml_model_path=args.pca_fml_model_path,
-                 height_out_path=out_height_path)
+    #out_height_path = os.path.join(*[args.out_dir, 'height.txt'])
+    #dump_heights(pca_in_dir=out_target_dir,
+    #             pca_ml_model_path=args.pca_ml_model_path, pca_fml_model_path=args.pca_fml_model_path,
+    #             height_out_path=out_height_path)
 
     with tempfile.TemporaryDirectory() as tmp_dir:
         print(f'created temporary dir: {tmp_dir}')
