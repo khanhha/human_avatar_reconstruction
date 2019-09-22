@@ -16,7 +16,6 @@ class HmShapePredModel():
         self.pca_target_transform = data['pca_target_transform']
         self.aux_input_transform =  data['aux_input_transform']
 
-        self.hm_sil_corrector = HmSilCorrector()
 
         self.graph = tf.Graph()
         with self.graph.as_default():
@@ -28,7 +27,7 @@ class HmShapePredModel():
             self.tf_graph_inputs = elms[:len(self.tf_graph_input_keys)]
             self.tf_graph_outputs = elms[len(self.tf_graph_input_keys):]
 
-    def predict(self, sil_f, sil_s, height, gender, pose_f = None, pose_s = None):
+    def predict(self, sil_f, sil_s, height, gender):
         assert len(sil_f.shape) == 2
         assert len(sil_s.shape) == 2
         assert sil_f.shape == sil_s.shape
@@ -37,9 +36,6 @@ class HmShapePredModel():
         #size = self.image_input_shape
         #if sil_f.shape != size:
         #    sil_f, sil_s, _, _ = crop_silhouette_pair(sil_f, sil_s, mask_f=sil_f, mask_s=sil_s, target_h=size[0], target_w=size[1], px_height=int(0.9 * size[0]))
-
-        sil_f = self.hm_sil_corrector.correct_f_sil(sil_f, pose_f)
-        sil_s = self.hm_sil_corrector.correct_s_sil(sil_s, pose_s)
 
         if sil_f.dtype == np.uint8:
             sil_f = sil_f.astype(np.float)/255.0

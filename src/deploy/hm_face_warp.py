@@ -592,17 +592,17 @@ class HmFPrnNetFaceTextureEmbedder():
             cv.fillPoly(mask, mid_nostril_points, (255,255,255))
 
             img_1 = cv.inpaint(img, mask, 3, cv.INPAINT_TELEA)
-            plt.axis('off')
-            plt.subplot(131)
-            plt.imshow(img)
-            plt.subplot(132)
-            plt.imshow(img)
-            plt.imshow(mask, alpha=0.4)
-            plt.subplot(133)
-            plt.imshow(img_1)
-            dir = "/home/khanhhh/data_1/projects/Oh/data/face/google_front_faces/debug_nostril/"
-            os.makedirs(dir, exist_ok=True)
-            plt.savefig(f'{dir}/{np.random.randint(1000)}.png', dpi=500)
+            #plt.axis('off')
+            #plt.subplot(131)
+            #plt.imshow(img)
+            #plt.subplot(132)
+            #plt.imshow(img)
+            #plt.imshow(mask, alpha=0.4)
+            #plt.subplot(133)
+            #plt.imshow(img_1)
+            #dir = "/home/khanhhh/data_1/projects/Oh/data/face/google_front_faces/debug_nostril/"
+            #os.makedirs(dir, exist_ok=True)
+            #plt.savefig(f'{dir}/{np.random.randint(1000)}.png', dpi=500)
             return img_1
         else:
             nostril_idxs = [30, 31, 33, 35]

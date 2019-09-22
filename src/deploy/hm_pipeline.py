@@ -13,16 +13,24 @@ from deploy.data_config import  config_get_data_path
 from pose.pose_extract_tfpose import PoseExtractorTf
 from pose.pose_common import CocoPart as HmPart
 from pose.pose_common import HumanPose
+from deploy.hm_sil_correct import HmSilCorrector
 
 #this module predicts a 3D human mesh from front, side images, height and gender
 class HumanRGBModel:
 
     def __init__(self, hmshape_model_path, hmsil_model_path, mesh_path):
+        if '.jlb' in  hmshape_model_path:
+            self.hmshape_model = HmShapePredModel(model_path=hmshape_model_path)
+        elif '.pt' in hmshape_model_path:
+            self.hmshape_model = HmShapePredPytorchModel(model_path=hmshape_model_path)
+        else:
+            assert False, 'unrecognized model extension. it should be .jlb or .pt'
+
         self.hmsil_model = HmSilPredModel(model_path=hmsil_model_path, use_gpu=True, use_mobile_model=False)
-        #self.hmshape_model = HmShapePredPytorchModel(model_path=hmshape_model_path)
-        self.hmshape_model = HmShapePredModel(model_path=hmshape_model_path)
+
         _, faces = import_mesh_obj(mesh_path)
 
+        self.hm_sil_corrector = HmSilCorrector()
         self.extractor = PoseExtractorTf()
         self.tpl_faces = faces
 
@@ -43,7 +51,7 @@ class HumanRGBModel:
         sil_s = self.hmsil_model.extract_silhouette(rgb_img_s)
         sil_f = sil_f.astype(np.float32)/255.0
         sil_s = sil_s.astype(np.float32)/255.0
-        # fig, axes = plt.subplots(1,2)
+        fig, axes = plt.subplots(1,2)
         # axes[0].imshow(rgb_img_f)
         # axes[0].imshow(sil_f, alpha=0.5)
         # axes[1].imshow(rgb_img_s)
@@ -64,11 +72,20 @@ class HumanRGBModel:
        # plt.imshow(img_pose_s)
        # plt.show()
 
-        verts, faces  = self.predict_sil(sil_f, sil_s, height, gender, pose_f=pose_f, pose_s=pose_s)
+        sil_f = self.hm_sil_corrector.correct_f_sil(sil_f, pose_f)
+        sil_s = self.hm_sil_corrector.correct_s_sil(sil_s, pose_s)
+
+        #plt.subplot(121)
+        #plt.imshow(sil_f)
+        #plt.subplot(122)
+        #plt.imshow(sil_s)
+        #plt.show()
+
+        verts, faces  = self.predict_sil(sil_f, sil_s, height, gender)
 
         return verts, faces, sil_f, sil_s
 
-    def predict_sil(self, sil_f, sil_s, height, gender, pose_f = None, pose_s = None):
+    def predict_sil(self, sil_f, sil_s, height, gender):
         """
         :param sil_f: front silhouete
         :param sil_s: side silhouete
@@ -78,7 +95,7 @@ class HumanRGBModel:
         verts: Nx3 points
         faces: template face list
         """
-        verts = self.hmshape_model.predict(sil_f=sil_f, sil_s=sil_s, height=height, gender=gender, pose_f=pose_f, pose_s=pose_s)
+        verts = self.hmshape_model.predict(sil_f=sil_f, sil_s=sil_s, height=height, gender=gender)
         verts = verts[0]
         verts = verts.reshape(verts.shape[0]//3, 3)
         return verts, self.tpl_faces

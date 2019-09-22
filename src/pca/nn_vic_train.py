@@ -23,8 +23,10 @@ from ignite.handlers import ModelCheckpoint, EarlyStopping
 from tensorboardX import SummaryWriter
 import logging
 import sys
-from pca.nn_vic_model import NNModelWrapper
+from pca.nn_vic_model import NNModelWrapper, NNHmModel, NNHmJointModel
 from pca.pca_vic_model import PcaModel
+from pca.losses import SMPLLoss
+import matplotlib.pyplot as plt
 
 def create_summary_writer(args, model, data_loader, log_dir, clean_old_log = True):
     if clean_old_log:
@@ -47,9 +49,7 @@ def create_summary_writer(args, model, data_loader, log_dir, clean_old_log = Tru
         print("Failed to save model graph: {}".format(e))
     return writer
 
-def create_loaders(args, target_trans = None, height_trans = None, n_pose_variant = 0):
-    sil_transform = transforms.Compose([transforms.ToTensor()])
-
+def create_loaders(args, img_transform = None, target_trans = None, height_trans = None, n_pose_variant = 0):
     dir_sil_f = os.path.join(*[args.root_dir, 'sil_f'])
     dir_sil_s = os.path.join(*[args.root_dir, 'sil_s'])
 
@@ -64,32 +64,32 @@ def create_loaders(args, target_trans = None, height_trans = None, n_pose_varian
     heights = load_height(args.height_path)
 
     if n_pose_variant == 0:
-        train_ds= ImgFullDataSet(img_transform=sil_transform,
+        train_ds= ImgFullDataSet(img_transform=img_transform,
                                       dir_f=train_f_dir, dir_s=train_s_dir,
                                       dir_target=args.target_dir, id_to_heights=heights, target_transform=target_trans, height_transform=height_trans, use_input_gender=args.use_gender)
 
 
-        valid_ds= ImgFullDataSet(img_transform=sil_transform,
+        valid_ds= ImgFullDataSet(img_transform=img_transform,
                                       dir_f=valid_f_dir, dir_s=valid_s_dir,
                                       dir_target=args.target_dir, id_to_heights=heights,  target_transform=target_trans,height_transform=height_trans, use_input_gender=args.use_gender)
 
 
-        test_ds= ImgFullDataSet(img_transform=sil_transform,
+        test_ds= ImgFullDataSet(img_transform=img_transform,
                                       dir_f=test_f_dir, dir_s=test_s_dir,
                                       dir_target=args.target_dir, id_to_heights=heights,  target_transform=target_trans,height_transform=height_trans, use_input_gender=args.use_gender)
     else:
 
-        train_ds= ImgFullDataSetPoseVariants(img_transform=sil_transform,
+        train_ds= ImgFullDataSetPoseVariants(img_transform=img_transform,
                                  dir_f=train_f_dir, dir_s=train_s_dir,
                                  dir_target=args.target_dir, id_to_heights=heights, target_transform=target_trans, height_transform=height_trans, use_input_gender=args.use_gender,
                                              n_pose_variant=n_pose_variant, shuffle_front_side_pairs=True)
 
-        valid_ds= ImgFullDataSetPoseVariants(img_transform=sil_transform,
+        valid_ds= ImgFullDataSetPoseVariants(img_transform=img_transform,
                                  dir_f=valid_f_dir, dir_s=valid_s_dir,
                                  dir_target=args.target_dir, id_to_heights=heights,  target_transform=target_trans,height_transform=height_trans, use_input_gender=args.use_gender,
                                              n_pose_variant=n_pose_variant, shuffle_front_side_pairs=True)
 
-        test_ds= ImgFullDataSetPoseVariants(img_transform=sil_transform,
+        test_ds= ImgFullDataSetPoseVariants(img_transform=img_transform,
                                 dir_f=test_f_dir, dir_s=test_s_dir,
                                 dir_target=args.target_dir, id_to_heights=heights,  target_transform=target_trans,height_transform=height_trans, use_input_gender=args.use_gender,
                                             n_pose_variant=n_pose_variant, shuffle_front_side_pairs=True)
@@ -215,12 +215,47 @@ def find_model_path(dir, hint):
             return path
     return None
 
+def generate_weight(num_classes):
+    weight = torch.ones(num_classes)
+    #gender
+    weight[0] = 100
+    weight[1] = 100
+
 def load_transformations():
+    print('calculating PCA target and height transformations')
+    use_min_max_scale = False
     if args.is_scale_target:
         target_data = load_target(args.target_dir)
-        target_trans = MinMaxScaler()
-        target_trans.fit(target_data)
-        print(f'fit target transformation. {target_trans}: range={target_trans.data_range_}') #min = {target_trans.data_min_}
+       # T = np.array(target_data)
+       # for i in range(T.shape[1]):
+       #     X = T[:,i]
+       #     plt.hist(X, bins = 200)
+       #     plt.title(f'hist {i}')
+       #     plt.show()
+
+        if use_min_max_scale:
+            target_trans = MinMaxScaler()
+            target_trans.fit(target_data)
+            print(f'fit min-max target transformation. {target_trans}: \n range={target_trans.data_range_}') #min = {target_trans.data_min_}
+        else:
+            #target_trans = StandardScaler()
+            #target_trans.fit(target_data)
+            #print(f'fit standard scaler target transform: {target_trans}: \n mean = {target_trans.mean_}, \n scale = {target_trans.scale_}')
+            target_trans = RobustScaler()
+            target_trans.fit(target_data)
+            print(f'fit robust scaler target transform: {target_trans}')
+        test = target_trans.transform(target_data)
+        print(f'min before transform = {np.min(target_data, axis=0)}')
+        print(f'max before transform = {np.max(target_data, axis=0)}')
+        print(f'min after transform = {np.min(test, axis=0)}')
+        print(f'max after transform = {np.max(test, axis=0)}')
+
+       # T = np.array(test)
+       # for i in range(T.shape[1]):
+       #     X = T[:,i]
+       #     plt.hist(X, bins = 200)
+       #     plt.title(f'after transformed hist {i}')
+       #     plt.show()
     else:
         target_trans = None
 
@@ -228,12 +263,26 @@ def load_transformations():
         height_data = load_height(args.height_path)
         height_data = np.array([item[1] for item in height_data.items()])
         height_data = height_data.reshape(-1, 1)
-        height_trans = MinMaxScaler() #the same scale as the input silhouete
-        height_trans.fit(height_data)
-        print(f'fit  height transform. {height_trans}: min = {height_trans.data_min_}, range= {height_trans.data_range_}')
+        if use_min_max_scale:
+            height_trans = MinMaxScaler() #the same scale as the input silhouete
+            height_trans.fit(height_data)
+            print(f'fit  min-max scaler height transform. {height_trans}: min = {height_trans.data_min_}, range= {height_trans.data_range_}')
+        else:
+            #height_trans = StandardScaler()
+            height_trans = RobustScaler()
+            height_trans.fit(height_data)
+            #print(f'fit standard scaler height transform. {height_trans}')
+            print(f'fit robust scaler height transform: {height_trans}')
+
+        test = height_trans.transform(height_data)
+        print(f'min before transform = {np.min(height_data, axis=0)}')
+        print(f'max before transform = {np.max(height_data, axis=0)}')
+        print(f'min after transform = {np.min(test, axis=0)}')
+        print(f'max after transform = {np.max(test, axis=0)}')
     else:
         height_trans = None
 
+    #exit()
     return target_trans, height_trans
 
 def run(args):
@@ -244,14 +293,23 @@ def run(args):
     target_trans, height_trans = load_transformations()
 
     print('create data loaders: train, valid, test')
-    train_loader, valid_loader, test_loader = create_loaders(args, target_trans=target_trans, height_trans=height_trans, n_pose_variant=args.n_pose_variant)
+    in_img_size = (224,224)
+    use_input_color = True
+    if not use_input_color:
+        img_transform = transforms.Compose([transforms.Resize(in_img_size), transforms.ToTensor()])
+    else:
+        img_transform = transforms.Compose([transforms.Resize(in_img_size), transforms.Grayscale(3), transforms.ToTensor()])
 
+    use_old_architecture = False
     #train the front and side model first
     if args.model_type in ['f', 's']:
         n_aux_input_feature = 1 #height
         if args.use_gender:
             n_aux_input_feature = 2 #gender
-        model = densenet121(pretrained=False, num_classes=args.num_classes, n_aux_input_feature=n_aux_input_feature)
+        if use_old_architecture:
+            model = densenet121(pretrained=False, num_classes=args.num_classes, n_aux_input_feature=n_aux_input_feature)
+        else:
+            model = NNHmModel(num_classes=args.num_classes, n_aux_input_feature=n_aux_input_feature, encoder_type=args.encoder_type)
     else:
         #find the path to the front and side models
         model_f_path = find_model_path(os.path.join(*[model_root_dir, 'f']), 'final_model')
@@ -265,24 +323,46 @@ def run(args):
         print(f'\tmodel_s: {model_s_path}')
         print('\n')
         #create  joint model from the front and side weights
-        model = JointMask(model_f=model_f_wrap.model, model_s=model_s_wrap.model, num_classes=args.num_classes)
+        if use_old_architecture:
+            model = JointMask(model_f=model_f_wrap.model, model_s=model_s_wrap.model, num_classes=args.num_classes)
+        else:
+            model = NNHmJointModel(model_f=model_f_wrap.model, model_s=model_s_wrap.model, num_classes=args.num_classes)
 
+    train_loader, valid_loader, test_loader = create_loaders(args, img_transform=img_transform, target_trans=target_trans, height_trans=height_trans, n_pose_variant=args.n_pose_variant)
 
     log_dir = os.path.join(*[args.root_dir, 'log', args.model_type])
+    #clean log
+    for path in Path(log_dir).glob('*.*'):
+        os.remove(str(path))
     writer = create_summary_writer(args, model, train_loader, log_dir)
 
     pca_model = PcaModel.load(args.pca_model_path)
 
-    criterion = torch.nn.MSELoss()
-
-    optimizer = torch.optim.RMSprop(model.parameters(), lr = args.lr)
+    #optimizer = torch.optim.RMSprop(model.parameters(), lr = args.lr)
+    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer=optimizer, step_size=5, gamma=0.7)
     device = 'cuda'
 
-    trainer = create_supervised_trainer_k(model, args.model_type,
-                                        optimizer, criterion, device=device)
+    # if if mesh_loss_vert_idxs_path is available,
+    # we calculate the mesh vertex loss on a subset of vertices rather than the whole vertex list.
+    mesh_loss_vert_idxs = None
+    if args.mesh_loss_vert_idxs_path != '':
+        mesh_loss_vert_idxs = np.load(args.mesh_loss_vert_idxs_path)
+        print(f'apply mesh loss on a subset of vertices: N_subset = {mesh_loss_vert_idxs.shape}')
+    else:
+        print(f'apply mesh loss on the whole mesh vertex list')
 
-    train_evaluator = create_supervised_evaluator_k(model, args.model_type, metrics={'loss': Loss(criterion)}, device=device)
-    valid_evaluator = create_supervised_evaluator_k(model, args.model_type, metrics={'loss': Loss(criterion)}, device=device)
+    pca_comps_famle = pca_model.model_female.components_
+    pca_comps_male = pca_model.model_male.components_
+    loss_fn = SMPLLoss(num_classes=args.num_classes,
+                       pca_comps_male= pca_comps_male, pca_comps_female= pca_comps_famle,
+                       use_weighted_mse_loss=True, mesh_vert_idxs=mesh_loss_vert_idxs,  pca_start_idx=1)
+
+    trainer = create_supervised_trainer_k(model, args.model_type,
+                                        optimizer, loss_fn, device=device)
+
+    train_evaluator = create_supervised_evaluator_k(model, args.model_type, metrics={'loss': Loss(loss_fn)}, device=device)
+    valid_evaluator = create_supervised_evaluator_k(model, args.model_type, metrics={'loss': Loss(loss_fn)}, device=device)
 
     desc = "ITERATION - loss: {:.6f}"
     pbar = tqdm(
@@ -305,7 +385,8 @@ def run(args):
 
             to_save = NNModelWrapper(model=core_model, model_type=args.model_type, pca_model=pca_model,
                                      use_pca_loss=False, use_height=args.use_height,
-                                     pca_target_transform=target_trans, height_transform=height_trans)
+                                     img_input_transform = img_transform,
+                                     pca_target_transform = target_trans, height_transform=height_trans)
             final_path = os.path.join(*[model_dir, 'final_model.pt'])
             to_save.dump(final_path)
 
@@ -320,6 +401,13 @@ def run(args):
 
     @trainer.on(Events.EPOCH_COMPLETED)
     def log_validation_results(engine):
+
+        mesh_loss_weight = 0.0
+        if hasattr(loss_fn, 'loss_update_per_epoch'):
+            loss_fn.loss_update_per_epoch(epoch=engine.state.epoch)
+        if hasattr(loss_fn, 'mesh_loss_weight'):
+            mesh_loss_weight = loss_fn.mesh_loss_weight
+
         # evaluate average training loss
         train_evaluator.run(train_loader)
         metrics = train_evaluator.state.metrics
@@ -331,13 +419,16 @@ def run(args):
         metrics = valid_evaluator.state.metrics
         valid_loss = metrics['loss']
         tqdm.write(
-            "Validation Results - Epoch: {}, train loss: {:.6f}, valid loss: {:.6f}."
-            .format(engine.state.epoch, train_loss, valid_loss))
+            "Validation Results - Epoch: {}, train loss: {:.6f}, valid loss: {:.6f}. mesh_loss_weight = {:.4f}"
+            .format(engine.state.epoch, train_loss, valid_loss, mesh_loss_weight))
 
         writer.add_scalar("valdation/avg_loss", valid_loss, engine.state.epoch)
 
         # save best wrapper, after the best model is already dumped by BestModeSaver
         save_best_model_wrapper()
+
+        # decay learning rate
+        scheduler.step()
 
         pbar.n = pbar.last_print_n = 0
 
@@ -400,6 +491,7 @@ if __name__ == '__main__':
     ap.add_argument("-batch_size", type=int, default=16, required=False)
     ap.add_argument('-num_workers', default=4, type=int, help='output dataset directory')
     ap.add_argument('-num_classes', default=50, type=int, required=False, help='output dataset directory')
+    ap.add_argument('-encoder_type', default='vgg16_bn', type=str, choices=['resnet18', 'vgg16_bn', 'densenet'])
     ap.add_argument('-log_interval', default=1, type=int, required=False, help='output dataset directory')
     ap.add_argument('-early_stop_patient', default=10, type=int, required=False, help='output dataset directory')
     ap.add_argument("-is_scale_target",  default=0, type=int, required=True)
@@ -407,6 +499,8 @@ if __name__ == '__main__':
     ap.add_argument('-use_height',  default=1, type=int, required=True)
     ap.add_argument('-use_gender',  default=1, type=int, required=True)
     ap.add_argument('-n_pose_variant', default=0, type=int, required=False, help='number of pose varaint per subject. man0_pose0, ..., man0_pose29')
+    ap.add_argument('-mesh_loss_vert_idxs_path', default='', type=str, required=False, help='normally, the mesh loss is calculated over the whole mesh vertices. if this field is not empty, '
+                                                                                            'the mesh loss will be calculated on a subset of vertex. this must be a *.npy file')
     args = ap.parse_args()
     assert args.use_height == True, 'only support height input currently'
     run(args)

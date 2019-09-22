@@ -71,7 +71,6 @@ class ImgFullDataSet(Dataset):
         # s_paths = s_paths[:100]
         # f_paths = f_paths[:100]
 
-
         #gather the corresponding PCA target for each front-side silhouette pair
         y_paths = []
         if dir_target is not None:
@@ -247,9 +246,9 @@ class ImgFullDataSetPoseVariants(Dataset):
     @staticmethod
     def _sort_subject_pose_variant_names(f_paths, s_paths, y_paths, n_pose_variant):
         assert n_pose_variant > 0
-        verify_pose_variants_per_name(f_paths)
-        verify_pose_variants_per_name(s_paths)
-        verify_pose_variants_per_name(y_paths)
+        verify_pose_variants_per_name(f_paths, n_pose_variant)
+        verify_pose_variants_per_name(s_paths, n_pose_variant)
+        verify_pose_variants_per_name(y_paths, n_pose_variant)
         f_paths = sorted(f_paths)
         s_paths = sorted(s_paths)
         y_paths = sorted(y_paths)
@@ -453,7 +452,6 @@ def reconstruct_mesh_from_pca(pca_model, x):
 
     return verts.T, faces
 
-
 def load_pca_model(model_dir, npca=100):
     faces = load_faces(f'{model_dir}/model.dat')
     mean_points  = io.loadmat(f'{model_dir}/meanShape.mat')['points'] #shape=(6449,3)
@@ -626,7 +624,7 @@ def remove_pose_variant_in_file_name(name):
     return new_name
 
 from collections import defaultdict
-def verify_pose_variants_per_name(paths, N_pose = 30):
+def verify_pose_variants_per_name(paths, N_pose):
     """
     verify that there are extact N_pose variants per human subject
     :param paths:

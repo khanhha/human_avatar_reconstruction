@@ -29,7 +29,8 @@ if __name__ == '__main__':
     os.makedirs(args.out_dir, exist_ok=True)
 
     #shape_model_path = os.path.join(*[args.model_dir, 'shape_model.jlb'])
-    shape_model_path = config_get_data_path(args.model_dir, 'shape_model_s')
+    #shape_model_path = config_get_data_path(args.model_dir, 'shape_model_s')
+    shape_model_path = config_get_data_path(args.model_dir, 'shape_model_pytorch_joint')
     #deeplab_path = os.path.join(*[args.model_dir, 'deeplabv3_xception_ade20k_train_2018_05_29.tar.gz'])
     deeplab_path = config_get_data_path(args.model_dir, 'deeplab_tensorflow_model')
     #vic_mesh_path = os.path.join(*[args.model_dir, 'vic_mesh.obj'])
@@ -87,14 +88,14 @@ if __name__ == '__main__':
                 img_s = cv.imread(side_img_path)
                 img_face_org = cv.imread(face_img_path)
 
-                verts, faces, sil_f, sil_s = body_model.predict(img_f, img_s, height, gender, correct_sil_f=True, correct_sil_s=True)
+                verts, faces, sil_f, sil_s = body_model.predict(img_f, img_s, height, gender, correct_sil_f=False, correct_sil_s=False)
 
                 #out_path = os.path.join(*[args.out_dir, f'{Path(front_img_path).stem}_org_head_{idx}.obj'])
                 #export_mesh(out_path, verts=verts, faces = tex_mesh['f'])
 
                 if args.save_sil:
-                    sil_f  = (sil_f*255.0).astype(np.uint8)
-                    sil_s  = (sil_s*255.0).astype(np.uint8)
+                    #sil_f  = (sil_f*255.0).astype(np.uint8)
+                    #sil_s  = (sil_s*255.0).astype(np.uint8)
                     out_sil_f_path = os.path.join(*[args.out_dir, f'{Path(front_img_path).stem}_sil.jpg'])
                     cv.imwrite(out_sil_f_path, sil_f)
                     out_sil_s_path = os.path.join(*[args.out_dir, f'{Path(side_img_path).stem}_sil.jpg'])
