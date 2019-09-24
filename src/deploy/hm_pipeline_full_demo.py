@@ -1,7 +1,3 @@
-from deploy.hm_shape_pred_pytorch_model import HmShapePredPytorchModel
-from deploy.hm_shape_pred_model import HmShapePredModel
-from deploy.hm_sil_pred_model import HmSilPredModel
-from pca.nn_util import crop_silhouette_pair
 import cv2 as cv
 import matplotlib.pyplot as plt
 import numpy as np
@@ -12,9 +8,17 @@ from common.obj_util import import_mesh_obj, export_mesh
 from deploy.hm_pipeline import HumanRGBModel
 from deploy.hm_head_model import HmHeadModel
 from deploy.hm_face_warp import HmFPrnNetFaceTextureEmbedder
+from deploy.hm_measurement import HumanMeasure, HmJointEstimator
 from face_utils.face_extractor import FaceExtractor
 from common.obj_util import import_mesh_tex_obj, export_mesh_tex_obj
 from deploy.data_config import config_get_data_path
+import pickle
+
+def export_measurement_file(file_path, measurements):
+    with open(file_path, 'wt') as file:
+        for name, value in measurements.items():
+            file.writelines([f'{name} : {value}\n'])
+
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
     ap.add_argument("-model_dir",  required=True, type=str, help="the direction where shape_model.jlb  and deeplab model are stored")
@@ -23,6 +27,8 @@ if __name__ == '__main__':
                                                                    "front_img  side_img  height_in_meter  gender  are_silhouette_or_not")
     ap.add_argument("-save_sil", required=False, default=False, type=bool, help="save silhouettes that are calculated from RGB input images")
     ap.add_argument("-out_dir",  required=True, type=str, help="output directory")
+    ap.add_argument("-out_measure_dir", required=False, type=str, help="output directory to contain measurements", default='')
+    ap.add_argument("-out_joint_dir", required=False, type=str, help="output directory to contain joints", default='')
 
     args = ap.parse_args()
 
@@ -39,6 +45,14 @@ if __name__ == '__main__':
     text_mesh_path = config_get_data_path(args.meta_data_dir, 'victoria_template_textured_mesh')
     tex_mesh = import_mesh_tex_obj(text_mesh_path)
 
+    measure_vert_grps_path = config_get_data_path(args.meta_data_dir, 'victoria_measure_vert_groups')
+    measure_circ_neighbor_idxs_path = config_get_data_path(args.meta_data_dir, 'victoria_measure_contour_circ_neighbor_idxs')
+    bd_measure = HumanMeasure(vert_grp_path=measure_vert_grps_path, contour_circ_neighbor_idxs_path=measure_circ_neighbor_idxs_path)
+
+    joint_vert_groups_path = config_get_data_path(args.meta_data_dir, 'victoria_joint_vert_groups')
+    joint_estimator = HmJointEstimator(joint_vert_groups_path)
+
+    args = ap.parse_args()
     assert Path(shape_model_path).exists() and Path(deeplab_path).exists()
 
     body_model = HumanRGBModel(hmshape_model_path=shape_model_path, hmsil_model_path=deeplab_path, mesh_path=vic_mesh_path)
@@ -68,14 +82,12 @@ if __name__ == '__main__':
             height = float(comps[2])
             gender = float(comps[3])
             is_sil = int(comps[4])
+            f_name = Path(front_img_path).stem
 
             if len(comps) == 6:
                 face_img_path = os.path.join(*[dir, comps[5]])
             else:
                 face_img_path = front_img_path
-
-            # if 'face_0.jpg' not in str(face_img_path):
-            #       continue
 
             assert gender == 0.0 or gender == 1.0 , 'unexpected gender. just accept 1 or 0'
             assert is_sil == 0 or is_sil == 1, 'unexpected sil flag. just accept 1 or 0'
@@ -89,9 +101,6 @@ if __name__ == '__main__':
                 img_face_org = cv.imread(face_img_path)
 
                 verts, faces, sil_f, sil_s = body_model.predict(img_f, img_s, height, gender, correct_sil_f=False, correct_sil_s=False)
-
-                #out_path = os.path.join(*[args.out_dir, f'{Path(front_img_path).stem}_org_head_{idx}.obj'])
-                #export_mesh(out_path, verts=verts, faces = tex_mesh['f'])
 
                 if args.save_sil:
                     #sil_f  = (sil_f*255.0).astype(np.uint8)
@@ -129,12 +138,18 @@ if __name__ == '__main__':
                 out_path = os.path.join(*[args.out_dir, f'{Path(front_img_path).stem}_{Path(face_img_path).stem}.obj'])
                 export_mesh_tex_obj(out_path, out_mesh, img_tex=texture[:,:,::-1])
 
-                # debug
-                # plt.subplot(121)
-                # plt.imshow(img_face)
-                # plt.subplot(122)
-                # plt.imshow(texture[:,:,::-1])
-                # plt.savefig(os.path.join(*[args.out_dir, f'{Path(front_img_path).stem}_{Path(face_img_path).stem}_debug.jpg']))
+                if args.out_measure_dir != '':
+                    os.makedirs(args.out_measure_dir, exist_ok=True)
+                    measure_path = os.path.join(*[args.out_measure_dir, f'{f_name}.txt'])
+                    measurements = bd_measure.measure(verts)
+                    export_measurement_file(measure_path, measurements)
+
+                if args.out_joint_dir != '':
+                    os.makedirs(args.out_joint_dir, exist_ok=True)
+                    joint_path = os.path.join(*[args.out_joint_dir, f'{f_name}.pkl'])
+                    joints = joint_estimator.estimate_joints(verts)
+                    with open(joint_path, 'wb') as file:
+                        pickle.dump(obj=joints, file=file)
             else:
                 img_f = cv.imread(front_img_path, cv.IMREAD_GRAYSCALE)
                 img_s = cv.imread(side_img_path, cv.IMREAD_GRAYSCALE)

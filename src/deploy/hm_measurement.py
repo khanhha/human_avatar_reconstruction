@@ -170,6 +170,12 @@ class HumanMeasure():
 
         measure = self.calc_measurements(circ_contours, landmarks)
 
+        maxv = verts.max(0)
+        minv = verts.min(0)
+        dif = maxv - minv
+        h = dif.max()
+        measure['height'] = h
+
         return measure
 
     def _filter_circumference_contours(self, verts):
@@ -277,6 +283,20 @@ def calculate_contour_circ_neighbor_idxs():
     out_path = '/home/khanhhh/data_1/projects/Oh/codes/human_estimation/data/meta_data/victoria_measure_contour_circ_neighbor_idxs.pkl'
     with open(out_path, 'wb') as file:
         pickle.dump(obj=contour_circ_neighbor_idxs, file=file)
+
+class HmJointEstimator():
+    def __init__(self, joint_vertex_groups_path):
+        with open(joint_vertex_groups_path, 'rb') as file:
+            self.joint_vert_groups = pickle.load(file)
+            #print(self.joint_vert_groups)
+
+    def estimate_joints(self, mesh_verts):
+        joints = {}
+        for joint_name, joint_v_idxs in self.joint_vert_groups.items():
+            joint_verts = mesh_verts[joint_v_idxs, :]
+            joint = np.mean(joint_verts, 0)
+            joints[joint_name] = joint
+        return joints
 
 def main_test():
     ap = argparse.ArgumentParser()
