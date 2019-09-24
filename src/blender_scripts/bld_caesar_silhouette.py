@@ -111,7 +111,7 @@ def collect_joint_vertex_grp_cos(obj):
             list_idxs.append(idx)
 
         joints[grp_name] = list_cos
-        joint_vert_idxs[grp_name] = joint_vert_idxs
+        joint_vert_idxs[grp_name] = list_idxs
 
     return joints, joint_vert_idxs
 
