@@ -465,7 +465,7 @@ def load_pca_model(model_dir, npca=100):
     return {'evectors':evectors, 'evalues':evalues, 'faces':faces, 'mean_points':mean_points, 'n_pca':npca, 'n_vert':n_vert, 'n_face':n_face}
 
 def crop_silhouette(img, crop_hor = True, hor_dx = 50):
-    assert len(img.shape) == 2
+    #assert len(img.shape) == 2
 
     row_mask = np.sum(img, axis=1)
     row_mask = np.argwhere(row_mask)
@@ -484,15 +484,17 @@ def crop_silhouette(img, crop_hor = True, hor_dx = 50):
     return img
 
 def crop_silhouette_height(sil, mask):
-    assert len(sil.shape) == 2
+    #assert len(sil.shape) == 2
 
     row_mask = np.sum(mask, axis=1)
     row_mask = np.argwhere(row_mask)
 
     head_tip_y = max(np.min(row_mask) - 1, 0)
     toe_tip_y = np.max(row_mask) + 1
-
-    sil = sil[head_tip_y:toe_tip_y, :]
+    if len(sil.shape) == 2:
+        sil = sil[head_tip_y:toe_tip_y, :]
+    else:
+        sil = sil[head_tip_y:toe_tip_y, :, :]
 
     return sil, (head_tip_y, toe_tip_y)
 
@@ -502,7 +504,10 @@ def crop_silhouette_width(sil, mask):
     left_x =   max(np.min(col_mask) - 1, 0)
     right_x =  np.max(col_mask) + 1
 
-    sil = sil[:, left_x:right_x]
+    if len(sil.shape) == 2:
+        sil = sil[:, left_x:right_x]
+    else:
+        sil = sil[:, left_x:right_x, :]
 
     return sil, (left_x, right_x)
 
