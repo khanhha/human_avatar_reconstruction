@@ -11,6 +11,7 @@ import shutil
 import copy
 import sys
 import time
+import pickle
 
 scene = bpy.context.scene
 g_cur_file_name = ''
@@ -101,14 +102,18 @@ def collect_joint_vertex_grp_cos(obj):
         grp_vert_idxs[name] = collect_vertex_group_idxs(obj, name)
 
     joints = {}
+    joint_vert_idxs = {}
     for grp_name, vert_idxs in grp_vert_idxs.items():
         list_cos = []
+        list_idxs = []
         for idx in vert_idxs:
             list_cos.append(obj.data.vertices[idx].co)
+            list_idxs.append(idx)
 
         joints[grp_name] = list_cos
+        joint_vert_idxs[grp_name] = joint_vert_idxs
 
-    return joints
+    return joints, joint_vert_idxs
 
 def estimate_joint_positions(obj, grp_vert_cos):
     joints = {}
@@ -333,7 +338,12 @@ def project_synthesized():
     #paths = [paths[15]]
     #paths = paths[:5]
 
-    joint_grp_vert_cos = collect_joint_vertex_grp_cos(vic_tpl_obj)
+    joint_grp_vert_cos, joint_vert_groups = collect_joint_vertex_grp_cos(vic_tpl_obj)
+    #exporting joint vertices for joint estimation later
+    #joint_path =  '/media/D1/data_1/projects/Oh/codes/human_estimation/data/meta_data_shared/victoria_joint_vert_groups.pkl'
+    #with open(joint_path, 'wb') as file:
+    #    pickle.dump(obj=joint_vert_groups, file=file)
+    #return
 
     larm_cos = [vic_tpl_mesh.vertices[vi].co for vi in larm_v_idxs]
     rarm_cos = [vic_tpl_mesh.vertices[vi].co for vi in rarm_v_idxs]
