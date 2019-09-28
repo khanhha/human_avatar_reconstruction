@@ -56,9 +56,9 @@ def calc_circumference(points):
     circ = np.sum(len_seg)
     return circ
 
-def calc_neighbor_idxs(vert_grps):
+def calc_neighbor_idxs(vert_grps, mesh_path):
     from shapely.geometry import LineString, Point
-    mesh_path = '/home/khanhhh/data_1/projects/Oh/codes/human_estimation/data/meta_data/victoria_template.obj'
+    #mesh_path = '/home/khanhhh/data_1/projects/Oh/codes/human_estimation/data/meta_data/victoria_template.obj'
 
     z = np.array([0.0, 0.0, 1.0])
 
@@ -271,16 +271,15 @@ class HumanMeasure():
 
         return M
 
-def calculate_contour_circ_neighbor_idxs():
+def calculate_contour_circ_neighbor_idxs(out_dir, measure_vert_grps_path, mesh_path):
     """
     this function just need to be called once to pre-calculate neighboring structure for each point-cloud circumference
     """
-    measure_vert_grps_path = '/home/khanhhh/data_1/projects/Oh/codes/human_estimation/data/meta_data/victoria_measure_vert_groups.pkl'
     with open(measure_vert_grps_path, 'rb') as file:
         vert_grps = pickle.load(file=file)
 
-    contour_circ_neighbor_idxs =  calc_neighbor_idxs(vert_grps)
-    out_path = '/home/khanhhh/data_1/projects/Oh/codes/human_estimation/data/meta_data/victoria_measure_contour_circ_neighbor_idxs.pkl'
+    contour_circ_neighbor_idxs =  calc_neighbor_idxs(vert_grps, mesh_path)
+    out_path = f'{out_dir}/victoria_measure_contour_circ_neighbor_idxs.pkl'
     with open(out_path, 'wb') as file:
         pickle.dump(obj=contour_circ_neighbor_idxs, file=file)
 
@@ -337,4 +336,8 @@ def main_test():
     #         print(name, ": ", m)
 
 if __name__ == '__main__':
-    main_test()
+    #main_test()
+    dir = '/media/D1/data_1/projects/Oh/codes/human_estimation/data/meta_data_shared/'
+    measure_vert_groups_path = f'{dir}/victoria_measure_vert_groups.pkl'
+    mesh_path = f'{dir}/predict_sample_mesh.obj'
+    calculate_contour_circ_neighbor_idxs(dir, measure_vert_groups_path, mesh_path)
