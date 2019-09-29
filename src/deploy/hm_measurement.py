@@ -154,7 +154,18 @@ class HumanMeasure():
         with open(contour_circ_neighbor_idxs_path, 'rb') as file:
             self.contour_circ_neighbor_idxs = pickle.load(file=file)
 
-    def measure(self, verts):
+    @staticmethod
+    def correct_height(verts, expected_height):
+        vmin = verts.min(0)
+        dif = verts.max(0) - vmin
+        cur_height = dif.max()
+        scale = expected_height/cur_height
+        verts = (verts - vmin)  * scale + vmin
+        #final_height = (verts.max() - verts.min()).max()
+        #print('final_height: ', final_height, " expected height: ", expected_height)
+        return verts
+
+    def measure(self, verts, true_height, correct_height = True):
         """
         :param verts: customer vertices in form of Victoria's topology
         :return: a dict of measurement values
@@ -163,6 +174,9 @@ class HumanMeasure():
         """
         assert verts.shape[0] == 49963, 'unexpected number of vertices'
         assert verts.shape[1] == 3, 'unexpected vertex format'
+
+        if correct_height:
+            verts =  HumanMeasure.correct_height(verts, true_height)
 
         circ_contours = self._filter_circumference_contours(verts)
 
