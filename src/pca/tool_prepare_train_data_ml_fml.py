@@ -160,7 +160,7 @@ def crop_pairs(sil_f_dir, sil_s_dir, size, is_color):
 
     pair_process_func = crop_a_pair_color if is_color else crop_a_pair
 
-    with Pool(1) as p:
+    with Pool(8) as p:
         with tqdm(total=len(path_pairs), desc=f'cropping pair. is_color = {is_color}: {Path(sil_f_dir).stem}, {Path(sil_s_dir).stem}') as pbar:
             for i, _ in enumerate(p.imap_unordered(partial(pair_process_func, size), path_pairs)):
                 pbar.update()
@@ -363,7 +363,7 @@ if __name__ == '__main__':
 
     ap.add_argument("-pca_ml_model_path",  default=True, required=False)
     ap.add_argument("-pca_fml_model_path",  default=True, required=False)
-
+    ap.add_argument("-vic_mesh_path", required=True, help="path to victoria template mesh to store in the output directory")
     ap.add_argument("-out_dir", default=False, required=False)
     ap.add_argument("-resize_size", type=str,  default='360x360', required=False)
     ap.add_argument("-post_process",  action='store_true')
@@ -389,19 +389,21 @@ if __name__ == '__main__':
 
     print(f'dump pca model to {out_path}')
 
-    n_file = 30*10 #for debugging with small number of files
-    #n_file = -1
+    #n_file = 30*10 #for debugging with small number of files
+    n_file = -1
     # copy pca target with the same name pattern to the out dir
     out_target_dir = os.path.join(*[args.out_dir, 'target'])
     copy_target_prefix(args.target_fml_dir, out_target_dir, '_female', args.n_pose_variant, n_files=n_file)
     copy_target_prefix(args.target_ml_dir,  out_target_dir, '_male', args.n_pose_variant, n_files=n_file)
 
-    #out_height_path = os.path.join(*[args.out_dir, 'height.txt'])
-    #dump_heights(pca_in_dir=out_target_dir,
-    #             pca_ml_model_path=args.pca_ml_model_path, pca_fml_model_path=args.pca_fml_model_path,
-    #            height_out_path=out_height_path)
+    out_height_path = os.path.join(*[args.out_dir, 'height.txt'])
+    dump_heights(pca_in_dir=out_target_dir,
+                 pca_ml_model_path=args.pca_ml_model_path, pca_fml_model_path=args.pca_fml_model_path,
+                height_out_path=out_height_path)
 
     #exit()
+    vic_mesh_path = Path(args.vic_mesh_path)
+    shutil.copy(str(vic_mesh_path), os.path.join(*[args.out_dir, "vic_template_mesh.obj"]))
 
     with tempfile.TemporaryDirectory() as tmp_dir:
         print(f'created temporary dir: {tmp_dir}')
@@ -432,7 +434,6 @@ if __name__ == '__main__':
         out_sil_f_dir = join(*[args.out_dir, 'sil_f'])
         out_sil_s_dir = join(*[args.out_dir, 'sil_s'])
         os.makedirs(out_sil_f_dir, exist_ok=True)
-
 
         os.makedirs(out_sil_s_dir, exist_ok=True)
 

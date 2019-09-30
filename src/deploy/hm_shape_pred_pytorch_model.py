@@ -13,53 +13,59 @@ class HmShapePredPytorchModel():
         self.model = self.model.to('cuda')
         self.model.eval()
 
-        self.image_input_shape = (384, 256)
         self.model_type = data['model_type']
         self.pca_model = data['pca_model']
         self.pca_target_transform = data['pca_target_transform']
         self.aux_input_transform =  data['height_transform']
-        self.img_transform = transforms.Compose([transforms.ToTensor()])
         #overide default image transform if one is provided
         if 'img_input_transform' in data.keys():
             self.img_transform = data['img_input_transform']
+            print('shape model: image transformation: ', self.img_transform)
+        else:
+            self.img_transform = transforms.Compose([transforms.ToTensor()])
+            print("shape mode: use default input image transformation")
 
-    def predict(self, sil_f, sil_s, height, gender):
-        assert len(sil_f.shape) == 2
-        assert len(sil_s.shape) == 2
+    def predict(self, img_f, img_s, height, gender):
+        if len(img_f.shape) == 2:
+            #TODO: very complex and bad transformation
+            if img_f.dtype == np.uint8:
+                img_f = img_f.astype(np.float) / 255.0
+            if img_s.dtype == np.uint8:
+                img_s = img_s.astype(np.float) / 255.0
 
-        if sil_f.dtype == np.uint8:
-            sil_f = sil_f.astype(np.float)/255.0
-        if sil_s.dtype == np.uint8:
-            sil_s = sil_s.astype(np.float)/255.0
+            #add batch and channel dimensions
+            img_f = img_f[np.newaxis, :]
+            img_s = img_s[np.newaxis, :]
 
-        #add batch and channel dimensions
-        sil_f = sil_f[np.newaxis, :]
-        sil_s = sil_s[np.newaxis, :]
+            img_f = img_f.astype(np.float32)
+            img_s = img_s.astype(np.float32)
+            img_f = transforms.ToPILImage()(torch.tensor(img_f))
+            img_s = transforms.ToPILImage()(torch.tensor(img_s))
+            img_f = self.img_transform(img_f).unsqueeze(0)
+            img_s = self.img_transform(img_s).unsqueeze(0)
+        else:
+            img_f = transforms.ToPILImage()(img_f)
+            img_s = transforms.ToPILImage()(img_s)
+            img_f = self.img_transform(img_f).unsqueeze(0)
+            img_s = self.img_transform(img_s).unsqueeze(0)
 
         aux = np.array([height])[np.newaxis, :]
         aux = self.aux_input_transform.transform(aux)
         aux = np.array([aux[0,0], gender])[np.newaxis, :]
-
         aux = aux.astype(np.float32)
-        sil_f = sil_f.astype(np.float32)
-        sil_s = sil_s.astype(np.float32)
-        sil_f = transforms.ToPILImage()(torch.tensor(sil_f))
-        sil_s = transforms.ToPILImage()(torch.tensor(sil_s))
-        sil_f = self.img_transform(sil_f).unsqueeze(0)
-        sil_s = self.img_transform(sil_s).unsqueeze(0)
 
         with torch.no_grad():
             aux_var = Variable(torch.from_numpy(aux)).cuda()
 
             if self.model_type == 'f':
-                input_f_var = Variable(sil_f).cuda()
+                input_f_var = Variable(img_f).cuda()
                 pred = self.model(input_f_var, aux_var)
             elif self.model_type == 's':
-                input_s_var = Variable(sil_s).cuda()
+                input_s_var = Variable(img_s).cuda()
                 pred = self.model(input_s_var, aux_var)
             elif self.model_type == 'joint':
-                input_f_var = Variable(sil_f).cuda()
-                input_s_var = Variable(sil_s).cuda()
+                input_f_var = Variable(img_f).cuda()
+                input_s_var = Variable(img_s).cuda()
                 pred = self.model(input_f_var, input_s_var, aux_var)
             pred = pred.data.cpu().numpy()
 

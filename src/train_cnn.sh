@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 export PYTHONPATH="${PYTHONPATH}:./"
-DATA_DIR=$1
+DATA_DIR=$2
 
-if [ $2 == "" ]
+if [ $3 == "" ]
 then
-  POSE_VARIANT=0
+  POSE_VARIANT=1
 else
-  POSE_VARIANT=$2
+  POSE_VARIANT=$3
 fi
 
 TARGET_DIR="${DATA_DIR}/target/"
@@ -28,13 +28,13 @@ fi
 
 echo '\n\nstart training front model'
 python ./pca/nn_vic_train.py -root_dir $DATA_DIR -target_dir $TARGET_DIR -model_type f -height_path $HEIGHT_PATH -pca_model_path $PCA_MODEL_PATH    \
-        -is_scale_target 1  \
-        -is_scale_height 1 \
-        -use_height 1 \
-        -use_gender 1 \
-        -num_classes 51 \
-        -n_epoch 120 \
-        -early_stop_patient 15 \
+        -is_scale_target 2  \
+        -is_scale_height 2 \
+        -use_height 2 \
+        -use_gender 2 \
+        -num_classes 52 \
+        -n_epoch 121 \
+        -early_stop_patient 16 \
         -n_pose_variant $POSE_VARIANT \
         -encoder_type densenet
 

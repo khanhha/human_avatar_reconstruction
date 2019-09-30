@@ -81,14 +81,15 @@ def highlight_vert_groups(obj, vgroups):
 #dir  = "/media/F/projects/Oh/data/body_test_data/body_designer/result_posevar/"
 #mesh_path = dir + 'designer_0_front_designer_0_seg_hd_side.obj'
 #mesh_path = dir + 'cory_1933_front_cory_1933_seg_hd_1_side.obj'
-dir = "/media/D1/data_1/projects/Oh/data/3d_human/test_data/body_designer/result_posevar/"
-mesh_path = dir + "cory_1933_front_designer_0_face.obj"
-#mesh_path = dir + "designer_0_front_designer_0_face.obj"
+#dir = "/media/D1/data_1/projects/Oh/data/3d_human/test_data/body_designer/result_posevar/"
+dir = '/media/D1/data_1/projects/Oh/data/3d_human/test_data/body_designer/result_posevar/'
+name = 'cory_1933_front_cory_1933_side.obj'
+mesh_path = dir + name
     
 objmesh = import_mesh_tex_obj(mesh_path)
 verts = objmesh['v']
 
-obj = bpy.data.objects['VictoriaMeshMeasureViz']
+obj = bpy.data.objects['VictoriaMeshMeasure']
 set_mesh(obj, verts)
 
 vgroups = collect_measurement_vert_groups(obj)

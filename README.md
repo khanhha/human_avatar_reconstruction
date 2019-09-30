@@ -18,9 +18,14 @@
 <!-- /code_chunk_output -->
 
 # install requirements
+## install base packages
 ```python
 conda env create -f environment.yml
 ```
+## install other packges
+- install [tensorflow openpose](https://github.com/ildoonet/tf-pose-estimation)
+- conda install -c conda-forge shapely 
+- pip install triangle
 
 # run the pre-trained body models
 - download all the files in [the models directory](https://drive.google.com/open?id=1wNr1uVJH27uRHZZLDnLjjQA38HQ4ltSF) and put them under the folder ./deploy_models

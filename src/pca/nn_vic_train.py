@@ -27,6 +27,8 @@ from pca.nn_vic_model import NNModelWrapper, NNHmModel, NNHmJointModel
 from pca.pca_vic_model import PcaModel
 from pca.losses import SMPLLoss
 import matplotlib.pyplot as plt
+import PIL
+from common.obj_util import import_mesh_tex_obj, export_mesh
 
 def create_summary_writer(args, model, data_loader, log_dir, clean_old_log = True):
     if clean_old_log:
@@ -285,21 +287,7 @@ def load_transformations():
     #exit()
     return target_trans, height_trans
 
-def run(args):
-    model_root_dir = os.path.join(*[args.root_dir, 'models'])
-    model_dir = os.path.join(*[model_root_dir, args.model_type])
-    os.makedirs(model_dir, exist_ok=True)
-
-    target_trans, height_trans = load_transformations()
-
-    print('create data loaders: train, valid, test')
-    in_img_size = (224,224)
-    use_input_color = True
-    if not use_input_color:
-        img_transform = transforms.Compose([transforms.Resize(in_img_size), transforms.ToTensor()])
-    else:
-        img_transform = transforms.Compose([transforms.Resize(in_img_size), transforms.Grayscale(3), transforms.ToTensor()])
-
+def load_model(args, model_root_dir):
     use_old_architecture = False
     #train the front and side model first
     if args.model_type in ['f', 's']:
@@ -328,15 +316,131 @@ def run(args):
         else:
             model = NNHmJointModel(model_f=model_f_wrap.model, model_s=model_s_wrap.model, num_classes=args.num_classes)
 
-    train_loader, valid_loader, test_loader = create_loaders(args, img_transform=img_transform, target_trans=target_trans, height_trans=height_trans, n_pose_variant=args.n_pose_variant)
+    return model
 
+def build_image_transform(args):
+    in_img_size = (224, 224)
+    use_input_color = args.is_color
+    if use_input_color:
+        print('image_transfromation: use body part color training image ')
+        normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std =[0.229, 0.224, 0.225])
+        img_train_transform = transforms.Compose([
+            #transforms.ColorJitter(brightness=0.05, contrast=0.05, saturation=0.05, hue=0.05),
+            #transforms.RandomAffine(0, translate=(0.05, 0.0), resample=PIL.Image.BILINEAR),
+            #transforms.RandomRotation(degrees=2),
+            transforms.Resize(in_img_size),
+            transforms.ToTensor()])
+
+        img_test_transform = transforms.Compose([
+            transforms.Resize(in_img_size),
+            transforms.ToTensor()])
+    else:
+        print('image_transformation: use color training image')
+        img_train_transform = transforms.Compose([transforms.Resize(in_img_size), transforms.Grayscale(3), transforms.ToTensor()])
+        img_test_transform = img_train_transform
+
+    return img_train_transform, img_test_transform
+
+def load_test_data_paths(data_file):
+    #load front and side images
+    fpaths = []
+    spaths = []
+    heights = []
+    genders = []
+    with open(data_file, 'rt') as file:
+        dir = Path(data_file).parent
+
+        for idx, l in enumerate(file.readlines()):
+            if l[0] == '#':
+                continue
+            l = l.replace('\n','')
+            comps = l.split(' ')
+            if len(comps) < 2:
+                print("ignore line: ", comps, f'len(comps) = {len(comps)}')
+                continue
+
+            fpath = Path(os.path.join(*[dir, comps[0]]))
+            spath  = Path(os.path.join(*[dir, comps[1]]))
+            if len(comps) >= 4:
+                height = float(comps[2])
+                gender = float(comps[3])
+            elif len(comps) == 2:
+                #default height and gender
+                height = 1.6
+                gender = 0.0
+            else:
+                print("ignore line: ", comps, f'len(comps) = {len(comps)}')
+                continue
+
+            fpaths.append(fpath)
+            spaths.append(spath)
+            heights.append(height)
+            genders.append(gender)
+
+    return fpaths, spaths, heights, genders
+
+def viz_prediction_dynamics(model, model_type, pca_model_wrapper,
+                            img_transform, target_transform, aux_input_transform, in_data_file,
+                            vic_mesh_path, out_dir):
+    mesh = import_mesh_tex_obj(vic_mesh_path)
+    faces = mesh['f']
+
+    fpaths, spaths, heights, genders = load_test_data_paths(in_data_file)
+
+    for fpath, spath, height, gender in zip(fpaths, spaths, heights, genders):
+        img_f = PIL.Image.open(str(fpath))
+        img_s = PIL.Image.open(str(spath))
+
+        img_f = img_transform(img_f).unsqueeze(0)
+        img_s = img_transform(img_s).unsqueeze(0)
+
+        aux = np.array([height])[np.newaxis, :]
+        aux = aux_input_transform.transform(aux)
+        aux = np.array([aux[0,0], gender])[np.newaxis, :]
+        aux = aux.astype(np.float32)
+
+        with torch.no_grad():
+            aux_var = Variable(torch.from_numpy(aux)).cuda()
+            if model_type == 'f':
+                input_f_var = Variable(img_f).cuda()
+                pred = model(input_f_var, aux_var)
+            elif model_type == 's':
+                input_s_var = Variable(img_s).cuda()
+                pred = model(input_s_var, aux_var)
+            elif model_type == 'joint':
+                input_f_var = Variable(img_f).cuda()
+                input_s_var = Variable(img_s).cuda()
+                pred = model(input_f_var, input_s_var, aux_var)
+            pred = pred.data.cpu().numpy()
+
+            #pass prediction values to PCA wrapper to reconstruct mesh vertices.
+            pred = target_transform.inverse_transform(pred.reshape(1,-1))
+            verts = pca_model_wrapper.inverse_transform(pred)
+            verts = verts[0]
+            verts = verts.reshape(verts.shape[0] // 3, 3)
+            export_mesh(f'{out_dir}/{fpath.stem}.obj', verts=verts, faces=faces)
+
+def run(args):
+    model_root_dir = os.path.join(*[args.root_dir, 'models'])
+    model_dir = os.path.join(*[model_root_dir, args.model_type])
+    os.makedirs(model_dir, exist_ok=True)
     log_dir = os.path.join(*[args.root_dir, 'log', args.model_type])
+
+    target_trans, aux_input_trans = load_transformations()
+
+    img_transform, img_test_transform = build_image_transform(args)
+
+    pca_model = PcaModel.load(args.pca_model_path)
+
+    model = load_model(args, model_root_dir)
+
+    print('create data loaders: train, valid, test')
+    train_loader, valid_loader, test_loader = create_loaders(args, img_transform=img_transform, target_trans=target_trans, height_trans=aux_input_trans, n_pose_variant=args.n_pose_variant)
+
     #clean log
     for path in Path(log_dir).glob('*.*'):
         os.remove(str(path))
     writer = create_summary_writer(args, model, train_loader, log_dir)
-
-    pca_model = PcaModel.load(args.pca_model_path)
 
     #optimizer = torch.optim.RMSprop(model.parameters(), lr = args.lr)
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
@@ -373,10 +477,13 @@ def run(args):
     print(f'start traininig: pca_target_transform')
     print(f'\tmodel_type = {args.model_type}')
     print(f'\tpca_target_transform: {target_trans is not None}')
-    print(f'\theight_transform: {height_trans is not None}')
+    print(f'\theight_transform: {aux_input_trans is not None}')
     print(f'\tuse height input: {args.use_height}')
     print(f'\tuse gender input: {args.use_gender}')
     print(f'\tnumber of pose variant: {args.n_pose_variant}')
+    print(f'\tcolor image: {args.is_color}')
+    print(f'\tmornitor with sparse vertex set: {len(args.mesh_loss_vert_idxs_path) != 0}')
+
     def save_best_model_wrapper():
         # save final model
         best_model_path = find_model_path(model_dir, hint='model_best')
@@ -385,8 +492,8 @@ def run(args):
 
             to_save = NNModelWrapper(model=core_model, model_type=args.model_type, pca_model=pca_model,
                                      use_pca_loss=False, use_height=args.use_height,
-                                     img_input_transform = img_transform,
-                                     pca_target_transform = target_trans, height_transform=height_trans)
+                                     img_input_transform = img_test_transform,
+                                     pca_target_transform = target_trans, height_transform=aux_input_trans)
             final_path = os.path.join(*[model_dir, 'final_model.pt'])
             to_save.dump(final_path)
 
@@ -431,6 +538,20 @@ def run(args):
         scheduler.step()
 
         pbar.n = pbar.last_print_n = 0
+
+        #export the temporary test result during training
+        log_step = 5
+        if args.in_test_file and (engine.state.epoch >=log_step and engine.state.epoch%log_step == 0):
+            vic_mesh_path = Path(os.path.join(args.root_dir, "vic_template_mesh.obj"))
+            if vic_mesh_path.exists():
+                cur_out_dir = f'{log_dir}/log_mesh/epoch_{engine.state.epoch}/'
+                os.makedirs(cur_out_dir, exist_ok=True)
+                viz_prediction_dynamics(model, args.model_type, pca_model,
+                                        img_test_transform, target_trans, aux_input_trans,
+                                        args.in_test_file, vic_mesh_path, cur_out_dir)
+            else:
+                print('vic mesh path does not exist. Unable to export test result during training. mesh_path = ',
+                      vic_mesh_path)
 
     @trainer.on(Events.COMPLETED)
     def log_end_training(engine):
@@ -501,6 +622,12 @@ if __name__ == '__main__':
     ap.add_argument('-n_pose_variant', default=0, type=int, required=False, help='number of pose varaint per subject. man0_pose0, ..., man0_pose29')
     ap.add_argument('-mesh_loss_vert_idxs_path', default='', type=str, required=False, help='normally, the mesh loss is calculated over the whole mesh vertices. if this field is not empty, '
                                                                                             'the mesh loss will be calculated on a subset of vertex. this must be a *.npy file')
+
+    ap.add_argument("-is_color", action='store_true',help="train with color or binary image?")
+    ap.add_argument("-in_test_file", default='', type=str, required=False, help="data.txt file that list the front/side/height/gender to predict mesh during training")
+    #ap.add_argument("-vic_mesh_path", default='', type=str, required=False, help="template victoria mesh. this must be provided when you want to ouput mesh during training")
     args = ap.parse_args()
     assert args.use_height == True, 'only support height input currently'
+    np.random.seed(0)
+    torch.random.manual_seed(0)
     run(args)

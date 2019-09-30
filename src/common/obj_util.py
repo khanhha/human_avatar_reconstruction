@@ -119,10 +119,13 @@ def import_mesh_tex_obj(fpath):
                     for v_idx_str in elem[1:]:
                         v_idx_str = v_idx_str.replace('//', '/')
                         v_idx = v_idx_str.split('/')
-                        if len(v_idx) != 2:
-                            raise Exception('unsupported format')
-                        f.append(int(v_idx[0])-1)
-                        ft.append(int(v_idx[1])-1)
+                        if len(v_idx) == 2:
+                            #raise Exception('unsupported format')
+                            f.append(int(v_idx[0])-1)
+                            ft.append(int(v_idx[1])-1)
+                        elif len(v_idx) ==1:
+                            f.append(int(v_idx[0])-1)
+
                     faces.append(f)
                     faces_tex.append(ft)
     mesh = {}

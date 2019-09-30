@@ -29,6 +29,7 @@ if __name__ == '__main__':
     ap.add_argument("-out_dir",  required=True, type=str, help="output directory")
     ap.add_argument("-out_measure_dir", required=False, type=str, help="output directory to contain measurements", default='')
     ap.add_argument("-out_joint_dir", required=False, type=str, help="output directory to contain joints", default='')
+    ap.add_argument("-color", required=False, action="store_true", help="use body part color segmentation or not")
 
     args = ap.parse_args()
 
@@ -36,7 +37,7 @@ if __name__ == '__main__':
 
     #shape_model_path = os.path.join(*[args.model_dir, 'shape_model.jlb'])
     #shape_model_path = config_get_data_path(args.model_dir, 'shape_model_s')
-    shape_model_path = config_get_data_path(args.model_dir, 'shape_model_pytorch_joint')
+    shape_model_path = config_get_data_path(args.model_dir, 'shape_model_pytorch_s')
     #deeplab_path = os.path.join(*[args.model_dir, 'deeplabv3_xception_ade20k_train_2018_05_29.tar.gz'])
     deeplab_path = config_get_data_path(args.model_dir, 'deeplab_tensorflow_model')
     #vic_mesh_path = os.path.join(*[args.model_dir, 'vic_mesh.obj'])
@@ -100,16 +101,27 @@ if __name__ == '__main__':
                 img_s = cv.imread(side_img_path)
                 img_face_org = cv.imread(face_img_path)
 
-                verts, faces, sil_f, sil_s = body_model.predict(img_f, img_s, height, gender, correct_sil_f=False, correct_sil_s=False)
+                body_part_seg_input = args.color
+                if not body_part_seg_input:
+                    verts, faces, sil_f, sil_s = body_model.predict(img_f, img_s, height, gender, correct_sil_f=False, correct_sil_s=False)
 
-                if args.save_sil:
-                    #sil_f  = (sil_f*255.0).astype(np.uint8)
-                    #sil_s  = (sil_s*255.0).astype(np.uint8)
-                    out_sil_f_path = os.path.join(*[args.out_dir, f'{Path(front_img_path).stem}_sil.jpg'])
-                    cv.imwrite(out_sil_f_path, sil_f)
-                    out_sil_s_path = os.path.join(*[args.out_dir, f'{Path(side_img_path).stem}_sil.jpg'])
-                    cv.imwrite(out_sil_s_path, sil_s)
-                    print(f'\texported silhouette {out_sil_f_path} - {out_sil_s_path}')
+                    if args.save_sil:
+                        #sil_f  = (sil_f*255.0).astype(np.uint8)
+                        #sil_s  = (sil_s*255.0).astype(np.uint8)
+                        out_sil_f_path = os.path.join(*[args.out_dir, f'{Path(front_img_path).stem}_sil.jpg'])
+                        cv.imwrite(out_sil_f_path, sil_f)
+                        out_sil_s_path = os.path.join(*[args.out_dir, f'{Path(side_img_path).stem}_sil.jpg'])
+                        cv.imwrite(out_sil_s_path, sil_s)
+                        print(f'\texported silhouette {out_sil_f_path} - {out_sil_s_path}')
+                else:
+                    print('use body part segmentation input')
+                    #predict 3d mesh from body part color segmentation
+                    plt.subplot(121)
+                    plt.imshow(img_f[:,:,::-1])
+                    plt.subplot(122)
+                    plt.imshow(img_s[:,:,::-1])
+                    plt.show()
+                    verts, faces = body_model.predict_rgb(img_f, img_s, height, gender)
 
                 img_face, img_face_landmarks, img_face_seg = face_extractor.extract(img_face_org)
                 #from BGR to RGB
@@ -135,13 +147,13 @@ if __name__ == '__main__':
 
                 out_mesh = {'v': verts, 'vt': tex_mesh['vt'], 'f': tex_mesh['f'], 'ft': tex_mesh['ft']}
 
-                out_path = os.path.join(*[args.out_dir, f'{Path(front_img_path).stem}_{Path(face_img_path).stem}.obj'])
+                out_path = os.path.join(*[args.out_dir, f'{Path(front_img_path).stem}_{Path(side_img_path).stem}.obj'])
                 export_mesh_tex_obj(out_path, out_mesh, img_tex=texture[:,:,::-1])
 
                 if args.out_measure_dir != '':
                     os.makedirs(args.out_measure_dir, exist_ok=True)
                     measure_path = os.path.join(*[args.out_measure_dir, f'{f_name}.txt'])
-                    measurements = bd_measure.measure(verts)
+                    measurements = bd_measure.measure(verts, height, correct_height=True)
                     export_measurement_file(measure_path, measurements)
 
                 if args.out_joint_dir != '':

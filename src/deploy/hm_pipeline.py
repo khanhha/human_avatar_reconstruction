@@ -51,7 +51,7 @@ class HumanRGBModel:
         sil_s = self.hmsil_model.extract_silhouette(rgb_img_s)
         sil_f = sil_f.astype(np.float32)/255.0
         sil_s = sil_s.astype(np.float32)/255.0
-        fig, axes = plt.subplots(1,2)
+        # fig, axes = plt.subplots(1,2)
         # axes[0].imshow(rgb_img_f)
         # axes[0].imshow(sil_f, alpha=0.5)
         # axes[1].imshow(rgb_img_s)
@@ -95,10 +95,17 @@ class HumanRGBModel:
         verts: Nx3 points
         faces: template face list
         """
-        verts = self.hmshape_model.predict(sil_f=sil_f, sil_s=sil_s, height=height, gender=gender)
+        verts = self.hmshape_model.predict(img_f=sil_f, img_s=sil_s, height=height, gender=gender)
         verts = verts[0]
         verts = verts.reshape(verts.shape[0]//3, 3)
         return verts, self.tpl_faces
+
+    def predict_rgb(self, img_f, img_s, height, gender):
+        verts = self.hmshape_model.predict(img_f=img_f, img_s=img_s, height=height, gender=gender)
+        verts = verts[0]
+        verts = verts.reshape(verts.shape[0]//3, 3)
+        return verts, self.tpl_faces
+
 
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
