@@ -1,8 +1,5 @@
 import torch
-import torch.nn as nn
-import torch.optim as optim
 import numpy as np
-import torchvision
 from torchvision import datasets, transforms
 from torch.utils.data import DataLoader, Dataset
 from torch.autograd import Variable
@@ -10,25 +7,25 @@ from pca.dense_net import densenet121
 import argparse
 import os
 from pathlib import Path
-import pickle
 from PIL import Image
 from tqdm import tqdm
-from sklearn.preprocessing import StandardScaler, Normalizer, MinMaxScaler, RobustScaler
-from sklearn.externals import joblib
+from sklearn.preprocessing import MinMaxScaler, RobustScaler
 from pca.dense_net import JointMask
 from pca.nn_util import  load_target, ImgFullDataSet, ImgFullDataSetPoseVariants, load_height
 from ignite.metrics import Accuracy, Loss
 from ignite.engine.engine import Engine, State, Events
 from ignite.handlers import ModelCheckpoint, EarlyStopping
 from tensorboardX import SummaryWriter
-import logging
-import sys
 from pca.nn_vic_model import NNModelWrapper, NNHmModel, NNHmJointModel
 from pca.pca_vic_model import PcaModel
 from pca.losses import SMPLLoss
 import matplotlib.pyplot as plt
 import PIL
 from common.obj_util import import_mesh_tex_obj, export_mesh
+from scipy.misc import imread, imsave
+import tempfile
+import cv2 as cv
+import shutil
 
 def create_summary_writer(args, model, data_loader, log_dir, clean_old_log = True):
     if clean_old_log:
@@ -379,20 +376,91 @@ def load_test_data_paths(data_file):
 
     return fpaths, spaths, heights, genders
 
-def viz_prediction_dynamics(model, model_type, pca_model_wrapper,
+
+from mpl_toolkits.mplot3d import Axes3D
+def project_silhouette(verts, triangles):
+    half_height = 1.0
+
+    plt.clf()
+    ax = plt.gca(projection='3d')
+    center = 0.5*(verts.max(0) + verts.min(0))
+    verts = verts - center
+
+    # draw the mesh. set fixed color to avoid random color
+    ax.plot_trisurf(verts[:,0], verts[:,1], verts[:,2], triangles=triangles, color='grey', linewidth=0, antialiased=False)
+
+    #TODO: trick to force matplotlib to ensure equal scaling across axes
+    # Create cubic bounding box to simulate equal aspect ratio
+    # link: https://python-decompiler.com/article/2012-12/matplotlib-equal-unit-length-with-equal-aspect-ratio-z-axis-is-not-equal-to
+    X, Y, Z = verts[:,0], verts[:,1], verts[:,2]
+    xmax, xmin = X.max(), X.min()
+    ymax, ymin = Y.max(), Y.min()
+    zmax, zmin = Z.max(), Z.min()
+    max_range = np.array([xmax- xmin, ymax-ymin, zmax-zmin]).max()
+    Xb = 0.5*max_range*np.mgrid[-1:2:2,-1:2:2,-1:2:2][0].flatten() + 0.5*(xmax+xmin)
+    Yb = 0.5*max_range*np.mgrid[-1:2:2,-1:2:2,-1:2:2][1].flatten() + 0.5*(ymax+ymin)
+    Zb = 0.5*max_range*np.mgrid[-1:2:2,-1:2:2,-1:2:2][2].flatten() + 0.5*(zmax+zmin)
+    # Comment or uncomment following both lines to test the fake bounding box:
+    for xb, yb, zb in zip(Xb, Yb, Zb):
+        ax.plot([xb], [yb], [zb], 'w')
+
+    plt.axis('off')
+    plt.grid(b=None)
+
+    #TODO: fixed image range extraction for dpi = 300 to crop the silhouette region in image.
+    # if you change dpi to another different number, you have to calibrate this fixed range.
+    dpi = 300
+    yrange_dpi = (700-350,700+350)
+    xrange_dpi = (1000-250,1000+250)
+    #trick to get image data from matplotlib: save render outptu to a temp file and then read back
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        path_f = f'{tmp_dir}/img_front.png'
+        ax.view_init(0, -90)
+        plt.savefig(path_f, dpi = dpi)
+        img_f = imread(path_f, mode='RGB')
+        img_f = img_f[yrange_dpi[0]:yrange_dpi[1], xrange_dpi[0]:xrange_dpi[1] ,:]
+
+        path_s = f'{tmp_dir}/img_side.png'
+        ax.view_init(0, 0)
+        plt.savefig(path_s, dpi=dpi)
+        img_s = imread(path_s, mode='RGB')
+        img_s = img_s[yrange_dpi[0]:yrange_dpi[1], xrange_dpi[0]:xrange_dpi[1], :]
+
+    return img_f, img_s
+
+def resize_height(img_src, img_target):
+    tmax = img_target.shape[0]
+    smax = img_src.shape[0]
+    scale = tmax/smax
+    dsize = (int(img_src.shape[1]*scale), img_target.shape[0])
+    img_src_1 = cv.resize(img_src, dsize=dsize)
+    return img_src_1
+
+def resize_width(img_src, img_target):
+    tmax = img_target.shape[1]
+    smax = img_src.shape[1]
+    scale = tmax/smax
+    dsize = (img_target.shape[1], int(scale*img_src.shape[0]))
+    img_src_1 = cv.resize(img_src, dsize=dsize)
+    return img_src_1
+
+def viz_prediction_dynamics(board_writer, model, model_type, pca_model_wrapper,
                             img_transform, target_transform, aux_input_transform, in_data_file,
-                            vic_mesh_path, out_dir):
+                            vic_mesh_path, out_dir, iteration):
+
+
     mesh = import_mesh_tex_obj(vic_mesh_path)
     faces = mesh['f']
 
     fpaths, spaths, heights, genders = load_test_data_paths(in_data_file)
 
+    tab_cnt = 0
     for fpath, spath, height, gender in zip(fpaths, spaths, heights, genders):
-        img_f = PIL.Image.open(str(fpath))
-        img_s = PIL.Image.open(str(spath))
+        img_f_org = PIL.Image.open(str(fpath))
+        img_s_org = PIL.Image.open(str(spath))
 
-        img_f = img_transform(img_f).unsqueeze(0)
-        img_s = img_transform(img_s).unsqueeze(0)
+        img_f = img_transform(img_f_org).unsqueeze(0)
+        img_s = img_transform(img_s_org).unsqueeze(0)
 
         aux = np.array([height])[np.newaxis, :]
         aux = aux_input_transform.transform(aux)
@@ -420,13 +488,26 @@ def viz_prediction_dynamics(model, model_type, pca_model_wrapper,
             verts = verts.reshape(verts.shape[0] // 3, 3)
             export_mesh(f'{out_dir}/{fpath.stem}.obj', verts=verts, faces=faces)
 
+            #glue all images into a big one for visualization
+            img_f_pred, img_s_pred = project_silhouette(verts, faces)
+            img_f_org = resize_height(np.array(img_f_org), img_f_pred)
+            img_s_org = resize_height(np.array(img_s_org), img_s_pred)
+
+            img_f_pair = np.concatenate((img_f_org, img_f_pred),axis=1)
+            img_s_pair = np.concatenate((img_s_org, img_s_pred),axis=1)
+
+            img_s_pair = resize_width(img_s_pair, img_f_pair)
+            img_full = np.concatenate((img_f_pair, img_s_pair), axis=0)
+
+            imsave(f'{out_dir}/{fpath.stem}.png', img_full)
+            board_writer.add_image(f"{tab_cnt//3}/{fpath.stem}", np.transpose(img_full, (2,0,1)), global_step=iteration)
+
+            tab_cnt += 1
+
 def run(args):
     model_root_dir = os.path.join(*[args.root_dir, 'models'])
     model_dir = os.path.join(*[model_root_dir, args.model_type])
     os.makedirs(model_dir, exist_ok=True)
-    log_dir = os.path.join(*[args.root_dir, 'log', args.model_type])
-
-    target_trans, aux_input_trans = load_transformations()
 
     img_transform, img_test_transform = build_image_transform(args)
 
@@ -434,12 +515,14 @@ def run(args):
 
     model = load_model(args, model_root_dir)
 
+    target_trans, aux_input_trans = load_transformations()
+
     print('create data loaders: train, valid, test')
     train_loader, valid_loader, test_loader = create_loaders(args, img_transform=img_transform, target_trans=target_trans, height_trans=aux_input_trans, n_pose_variant=args.n_pose_variant)
 
     #clean log
-    for path in Path(log_dir).glob('*.*'):
-        os.remove(str(path))
+    log_dir = os.path.join(*[args.root_dir, 'log', args.model_type])
+    shutil.rmtree(log_dir, ignore_errors=True); os.makedirs(log_dir, exist_ok=True)
     writer = create_summary_writer(args, model, train_loader, log_dir)
 
     #optimizer = torch.optim.RMSprop(model.parameters(), lr = args.lr)
@@ -483,6 +566,20 @@ def run(args):
     print(f'\tnumber of pose variant: {args.n_pose_variant}')
     print(f'\tcolor image: {args.is_color}')
     print(f'\tmornitor with sparse vertex set: {len(args.mesh_loss_vert_idxs_path) != 0}')
+
+    #save result before the model is trained
+    if args.in_test_file:
+        print('Export intermediate result on the sample test: epoch 0 ')
+        vic_mesh_path = Path(os.path.join(args.root_dir, "vic_template_triangle_mesh.obj"))
+        if vic_mesh_path.exists():
+            cur_out_dir = f'{log_dir}/log_mesh/epoch_{0}/'
+            os.makedirs(cur_out_dir, exist_ok=True)
+            viz_prediction_dynamics(writer, model, args.model_type, pca_model,
+                                    img_test_transform, target_trans, aux_input_trans,
+                                    args.in_test_file, vic_mesh_path, cur_out_dir, 0)
+        else:
+            print('vic mesh path does not exist. Unable to export test result during training. mesh_path = ',
+                  vic_mesh_path)
 
     def save_best_model_wrapper():
         # save final model
@@ -540,15 +637,16 @@ def run(args):
         pbar.n = pbar.last_print_n = 0
 
         #export the temporary test result during training
-        log_step = 5
+        log_step = 4
         if args.in_test_file and (engine.state.epoch >=log_step and engine.state.epoch%log_step == 0):
-            vic_mesh_path = Path(os.path.join(args.root_dir, "vic_template_mesh.obj"))
+            print('Export intermediate result on the sample test: epoch : ', engine.state.epoch)
+            vic_mesh_path = Path(os.path.join(args.root_dir, "vic_template_triangle_mesh.obj"))
             if vic_mesh_path.exists():
                 cur_out_dir = f'{log_dir}/log_mesh/epoch_{engine.state.epoch}/'
                 os.makedirs(cur_out_dir, exist_ok=True)
-                viz_prediction_dynamics(model, args.model_type, pca_model,
+                viz_prediction_dynamics(writer, model, args.model_type, pca_model,
                                         img_test_transform, target_trans, aux_input_trans,
-                                        args.in_test_file, vic_mesh_path, cur_out_dir)
+                                        args.in_test_file, vic_mesh_path, cur_out_dir, engine.state.epoch)
             else:
                 print('vic mesh path does not exist. Unable to export test result during training. mesh_path = ',
                       vic_mesh_path)
@@ -628,6 +726,7 @@ if __name__ == '__main__':
     #ap.add_argument("-vic_mesh_path", default='', type=str, required=False, help="template victoria mesh. this must be provided when you want to ouput mesh during training")
     args = ap.parse_args()
     assert args.use_height == True, 'only support height input currently'
+
     np.random.seed(0)
     torch.random.manual_seed(0)
     run(args)

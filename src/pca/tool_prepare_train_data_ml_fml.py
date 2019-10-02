@@ -122,6 +122,16 @@ def crop_a_pair(size, path_pair):
     cv.imwrite(str(fpath), img=sil_f)
     cv.imwrite(str(spath), img=sil_s)
 
+def erase_arm_side_profile(img_rgb):
+    #arm color
+    arm_rgb = (51, 170, 221)
+    torso_rgb = (255, 86, 0)
+    arm_mask = body_part_mask(img_rgb, arm_rgb, (5, 5, 5))
+    arm_mask = cv.morphologyEx(arm_mask, cv.MORPH_DILATE, cv.getStructuringElement(cv.MORPH_RECT,(5,5)))
+    arm_mask = arm_mask == 255
+    img_rgb[arm_mask] = torso_rgb
+    return img_rgb
+
 def crop_a_pair_color(size, path_pair):
     fpath = path_pair[0]
     spath = path_pair[1]
@@ -132,13 +142,17 @@ def crop_a_pair_color(size, path_pair):
     assert img_f is not None, f'{fpath} image does not exist'
     assert img_s is not None, f'{spath} image does not exist'
 
+    #TODO: hack. remove arm in the side profile
+    img_s = erase_arm_side_profile(img_s[:,:,::-1])
+    img_s = img_s[:,:,::-1]
+
     mask_f = binarize_blender_img(img_f)
     mask_s = binarize_blender_img(img_s)
     img_f[mask_f==0, :] = (0,0,0)
     img_s[mask_s==0, :] = (0,0,0)
 
-    #plt.subplot(121), plt.imshow(mask_f)
-    #plt.subplot(122), plt.imshow(mask_s)
+    #plt.subplot(121), plt.imshow(img_f)
+    #plt.subplot(122), plt.imshow(img_s)
     #plt.show()
 
     img_f, img_s, _, _ = crop_silhouette_pair(img_f, img_s, mask_f=mask_f, mask_s=mask_s, target_h=size[0], target_w=size[1], px_height=int(0.9 * size[0]))
@@ -160,7 +174,7 @@ def crop_pairs(sil_f_dir, sil_s_dir, size, is_color):
 
     pair_process_func = crop_a_pair_color if is_color else crop_a_pair
 
-    with Pool(8) as p:
+    with Pool(10) as p:
         with tqdm(total=len(path_pairs), desc=f'cropping pair. is_color = {is_color}: {Path(sil_f_dir).stem}, {Path(sil_s_dir).stem}') as pbar:
             for i, _ in enumerate(p.imap_unordered(partial(pair_process_func, size), path_pairs)):
                 pbar.update()
