@@ -295,6 +295,10 @@ def load_model(args, model_root_dir):
             model = densenet121(pretrained=False, num_classes=args.num_classes, n_aux_input_feature=n_aux_input_feature)
         else:
             model = NNHmModel(num_classes=args.num_classes, n_aux_input_feature=n_aux_input_feature, encoder_type=args.encoder_type)
+            #print(model.regressor.weight)
+            #for m in model.fusion:
+            #    print(m.weight)
+            #exit()
     else:
         #find the path to the front and side models
         model_f_path = find_model_path(os.path.join(*[model_root_dir, 'f']), 'final_model')
@@ -378,9 +382,8 @@ def load_test_data_paths(data_file):
 
 
 from mpl_toolkits.mplot3d import Axes3D
-def project_silhouette(verts, triangles):
-    half_height = 1.0
-
+#TODO: matplotlib suffers from aspect distortion. it makes the mesh look fatter than it actually is
+def project_silhouette_matplot(verts, triangles):
     plt.clf()
     ax = plt.gca(projection='3d')
     center = 0.5*(verts.max(0) + verts.min(0))
@@ -428,6 +431,100 @@ def project_silhouette(verts, triangles):
 
     return img_f, img_s
 
+import plotly.graph_objects as go
+import plotly
+import io
+def project_silhouette_plotly(verts, triangles):
+
+    center = 0.5*(verts.max(0) + verts.min(0))
+    verts = verts - center
+
+    x,y,z = verts[:,0], verts[:,1], verts[:,2]
+    fig = go.Figure(data=[go.Mesh3d(x=x, y=y, z=z, k = triangles[:,0], j=triangles[:,1], i=triangles[:,2],
+                                    color='grey', opacity=1,
+                                    lighting=dict(ambient=0.5, diffuse=0.5, specular=0, roughness=1.0))])
+
+    fig.update_layout(scene=dict(
+        xaxis=dict(nticks=4, range=[-2, 2], ),
+        yaxis=dict(nticks=4, range=[-2, 2], ),
+        zaxis=dict(nticks=4, range=[-2, 2], ), ),
+        width=700,
+        margin=dict(r=20, l=10, b=10, t=10))
+
+    scale = 2
+    y = 500; dy = 300
+    x = 700; dx = 150
+
+
+    camera_s = dict(
+        eye=dict(x=1., y=0, z=0.)
+    )
+    fig.update_layout(scene_camera=camera_s)
+    imgdata = fig.to_image(format='png', scale=scale)
+    I = Image.open(io.BytesIO(imgdata))
+    img_s = np.array(I)
+    img_s = img_s[y-dy:y+dy, x-dx:x+dx, :]
+
+    camera_f = dict(
+        eye=dict(x=0., y=-1., z=0.)
+    )
+    fig.update_layout(scene_camera=camera_f)
+    imgdata = fig.to_image(format='png', scale=scale)
+    I = Image.open(io.BytesIO(imgdata))
+    img_f = np.array(I)
+    img_f = img_f[y-dy:y+dy, x-dx:x+dx, :]
+
+    #for sure
+    del fig
+    plotly.purge()
+    return img_f[:,:,:3], img_s[:,:,:3]
+
+
+def static_vars(**kwargs):
+    def decorate(func):
+        for k in kwargs:
+            setattr(func, k, kwargs[k])
+        return func
+    return decorate
+
+from mayavi.mlab import *
+from mayavi import mlab
+import vtk
+@static_vars(init=False)
+def project_silhouette_mayavi(verts, triangles):
+    if project_silhouette_mayavi.init == False:
+        #disable vtk warning
+        errOut = vtk.vtkFileOutputWindow()
+        errOut.SetFileName("VTK Error Out.txt")
+        vtkStdErrOut = vtk.vtkOutputWindow()
+        vtkStdErrOut.SetInstance(errOut)
+        project_silhouette_mayavi.init = False
+
+    mlab.options.offscreen = True
+    m = triangular_mesh(verts[:, 0], verts[:, 1], verts[:, 2], triangles, color=(0.2,0.4,0.8))
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        #front view
+        path_f = f'{tmp_dir}/f.png'
+        mlab.view(-90, 90)
+        mlab.savefig(path_f)
+        img = cv.imread(path_f)
+        img_f = img[:, 200 - 150:200 + 150, :3]
+        img_f = img_f[:,:,::-1]
+
+        #side view
+        path_s = f'{tmp_dir}/s.png'
+        mlab.view(0, 90)
+        mlab.savefig(path_s)
+        img = cv.imread(path_s)
+        img_s = img[:, 200 - 150:200 + 150, :3]
+        img_s = img_s[:,:,::-1]
+
+    #otherwise, it will cause leak mem
+    mlab.clf()
+
+    return img_f, img_s
+
 def resize_height(img_src, img_target):
     tmax = img_target.shape[0]
     smax = img_src.shape[0]
@@ -444,16 +541,19 @@ def resize_width(img_src, img_target):
     img_src_1 = cv.resize(img_src, dsize=dsize)
     return img_src_1
 
+import gc
 def viz_prediction_dynamics(board_writer, model, model_type, pca_model_wrapper,
                             img_transform, target_transform, aux_input_transform, in_data_file,
                             vic_mesh_path, out_dir, iteration):
 
 
     mesh = import_mesh_tex_obj(vic_mesh_path)
-    faces = mesh['f']
+    faces = np.array(mesh['f'])
+    assert faces.shape[1] == 3, 'not a triangle mesh'
 
     fpaths, spaths, heights, genders = load_test_data_paths(in_data_file)
 
+    model.eval()
     tab_cnt = 0
     for fpath, spath, height, gender in zip(fpaths, spaths, heights, genders):
         img_f_org = PIL.Image.open(str(fpath))
@@ -489,10 +589,13 @@ def viz_prediction_dynamics(board_writer, model, model_type, pca_model_wrapper,
             export_mesh(f'{out_dir}/{fpath.stem}.obj', verts=verts, faces=faces)
 
             #glue all images into a big one for visualization
-            img_f_pred, img_s_pred = project_silhouette(verts, faces)
+            #img_f_pred, img_s_pred = project_silhouette_matplot(verts, faces)
+            #img_f_pred, img_s_pred = project_silhouette_plotly(verts, faces)
+            img_f_pred, img_s_pred = project_silhouette_mayavi(verts, faces)
+            #print(img_f_pred.shape)
             img_f_org = resize_height(np.array(img_f_org), img_f_pred)
             img_s_org = resize_height(np.array(img_s_org), img_s_pred)
-
+            #print(img_f_org.shape, img_f_pred.shape)
             img_f_pair = np.concatenate((img_f_org, img_f_pred),axis=1)
             img_s_pair = np.concatenate((img_s_org, img_s_pred),axis=1)
 
@@ -503,6 +606,8 @@ def viz_prediction_dynamics(board_writer, model, model_type, pca_model_wrapper,
             board_writer.add_image(f"{tab_cnt//3}/{fpath.stem}", np.transpose(img_full, (2,0,1)), global_step=iteration)
 
             tab_cnt += 1
+
+    gc.collect()
 
 def run(args):
     model_root_dir = os.path.join(*[args.root_dir, 'models'])

@@ -20,7 +20,7 @@ import numpy as np
 import torchvision
 from torchvision import datasets, transforms
 from torchvision.datasets import ImageFolder
-from torch.utils.data import DataLoader, Dataset,
+from torch.utils.data import DataLoader, Dataset
 from torch.autograd import Variable
 
 
@@ -161,8 +161,8 @@ def test_export_caesar_vic_mesh():
 import torch
 from torch.autograd import Variable
 import onnx
-from onnx_tf.backend import prepare
-from onnx_tf.pb_wrapper import TensorflowGraph
+#from onnx_tf.backend import prepare
+#from onnx_tf.pb_wrapper import TensorflowGraph
 from tensorflow.core.framework import graph_pb2
 import tensorflow as tf
 
@@ -256,8 +256,35 @@ def test_convert_pytorch_to_tensorflow():
     out_dir ='/home/khanhhh/data_1/projects/Oh/data/3d_human/deploy_models/'
     joblib.dump(value=to_save, filename=f'{out_dir}/shape_model.jlb')
 
+import shutil
+def copy_sil_test():
+    sil_f_dir = '/media/F/projects/Oh/data/cnn/sil_384_256_ml_fml_pose_nosyn_color/sil_f/test'
+    sil_s_dir = '/media/F/projects/Oh/data/cnn/sil_384_256_ml_fml_pose_nosyn_color/sil_s/test'
+
+    N = 10
+    fpaths = [path for path in Path(sil_f_dir).glob('*.*') if 'female' in path.stem]
+    idxs = np.random.randint(0, len(fpaths), N)
+    fpaths = [fpaths[idx] for idx in idxs]
+
+    spaths_dict = dict([(path.stem,path) for path in Path(sil_s_dir).glob('*.*') if 'female' in path.stem])
+    spaths = [spaths_dict[path.stem] for path in fpaths]
+
+    outdir = '/media/F/projects/Oh/data/body_test_data/body_designer/'
+    datapath = f'{outdir}/data.txt'
+    namepairs = []
+    for fpath, spath in zip(fpaths, spaths):
+        fpathdst = Path(f'{outdir}/{fpath.stem}_front{fpath.suffix}')
+        shutil.copy(src=str(fpath), dst=str(fpathdst))
+        spathdst = Path(f'{outdir}/{spath.stem}_side{spath.suffix}')
+        shutil.copy(src=str(spath), dst=str(spathdst))
+        namepairs.append((fpathdst.name, spathdst.name))
+
+    with open(datapath, 'a+') as file:
+        for pair in namepairs:
+            file.write(f'{pair[0]} {pair[1]} {1.6} {0}\n')
+
 if __name__ == '__main__':
-    print(dir())
+    copy_sil_test()
     #test_convert_pytorch_to_tensorflow()
 
     #test_pca_max_min()

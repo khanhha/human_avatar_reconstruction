@@ -5,10 +5,11 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 
 class NNHmModel(nn.Module):
-    def __init__(self, num_classes, n_aux_input_feature, encoder_type='densenet'):
+    def __init__(self, num_classes, n_aux_input_feature, encoder_type='densenet', dropout_p = 0.5):
         super(NNHmModel, self).__init__()
         if encoder_type == 'densenet':
             self.encoder =  torchvision.models.densenet121(pretrained=True)
+            #self.encoder =  torchvision.models.densenet201(pretrained=True)
             self.encoder_output_size = self.encoder.classifier.out_features
         elif encoder_type == 'vgg16_bn':
             self.encoder = torchvision.models.vgg16_bn(pretrained=True)
@@ -30,8 +31,10 @@ class NNHmModel(nn.Module):
         self.fusion_output_size = 512
         self.fusion = nn.Sequential(nn.Linear(self.fusion_input_size, self.fusion_output_size),
                                     nn.ReLU(),
+                                    nn.Dropout(dropout_p),
                                     nn.Linear(self.fusion_output_size, self.fusion_output_size),
-                                    nn.ReLU())
+                                    nn.ReLU(),
+                                    nn.Dropout(dropout_p))
 
         self.regressor = nn.Linear(self.fusion_output_size, num_classes)
 
