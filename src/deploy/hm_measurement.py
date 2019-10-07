@@ -7,6 +7,9 @@ from mpl_toolkits.mplot3d import Axes3D  # noqa: F401 unused import
 from common.transformations import *
 import argparse
 from common.obj_util import import_mesh_tex_obj
+import matplotlib.pyplot as plt
+import alphashape
+from shapely.geometry.polygon import orient
 
 def fit_plane(points):
     """
@@ -336,7 +339,6 @@ def main_test():
     for name, m in M.items():
         print(name, ": ", m)
 
-
     # mesh_dir = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/vic_pca_models_1/pca_coords/debug_female'
     # for path in Path(mesh_dir).glob('*.obj'):
     #
@@ -349,9 +351,174 @@ def main_test():
     #     for name, m in M.items():
     #         print(name, ": ", m)
 
-if __name__ == '__main__':
-    #main_test()
+def precalculate_measure_info():
     dir = '/media/D1/data_1/projects/Oh/codes/human_estimation/data/meta_data_shared/'
     measure_vert_groups_path = f'{dir}/victoria_measure_vert_groups.pkl'
     mesh_path = f'{dir}/predict_sample_mesh.obj'
     calculate_contour_circ_neighbor_idxs(dir, measure_vert_groups_path, mesh_path)
+
+
+def is_adj_edge(e0, e1):
+    if e0[0] == e1[0] or e0[0] == e1[1] or (e0[1]==e1[0] or e0[1]==e1[1]):
+        return True
+    else:
+        return False
+
+def ensure_ccw_orientation(contour_vidxs, points):
+    bmin = points.min(axis=0)
+    bmax = points.max(axis=0)
+    center = 0.5*(bmin+bmax)
+    dir0 = points[contour_vidxs[0],:] - center
+    dir1 = points[contour_vidxs[2],:] - center
+    cross = np.cross(dir0,dir1)
+    if cross < 0 :
+        contour_vidxs = contour_vidxs[::-1, :]
+    return contour_vidxs
+
+def sort_edges_to_contours(edges):
+    visited = np.zeros(len(edges), dtype=np.bool)
+    #start from the left most edges
+    #edge_mids =
+    #left_most_edge_idx  = np.argmin(edge_hor_coords)
+    contour_eidxs = [edges[0]]
+    visited[0] = True
+    while True:
+        frontier_e = contour_eidxs[-1]
+        ne = None
+        ine = -1
+        #loop over unvisited edges
+        for ie1, e1 in enumerate(edges):
+            if visited[ie1] == True:
+                continue
+            if is_adj_edge(frontier_e, e1):
+                ne = e1
+                ine = ie1
+                break
+
+        if ne is not None:
+            contour_eidxs.append(ne)
+            visited[ine] = True
+        else:
+            #cannot find the next edge after frontier edge
+            break
+
+    contour_idxs = [contour_eidxs[0][0], contour_eidxs[0][1]]
+    for i in range(1,len(contour_eidxs)):
+        cur_e = contour_eidxs[i]
+        frontier_v = contour_idxs[-1]
+        next_v = cur_e[0] if cur_e[0] != frontier_v else cur_e[1]
+        contour_idxs.append(next_v)
+
+    contour_idxs = np.array(contour_idxs)
+
+    return contour_idxs
+
+def find_boundary(dln):
+    bdr_t_pairs = []
+    for t_idx, t_nbrs in enumerate(dln.neighbors):
+        if -1 in t_nbrs:
+            bdr_t_pairs.append((t_idx, tuple(t_nbrs)))
+
+    #print(bdr_t_pairs)
+    bdr_edges = []
+    for pair in bdr_t_pairs:
+        t = pair[0]
+        t_vidxs = dln.simplices[t,:]
+        t_edges = (sorted((t_vidxs[i], t_vidxs[(i+1)%3])) for i in range(3))
+        t_nbrs = pair[1]
+        t_nbrs = list(filter(lambda idx: idx != -1, t_nbrs))
+        nbr_edges = []
+        for t_nbr in t_nbrs:
+            vidxs = dln.simplices[t_nbr, :]
+            edges = (sorted((vidxs[i], vidxs[(i+1)%3])) for i in range(3))
+            nbr_edges.extend(edges)
+
+        bdr_edges.extend(filter(lambda e: e not in nbr_edges, t_edges))
+
+    #print(bdr_edges)
+    #bdr_vidxs = np.unique(np.array(bdr_edges))
+    contour_vidxs = sort_edges_to_contours(bdr_edges)
+    
+    contour_vidxs = ensure_ccw_orientation(contour_vidxs, dln.points)
+    #print(bdr_vidxs)
+    #contour_points = dln.points[contour_vidxs, :]
+    #print(bdr_verts)
+    return contour_vidxs
+
+#see picture for more detail
+#assets/images/bust_proj.png
+def extract_rbreast_contour(contour_points):
+    idxs_hor_sorted = np.argsort(contour_points[:, 0])
+    #the left most point
+    lm_idx = idxs_hor_sorted[0]
+    #the right most point
+    rm_idxs = idxs_hor_sorted[-5:]
+    #for the right most point, we pick the point with lowest y value.
+    rm_ys = contour_points[rm_idxs, 1]
+    rm_idx = rm_idxs[np.argmin(rm_ys)]
+    #rm_idx = rm_idxs[0] if contour_points[rm_idxs[0], 1] < contour_points[rm_idxs[1], 1] else rm_idxs[1]
+
+    if lm_idx < rm_idx:
+        verts = contour_points[lm_idx:rm_idx+1, :]
+    elif lm_idx > rm_idx:
+        verts =  np.vstack([contour_points[lm_idx:, :], contour_points[:rm_idx+1, :]])
+    else:
+        print('something wrong')
+        #fallback to a stupid solution: full contour
+        verts = contour_points
+    return verts
+
+def calc_cross_right_breast(rbreast_points):
+    points = rbreast_points[:,:2]
+    ashape = alphashape.alphashape(points, 20)
+    ashape = orient(ashape, sign=1)
+    contour_points = np.array(ashape.exterior.coords)
+    rbreast_contour_points = extract_rbreast_contour(contour_points)
+    #plt.scatter(points[:,0], points[:,1])
+    #plt.plot(rbreast_contour_points[:,0], rbreast_contour_points[:,1], '-r', markerSize=4)
+    #plt.show()
+    diff = np.diff(rbreast_contour_points, axis=0)
+    length = np.sum(np.linalg.norm(diff, axis=1))
+    return length
+
+def calc_point_cloud_circumference(points, alpha_threshold = 20):
+    ashape = alphashape.alphashape(points, alpha_threshold)
+    contour_points = np.array(ashape.exterior.coords)
+    dif = np.diff(contour_points, axis=0)
+    circ = np.linalg.norm(dif, axis=1).sum()
+    return circ
+
+from scipy.spatial import Delaunay
+if __name__ == '__main__':
+    dir = '/media/D1/data_1/projects/Oh/codes/human_estimation/data/meta_data_shared/'
+    measure_vert_groups_path = f'{dir}/victoria_measure_vert_groups.pkl'
+    mesh_path = f'{dir}/predict_sample_mesh.obj'
+    verts, faces = import_mesh_obj(mesh_path)
+    with open(measure_vert_groups_path, 'rb') as file:
+        vgroups = pickle.load(file)
+        #print(vgroups["verts_measure_rbreast"])
+
+    vidx_underbust = vgroups['verts_circ_underbust']
+    verts_underbust = verts[vidx_underbust, :]
+    #print(v_underbust)
+    plane_pnt, plane_n = fit_plane(verts_underbust.T)
+    #print(plane_pnt, plane_n)
+
+    verts_rbust = verts[vgroups['verts_measure_rbreast'], :]
+    verts_lbust = verts[vgroups['verts_measure_lbreast'], :]
+
+    #points = np.vstack([verts_rbust, verts_lbust])
+    points = verts_rbust
+    #print(verts_rbust)
+
+    plt.axes().set_aspect(1.0)
+    calc_cross_right_breast(points)
+    #calc_bust_circumference(verts[vgroups['verts_circ_bust']])
+    #contour_points = find_boundary(tri)
+    # B['vertices'][:, 1] = sil.shape[0] - B['vertices'][:, 1]
+    # A['vertices'][:, 1] = sil.shape[0] - A['vertices'][:, 1]
+    # tr.compare(plt, A, B)
+    # plt.show()
+    plt.axes().set_aspect(1.0)
+    plt.plot(verts_rbust[:,0], verts_rbust[:,1], '+b')
+    plt.show()
