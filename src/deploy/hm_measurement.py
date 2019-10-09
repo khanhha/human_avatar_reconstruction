@@ -10,6 +10,7 @@ from common.obj_util import import_mesh_tex_obj
 import matplotlib.pyplot as plt
 import alphashape
 from shapely.geometry.polygon import orient
+from shapely.geometry import MultiPolygon, Polygon, MultiPoint
 
 def fit_plane(points):
     """
@@ -138,6 +139,80 @@ def calc_neighbor_idxs(vert_grps, mesh_path):
 
     return grp_neighbor_idxs
 
+
+#see picture for more detail
+#assets/images/bust_proj.png
+def extract_rbreast_contour(contour_points):
+    idxs_hor_sorted = np.argsort(contour_points[:, 0])
+    #the left most point
+    lm_idx = idxs_hor_sorted[0]
+    #the right most point
+    rm_idxs = idxs_hor_sorted[-5:]
+    #for the right most point, we pick the point with lowest y value.
+    rm_ys = contour_points[rm_idxs, 1]
+    rm_idx = rm_idxs[np.argmin(rm_ys)]
+    #rm_idx = rm_idxs[0] if contour_points[rm_idxs[0], 1] < contour_points[rm_idxs[1], 1] else rm_idxs[1]
+
+    if lm_idx < rm_idx:
+        verts = contour_points[lm_idx:rm_idx+1, :]
+    elif lm_idx > rm_idx:
+        verts =  np.vstack([contour_points[lm_idx:, :], contour_points[:rm_idx+1, :]])
+    else:
+        print('something wrong')
+        #fallback to a stupid solution: full contour
+        verts = contour_points
+    return verts
+
+def calc_cross_right_breast(rbreast_points):
+    points = rbreast_points[:,:2]
+    ashape = alphashape.alphashape(points, 20)
+    ashape = orient(ashape, sign=1)
+    contour_points = np.array(ashape.exterior.coords)
+    rbreast_contour_points = extract_rbreast_contour(contour_points)
+    #plt.scatter(points[:,0], points[:,1])
+    #plt.plot(rbreast_contour_points[:,0], rbreast_contour_points[:,1], '-r', markerSize=4)
+    #plt.show()
+    diff = np.diff(rbreast_contour_points, axis=0)
+    length = np.sum(np.linalg.norm(diff, axis=1))
+    return length
+
+def convex_contour_points(points):
+    pointset_obj = MultiPoint(points)
+    convex = pointset_obj.convex_hull
+    contour_points = np.array(convex.exterior.coords)
+    return contour_points
+
+def calc_point_set_circumference(points, convex_hull = True, alpha_threshold = 5, project = True):
+    if project:
+        N = points.shape[0]
+        pln_pnt, pln_n = fit_plane(points.T)
+
+        proj_mat = projection_matrix(pln_pnt, pln_n)
+        points = np.hstack([points, np.ones((N,1), dtype=points.dtype)])
+        points = np.matmul(proj_mat, points.T).T[:,:3]
+
+    points = points[:,:2]
+    if convex_hull:
+        contour_points = convex_contour_points(points)
+    else:
+        ashape = alphashape.alphashape(points, alpha_threshold)
+        if isinstance(ashape, MultiPolygon):
+            # alpha is too big.
+            # resort to convex hull
+            contour_points = convex_contour_points(points)
+        else:
+            contour_points = np.array(ashape.exterior.coords)
+
+    #plt.clf()
+    #plt.axes().set_aspect(1.0)
+    #plt.plot(points[:, 0], points[:, 1], '+r')
+    #plt.plot(contour_points[:, 0], contour_points[:, 1], '-b')
+    #plt.show()
+
+    dif = np.diff(contour_points, axis=0)
+    circ = np.linalg.norm(dif, axis=1).sum()
+    return circ
+
 class HumanMeasure():
 
     def __init__(self, vert_grp_path, contour_circ_neighbor_idxs_path):
@@ -181,11 +256,12 @@ class HumanMeasure():
         if correct_height:
             verts =  HumanMeasure.correct_height(verts, true_height)
 
-        circ_contours = self._filter_circumference_contours(verts)
 
         landmarks = self.filter_landmarks(self.vert_grps, verts)
 
-        measure = self.calc_measurements(circ_contours, landmarks)
+        #circ_contours = self._filter_circumference_contours(verts)
+        #measure = self.calc_measurements(circ_contours, landmarks)
+        measure = self.calc_all_measurements(verts, self.vert_grps, landmarks)
 
         maxv = verts.max(0)
         minv = verts.min(0)
@@ -252,6 +328,102 @@ class HumanMeasure():
             ld_points[grp_name] = avg
 
         return ld_points
+
+    def calc_measurements(self, contours, landmarks):
+        M = dict()
+
+        M['m_circ_neck'] = calc_circumference(contours['verts_circ_neck'])
+        M['m_circ_bust'] = calc_circumference(contours['verts_circ_bust'])
+        M['m_circ_underbust'] = calc_circumference(contours['verts_circ_underbust'])
+        M['m_circ_waist'] = calc_circumference(contours['verts_circ_waist'])
+        M['m_circ_midwaist'] = calc_circumference(contours['verts_circ_midwaist'])
+        M['m_circ_thigh'] = calc_circumference(contours['verts_circ_thigh'])
+        M['m_circ_hip'] = calc_circumference(contours['verts_circ_hip'])
+        M['m_circ_knee'] = calc_circumference(contours['verts_circ_knee'])
+
+        M['m_circ_upperarm'] = calc_circumference(contours['verts_circ_upperarm'])
+        M['m_circ_elbow'] = calc_circumference(contours['verts_circ_elbow'])
+        M['m_circ_wrist'] = calc_circumference(contours['verts_circ_wrist'])
+
+        under_neck = landmarks['verts_ld_shoulder']
+        elbow = np.mean(contours['verts_circ_elbow'], axis=0)
+        M['m_len_front_bodice'] = abs(under_neck[2] - elbow[2])
+
+        shoulder = landmarks['verts_ld_underneck']
+        M['m_len_upperarm'] = np.linalg.norm(shoulder - elbow)
+
+        knee = np.mean(contours['verts_circ_knee'], axis=0)
+        waist = np.mean(contours['verts_circ_waist'], axis=0)
+        M['m_len_waist_knee'] = np.linalg.norm(waist - knee)
+
+        wrist = np.mean(contours['verts_circ_wrist'], axis=0)
+        M['m_len_sleeve'] = np.linalg.norm(wrist - shoulder)
+
+        hem = landmarks['verts_ld_hem']
+        M['m_len_skirt_waist_to_hem'] = abs(waist[2] - hem[2])
+
+        return M
+
+    def vgroup_points(self, verts, vert_groups, name):
+        print(name)
+        return verts[vert_groups[name], :]
+
+    def shoulder_pubic_line(self, points):
+        import scipy.interpolate as interpolate
+        points = points[:,1:3]
+        points = np.roll(points,1,0)
+        s = interpolate.InterpolatedUnivariateSpline(points[:,0], points[:,1])
+        unew = np.arange(0, 1.01, 0.01)
+        out = s(unew)
+        plt.axes().set_aspect(1.0)
+        plt.plot(points[:,0], points[:,1], "+b")
+        plt.plot(unew, out, "+r")
+        plt.show()
+
+    def calc_all_measurements(self, verts, vert_groups,  landmarks):
+        M = dict()
+
+        self.shoulder_pubic_line(self.vgroup_points(verts, vert_groups, 'verts_measure_shoulder_pubic'))
+
+        M['m_circ_neck'] = calc_point_set_circumference(self.vgroup_points(verts, vert_groups, 'verts_circ_neck'))
+        M['m_circ_upper_bust'] = calc_point_set_circumference(self.vgroup_points(verts, vert_groups, 'verts_circ_upper_bust'))
+        M['m_circ_bust'] = calc_point_set_circumference(self.vgroup_points(verts, vert_groups, 'verts_circ_bust'))
+        M['m_circ_underbust'] = calc_point_set_circumference(self.vgroup_points(verts, vert_groups, 'verts_circ_underbust'))
+        M['m_circ_waist'] = calc_point_set_circumference(self.vgroup_points(verts, vert_groups, 'verts_circ_waist'))
+        M['m_circ_midwaist'] = calc_point_set_circumference(self.vgroup_points(verts, vert_groups, 'verts_circ_midwaist'))
+        M['m_circ_thigh'] = calc_point_set_circumference(self.vgroup_points(verts, vert_groups, 'verts_circ_thigh'))
+        M['m_circ_hip'] = calc_point_set_circumference(self.vgroup_points(verts, vert_groups, 'verts_circ_hip'), 5)
+        M['m_circ_knee'] = calc_point_set_circumference(self.vgroup_points(verts, vert_groups, 'verts_circ_knee'))
+
+        M['m_circ_upperarm'] = calc_point_set_circumference(self.vgroup_points(verts, vert_groups, 'verts_circ_upperarm'))
+        M['m_circ_elbow'] = calc_point_set_circumference(self.vgroup_points(verts, vert_groups, 'verts_circ_elbow'))
+        M['m_circ_wrist'] = calc_point_set_circumference(self.vgroup_points(verts, vert_groups, 'verts_circ_wrist'))
+
+        M['m_cross_breast'] = calc_cross_right_breast(self.vgroup_points(verts, vert_groups, 'verts_measure_rbreast'))
+
+
+        top_shoulder = np.mean(self.vgroup_points(verts, vert_groups, 'verts_measure_top_shoulder'))
+        mid_nipple = np.mean(self.vgroup_points(verts, vert_groups, 'verts_measure_mid_nipple'))
+        M['m_shoulder_to_bust'] = np.linalg.norm(top_shoulder - mid_nipple)
+
+        under_neck = landmarks['verts_ld_shoulder']
+        elbow = np.mean(self.vgroup_points(verts, vert_groups, 'verts_circ_elbow'), axis=0)
+        M['m_len_front_bodice'] = abs(under_neck[2] - elbow[2])
+
+        shoulder = landmarks['verts_ld_underneck']
+        M['m_len_upperarm'] = np.linalg.norm(shoulder - elbow)
+
+        knee = np.mean(self.vgroup_points(verts, vert_groups, 'verts_circ_knee'), axis=0)
+        waist = np.mean(self.vgroup_points(verts, vert_groups, 'verts_circ_waist'), axis=0)
+        M['m_len_waist_knee'] = np.linalg.norm(waist - knee)
+
+        wrist = np.mean(self.vgroup_points(verts, vert_groups, 'verts_circ_wrist'), axis=0)
+        M['m_len_sleeve'] = np.linalg.norm(wrist - shoulder)
+
+        hem = landmarks['verts_ld_hem']
+        M['m_len_skirt_waist_to_hem'] = abs(waist[2] - hem[2])
+
+        return M
 
     def calc_measurements(self, contours, landmarks):
         M = dict()
@@ -358,136 +530,6 @@ def precalculate_measure_info():
     calculate_contour_circ_neighbor_idxs(dir, measure_vert_groups_path, mesh_path)
 
 
-def is_adj_edge(e0, e1):
-    if e0[0] == e1[0] or e0[0] == e1[1] or (e0[1]==e1[0] or e0[1]==e1[1]):
-        return True
-    else:
-        return False
-
-def ensure_ccw_orientation(contour_vidxs, points):
-    bmin = points.min(axis=0)
-    bmax = points.max(axis=0)
-    center = 0.5*(bmin+bmax)
-    dir0 = points[contour_vidxs[0],:] - center
-    dir1 = points[contour_vidxs[2],:] - center
-    cross = np.cross(dir0,dir1)
-    if cross < 0 :
-        contour_vidxs = contour_vidxs[::-1, :]
-    return contour_vidxs
-
-def sort_edges_to_contours(edges):
-    visited = np.zeros(len(edges), dtype=np.bool)
-    #start from the left most edges
-    #edge_mids =
-    #left_most_edge_idx  = np.argmin(edge_hor_coords)
-    contour_eidxs = [edges[0]]
-    visited[0] = True
-    while True:
-        frontier_e = contour_eidxs[-1]
-        ne = None
-        ine = -1
-        #loop over unvisited edges
-        for ie1, e1 in enumerate(edges):
-            if visited[ie1] == True:
-                continue
-            if is_adj_edge(frontier_e, e1):
-                ne = e1
-                ine = ie1
-                break
-
-        if ne is not None:
-            contour_eidxs.append(ne)
-            visited[ine] = True
-        else:
-            #cannot find the next edge after frontier edge
-            break
-
-    contour_idxs = [contour_eidxs[0][0], contour_eidxs[0][1]]
-    for i in range(1,len(contour_eidxs)):
-        cur_e = contour_eidxs[i]
-        frontier_v = contour_idxs[-1]
-        next_v = cur_e[0] if cur_e[0] != frontier_v else cur_e[1]
-        contour_idxs.append(next_v)
-
-    contour_idxs = np.array(contour_idxs)
-
-    return contour_idxs
-
-def find_boundary(dln):
-    bdr_t_pairs = []
-    for t_idx, t_nbrs in enumerate(dln.neighbors):
-        if -1 in t_nbrs:
-            bdr_t_pairs.append((t_idx, tuple(t_nbrs)))
-
-    #print(bdr_t_pairs)
-    bdr_edges = []
-    for pair in bdr_t_pairs:
-        t = pair[0]
-        t_vidxs = dln.simplices[t,:]
-        t_edges = (sorted((t_vidxs[i], t_vidxs[(i+1)%3])) for i in range(3))
-        t_nbrs = pair[1]
-        t_nbrs = list(filter(lambda idx: idx != -1, t_nbrs))
-        nbr_edges = []
-        for t_nbr in t_nbrs:
-            vidxs = dln.simplices[t_nbr, :]
-            edges = (sorted((vidxs[i], vidxs[(i+1)%3])) for i in range(3))
-            nbr_edges.extend(edges)
-
-        bdr_edges.extend(filter(lambda e: e not in nbr_edges, t_edges))
-
-    #print(bdr_edges)
-    #bdr_vidxs = np.unique(np.array(bdr_edges))
-    contour_vidxs = sort_edges_to_contours(bdr_edges)
-    
-    contour_vidxs = ensure_ccw_orientation(contour_vidxs, dln.points)
-    #print(bdr_vidxs)
-    #contour_points = dln.points[contour_vidxs, :]
-    #print(bdr_verts)
-    return contour_vidxs
-
-#see picture for more detail
-#assets/images/bust_proj.png
-def extract_rbreast_contour(contour_points):
-    idxs_hor_sorted = np.argsort(contour_points[:, 0])
-    #the left most point
-    lm_idx = idxs_hor_sorted[0]
-    #the right most point
-    rm_idxs = idxs_hor_sorted[-5:]
-    #for the right most point, we pick the point with lowest y value.
-    rm_ys = contour_points[rm_idxs, 1]
-    rm_idx = rm_idxs[np.argmin(rm_ys)]
-    #rm_idx = rm_idxs[0] if contour_points[rm_idxs[0], 1] < contour_points[rm_idxs[1], 1] else rm_idxs[1]
-
-    if lm_idx < rm_idx:
-        verts = contour_points[lm_idx:rm_idx+1, :]
-    elif lm_idx > rm_idx:
-        verts =  np.vstack([contour_points[lm_idx:, :], contour_points[:rm_idx+1, :]])
-    else:
-        print('something wrong')
-        #fallback to a stupid solution: full contour
-        verts = contour_points
-    return verts
-
-def calc_cross_right_breast(rbreast_points):
-    points = rbreast_points[:,:2]
-    ashape = alphashape.alphashape(points, 20)
-    ashape = orient(ashape, sign=1)
-    contour_points = np.array(ashape.exterior.coords)
-    rbreast_contour_points = extract_rbreast_contour(contour_points)
-    #plt.scatter(points[:,0], points[:,1])
-    #plt.plot(rbreast_contour_points[:,0], rbreast_contour_points[:,1], '-r', markerSize=4)
-    #plt.show()
-    diff = np.diff(rbreast_contour_points, axis=0)
-    length = np.sum(np.linalg.norm(diff, axis=1))
-    return length
-
-def calc_point_cloud_circumference(points, alpha_threshold = 20):
-    ashape = alphashape.alphashape(points, alpha_threshold)
-    contour_points = np.array(ashape.exterior.coords)
-    dif = np.diff(contour_points, axis=0)
-    circ = np.linalg.norm(dif, axis=1).sum()
-    return circ
-
 from scipy.spatial import Delaunay
 if __name__ == '__main__':
     dir = '/media/D1/data_1/projects/Oh/codes/human_estimation/data/meta_data_shared/'
@@ -496,29 +538,12 @@ if __name__ == '__main__':
     verts, faces = import_mesh_obj(mesh_path)
     with open(measure_vert_groups_path, 'rb') as file:
         vgroups = pickle.load(file)
-        #print(vgroups["verts_measure_rbreast"])
 
-    vidx_underbust = vgroups['verts_circ_underbust']
-    verts_underbust = verts[vidx_underbust, :]
-    #print(v_underbust)
-    plane_pnt, plane_n = fit_plane(verts_underbust.T)
-    #print(plane_pnt, plane_n)
+    hmmeasure = HumanMeasure(measure_vert_groups_path, f'{dir}/victoria_measure_contour_circ_neighbor_idxs.pkl')
+    h = (verts.max() -verts.min()).max()
+    measure = hmmeasure.measure(verts, h, correct_height=False)
+    for k, v in measure.items():
+        print(k, v)
 
-    verts_rbust = verts[vgroups['verts_measure_rbreast'], :]
-    verts_lbust = verts[vgroups['verts_measure_lbreast'], :]
+    #print(measure)
 
-    #points = np.vstack([verts_rbust, verts_lbust])
-    points = verts_rbust
-    #print(verts_rbust)
-
-    plt.axes().set_aspect(1.0)
-    calc_cross_right_breast(points)
-    #calc_bust_circumference(verts[vgroups['verts_circ_bust']])
-    #contour_points = find_boundary(tri)
-    # B['vertices'][:, 1] = sil.shape[0] - B['vertices'][:, 1]
-    # A['vertices'][:, 1] = sil.shape[0] - A['vertices'][:, 1]
-    # tr.compare(plt, A, B)
-    # plt.show()
-    plt.axes().set_aspect(1.0)
-    plt.plot(verts_rbust[:,0], verts_rbust[:,1], '+b')
-    plt.show()
