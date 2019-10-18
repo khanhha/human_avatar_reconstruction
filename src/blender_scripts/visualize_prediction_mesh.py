@@ -37,6 +37,29 @@ def import_mesh_tex_obj(fpath):
     mesh['ft']  = faces_tex
     return mesh
 
+def import_mesh_obj(fpath):
+    coords = []
+    faces =  []
+    with open(fpath, 'r') as obj:
+        file = obj.read()
+        lines = file.splitlines()
+        for line in lines:
+            elem = line.split()
+            if elem:
+                if elem[0] == 'v':
+                    coords.append((float(elem[1]), float(elem[2]), float(elem[3])))
+                elif elem[0] == 'vt' or elem[0] == 'vn' or elem[0] == 'vp':
+                    #raise Exception('load obj file: un-supported texture, normal...')
+                    continue
+                elif elem[0] == 'f':
+                    f = []
+                    for v_idx_str in elem[1:]:
+                        v_idx = v_idx_str.split('//')[0]
+                        f.append(int(v_idx)-1)
+                    faces.append(f)
+
+    return np.array(coords), faces
+
 def find_grp_verts(obj, grp_name_hint):
     grp_verts = []
     for idx, v in enumerate(obj.data.vertices):
@@ -82,12 +105,13 @@ def highlight_vert_groups(obj, vgroups):
 #mesh_path = dir + 'designer_0_front_designer_0_seg_hd_side.obj'
 #mesh_path = dir + 'cory_1933_front_cory_1933_seg_hd_1_side.obj'
 #dir = "/media/D1/data_1/projects/Oh/data/3d_human/test_data/body_designer/result_posevar/"
-dir = '/media/D1/data_1/projects/Oh/data/3d_human/test_data/body_designer/result_posevar/'
-name = 'cory_1933_front_cory_1933_side.obj'
+dir = '/media/D1/data_1/projects/Oh/codes/human_estimation/data/meta_data_shared/'
+#name = 'cory_1933_front_cory_1933_side.obj'
+name = "victoria_mpii_mean_mesh.obj"
 mesh_path = dir + name
     
-objmesh = import_mesh_tex_obj(mesh_path)
-verts = objmesh['v']
+verts, faces = import_mesh_obj(mesh_path)
+
 
 obj = bpy.data.objects['VictoriaMeshMeasure']
 set_mesh(obj, verts)

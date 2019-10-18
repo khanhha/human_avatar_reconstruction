@@ -18,7 +18,7 @@ from pca.nn_util import crop_silhouette_pair
 from deploy.hm_sil_pred_model import HmSilPredModel
 from pathlib import Path
 from  common.util import find_largest_contour, smooth_contour, resample_contour
-import triangle as tr
+#import triangle as tr
 
 
 class HmSilCorrector():

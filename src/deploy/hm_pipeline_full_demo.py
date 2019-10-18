@@ -13,6 +13,7 @@ from face_utils.face_extractor import FaceExtractor
 from common.obj_util import import_mesh_tex_obj, export_mesh_tex_obj
 from deploy.data_config import config_get_data_path
 import pickle
+from common.viz_util import build_gt_predict_viz
 
 def export_measurement_file(file_path, measurements):
     with open(file_path, 'wt') as file:
@@ -29,6 +30,7 @@ if __name__ == '__main__':
     ap.add_argument("-out_dir",  required=True, type=str, help="output directory")
     ap.add_argument("-out_measure_dir", required=False, type=str, help="output directory to contain measurements", default='')
     ap.add_argument("-out_joint_dir", required=False, type=str, help="output directory to contain joints", default='')
+    ap.add_argument("-out_viz_dir", required=False, type=str, help="output directory to contain joints", default='')
     ap.add_argument("-color", required=False, action="store_true", help="use body part color segmentation or not")
 
     args = ap.parse_args()
@@ -42,13 +44,18 @@ if __name__ == '__main__':
     deeplab_path = config_get_data_path(args.model_dir, 'deeplab_tensorflow_model')
     #vic_mesh_path = os.path.join(*[args.model_dir, 'vic_mesh.obj'])
     vic_mesh_path  = config_get_data_path(args.model_dir, 'victoria_template_mesh')
+    vic_tri_mesh_path  = config_get_data_path(args.meta_data_dir, 'victoria_triangle_mesh')
+    _, vic_tris = import_mesh_obj(vic_tri_mesh_path)
+
     #text_mesh_path = os.path.join(*[args.meta_data_dir, 'vic_mesh_textured_warped.obj'])
     text_mesh_path = config_get_data_path(args.meta_data_dir, 'victoria_template_textured_mesh')
     tex_mesh = import_mesh_tex_obj(text_mesh_path)
 
+    predict_sample_mesh_path = config_get_data_path(args.meta_data_dir, 'predict_sample_mesh')
+
     measure_vert_grps_path = config_get_data_path(args.meta_data_dir, 'victoria_measure_vert_groups')
     measure_circ_neighbor_idxs_path = config_get_data_path(args.meta_data_dir, 'victoria_measure_contour_circ_neighbor_idxs')
-    bd_measure = HumanMeasure(vert_grp_path=measure_vert_grps_path, contour_circ_neighbor_idxs_path=measure_circ_neighbor_idxs_path)
+    bd_measure = HumanMeasure(vert_grp_path=measure_vert_grps_path, template_mesh_path=predict_sample_mesh_path)
 
     joint_vert_groups_path = config_get_data_path(args.meta_data_dir, 'victoria_joint_vert_groups')
     joint_estimator = HmJointEstimator(joint_vert_groups_path)
@@ -149,6 +156,18 @@ if __name__ == '__main__':
 
                 out_path = os.path.join(*[args.out_dir, f'{Path(front_img_path).stem}_{Path(side_img_path).stem}.obj'])
                 export_mesh_tex_obj(out_path, out_mesh, img_tex=texture[:,:,::-1])
+
+                if args.out_viz_dir != '':
+                    os.makedirs(args.out_viz_dir, exist_ok=True)
+                    sil_f_rgb = np.zeros((sil_f.shape[0], sil_f.shape[1], 3), dtype=np.uint8)
+                    for i in range(3):
+                        sil_f_rgb[:,:,0] = sil_f
+                    sil_s_rgb = np.zeros((sil_s.shape[0], sil_s.shape[1], 3), dtype=np.uint8)
+                    for i in range(3):
+                        sil_s_rgb[:,:,0] = sil_s
+
+                    viz_img = build_gt_predict_viz(verts, vic_tris, sil_f_rgb, sil_s_rgb)
+                    cv.imwrite(f'{args.out_viz_dir}/{f_name}.png', viz_img[:,:,::-1])
 
                 if args.out_measure_dir != '':
                     os.makedirs(args.out_measure_dir, exist_ok=True)

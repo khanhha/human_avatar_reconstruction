@@ -5,6 +5,7 @@ from torch.autograd import Variable
 import torchvision.transforms as transforms
 from PIL import Image
 import PIL
+import time
 
 class HmShapePredPytorchModel():
     def __init__(self, model_path):

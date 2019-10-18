@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 import alphashape
 from shapely.geometry.polygon import orient
 from shapely.geometry import MultiPolygon, Polygon, MultiPoint
+import copy
 
 def fit_plane(points):
     """
@@ -142,7 +143,7 @@ def calc_neighbor_idxs(vert_grps, mesh_path):
 
 #see picture for more detail
 #assets/images/bust_proj.png
-def extract_rbreast_contour(contour_points):
+def extract_rbreast_cross_contour(contour_points):
     idxs_hor_sorted = np.argsort(contour_points[:, 0])
     #the left most point
     lm_idx = idxs_hor_sorted[0]
@@ -168,11 +169,61 @@ def calc_cross_right_breast(rbreast_points):
     ashape = alphashape.alphashape(points, 20)
     ashape = orient(ashape, sign=1)
     contour_points = np.array(ashape.exterior.coords)
-    rbreast_contour_points = extract_rbreast_contour(contour_points)
+    rbreast_contour_points = extract_rbreast_cross_contour(contour_points)
+    #plt.clf()
+    #plt.axes().set_aspect(1.0)
     #plt.scatter(points[:,0], points[:,1])
     #plt.plot(rbreast_contour_points[:,0], rbreast_contour_points[:,1], '-r', markerSize=4)
     #plt.show()
     diff = np.diff(rbreast_contour_points, axis=0)
+    length = np.sum(np.linalg.norm(diff, axis=1))
+    return length
+
+def extract_breast_depth_contour(contour_points):
+    idxs_ver_sorted = np.argsort(contour_points[:, 1])
+    #highest point
+    start_idx = idxs_ver_sorted[-1]
+    #lowest point
+    end_idx = idxs_ver_sorted[0]
+
+    if start_idx < end_idx:
+        verts = contour_points[start_idx:end_idx+1, :]
+    elif start_idx > end_idx:
+        verts =  np.vstack([contour_points[start_idx:, :], contour_points[:end_idx+1, :]])
+    else:
+        print('something wrong')
+        #fallback to a stupid solution: full contour
+        verts = contour_points
+
+    #return verts
+
+    #find points with highest depth
+    n = verts.shape[0]
+    depths = verts[-1, 0] - verts[:,0]
+    idx = np.argmax(depths)
+    if idx >= (n-2):
+        #oh fuck. the point with higest depth is very close to the lower point => must be a very very skinny person with flatten bust
+        idx = int(0.5*contour_points.shape[0])
+
+    #ok, extract the depth vertical string
+    verts = verts[idx:, :]
+    return verts
+
+
+#see picture for more detail
+#assets/images/bust_depth.png
+def calc_breast_depth(breast_points):
+    points = breast_points[:,1:3]
+    ashape = alphashape.alphashape(points, 20)
+    ashape = orient(ashape, sign=1)
+    contour_points = np.array(ashape.exterior.coords)
+    breast_contour_points = extract_breast_depth_contour(contour_points)
+    #plt.clf()
+    #plt.axes().set_aspect(1.0)
+    #plt.scatter(points[:,0], points[:,1])
+    #plt.plot(breast_contour_points[:,0], breast_contour_points[:,1], '-r', markerSize=4)
+    #plt.show()
+    diff = np.diff(breast_contour_points, axis=0)
     length = np.sum(np.linalg.norm(diff, axis=1))
     return length
 
@@ -182,8 +233,8 @@ def convex_contour_points(points):
     contour_points = np.array(convex.exterior.coords)
     return contour_points
 
-def calc_point_set_circumference(points, convex_hull = True, alpha_threshold = 5, project = True):
-    if project:
+def calc_point_set_circumference(points, convex_hull = True, alpha_threshold = 5, proj_fit_plane = True):
+    if proj_fit_plane:
         N = points.shape[0]
         pln_pnt, pln_n = fit_plane(points.T)
 
@@ -215,7 +266,7 @@ def calc_point_set_circumference(points, convex_hull = True, alpha_threshold = 5
 
 class HumanMeasure():
 
-    def __init__(self, vert_grp_path, contour_circ_neighbor_idxs_path):
+    def __init__(self, vert_grp_path, template_mesh_path):
         """
 
         :param vert_grp_path: vertex groups on Victoria's topology to calcalculate measurement. there are two main types of vetex group, which are distinguished by their name
@@ -226,11 +277,220 @@ class HumanMeasure():
             to reduce this point-cloud into a contour with connected vertices. this is what contour_circ_neighbor_idxs_path used for. each of its element refer to a set of neighboring vertex indices
             which will be averaged to calculate the corresponding contour vertex.
         """
-        with open(vert_grp_path, 'rb') as file:
-            self.vert_grps = pickle.load(file=file)
 
-        with open(contour_circ_neighbor_idxs_path, 'rb') as file:
-            self.contour_circ_neighbor_idxs = pickle.load(file=file)
+        #preprocessing vertex groups
+        verts, faces = import_mesh_obj(template_mesh_path)
+
+        with open(vert_grp_path, 'rb') as file:
+            vert_grps = pickle.load(file=file)
+            self.vert_grps = self.preprocess_some_vert_groups(vert_grps, verts)
+
+    def preprocess_some_vert_groups(self, vert_grps, mesh_verts):
+        new_vert_grps = copy.deepcopy(vert_grps)
+
+        name = "verts_measure_front_line_string" #self.name_verts_measure_front_line_string
+
+        shoulder_pubic_verts_idxs = new_vert_grps[name]
+        new_vert_grps[name] = HumanMeasure.sort_vertical_line_string_points(shoulder_pubic_verts_idxs, mesh_verts)
+
+        name = "verts_measure_back_line_string"
+        shoulder_pubic_verts_idxs = new_vert_grps[name]
+        new_vert_grps[name] = HumanMeasure.sort_vertical_line_string_points(shoulder_pubic_verts_idxs, mesh_verts)
+
+        return new_vert_grps
+
+    @staticmethod
+    def sort_vertical_line_string_points(vert_idxs, mesh_verts):
+        verts = mesh_verts[vert_idxs, 1:3]
+        idxs_sorted = np.argsort(-verts[:,1])
+
+        vert_idxs_sorted = vert_idxs[idxs_sorted]
+        verts_sorted = mesh_verts[vert_idxs_sorted, 1:3]
+        #plt.axes().set_aspect(1.0)
+        #plt.plot(verts_sorted[:,0], verts_sorted[:,1], '-r')
+        #plt.plot(verts_sorted[0,0], verts_sorted[0,1], '+b')
+        #plt.show()
+        return vert_idxs_sorted
+
+    @staticmethod
+    def calc_best_bust_circumference(all_vgroups, mesh_verts, grpname_prefix):
+        bust_grp_prefix = grpname_prefix
+        bust_groups_pairs = list(filter(lambda item : bust_grp_prefix in item[0], all_vgroups.items()))
+        bust_groups = list(map(lambda kv_pair:kv_pair[1], bust_groups_pairs))
+        return HumanMeasure.find_largest_circumference(bust_groups, mesh_verts)
+
+    @staticmethod
+    def calc_best_waist_circumference(all_vgroups, mesh_verts, grpname_prefix):
+        waist_grp_prefix = grpname_prefix
+        waist_groups_pairs = list(filter(lambda item: waist_grp_prefix in item[0], all_vgroups.items()))
+        waist_groups = list(map(lambda kv_pair:kv_pair[1], waist_groups_pairs))
+        return HumanMeasure.find_smallest_circumference(waist_groups, mesh_verts)
+
+    @staticmethod
+    def calc_best_hip_circumference(all_vgroups, mesh_verts, grpname_prefix):
+        hip_grp_prefix = grpname_prefix
+        hip_groups_pairs = list(filter(lambda item: hip_grp_prefix in item[0], all_vgroups.items()))
+        hip_groups = list(map(lambda kv_pair:kv_pair[1], hip_groups_pairs))
+        return HumanMeasure.find_largest_circumference(hip_groups, mesh_verts)
+
+    @staticmethod
+    def find_best_hip_circumference(all_vgroups, mesh_verts, grpname_prefix):
+        hip_grp_prefix = grpname_prefix
+        hip_groups_pairs = list(filter(lambda item: hip_grp_prefix in item[0], all_vgroups.items()))
+        hip_groups = list(map(lambda kv_pair:kv_pair[1], hip_groups_pairs))
+        return HumanMeasure.find_largest_circumference(hip_groups, mesh_verts)
+
+    @staticmethod
+    def find_largest_circumference(vgroups, mesh_verts):
+        circs = list(map(lambda bust_grp : calc_point_set_circumference(mesh_verts[bust_grp,:], proj_fit_plane=False), vgroups))
+        best_idx = np.argmax(circs)
+        best_circ = circs[best_idx]
+        points = mesh_verts[vgroups[best_idx], :]
+        best_z = 0.5*(points[:,2].max() + points[:,2].min())
+        return best_circ, best_z
+
+    @staticmethod
+    def find_smallest_circumference(vgroups, mesh_verts):
+        circs = list(map(lambda bust_grp : calc_point_set_circumference(mesh_verts[bust_grp,:], proj_fit_plane=False), vgroups))
+        best_idx = np.argmin(circs)
+        best_circ = circs[best_idx]
+        points = mesh_verts[vgroups[best_idx], :]
+        best_z = 0.5*(points[:,2].max() + points[:,2].min())
+        return best_circ, best_z
+
+    @staticmethod
+    def calc_front_body_length(front_line_str_vert_idxs, mesh_verts):
+        """
+        Measure from top of shoulder to pubic bone line
+        - Top of shoulder: where neck meets shoulder, right above collar bone
+        - public bone line: I am not sure. My understanding of pubic bone line is from this clip: https://www.youtube.com/watch?v=7yxZkHpAB4g
+        :param front_line_str_vert_idxs:
+        :param mesh_verts:
+        """
+        points = mesh_verts[front_line_str_vert_idxs, :]
+        segs = np.diff(points)
+        total_len = np.sum(np.linalg.norm(segs, 1))
+        return total_len
+
+    @staticmethod
+    def calc_shoulder_to_bust_length(front_line_str_vert_idxs, mesh_verts, bust_z_loc):
+        """
+        Measure from top of shoulder to center of nipple on the same side
+        - Top of shoulder: where neck meets shoulder, right above collar bone
+        :param front_line_str_vert_idxs: 
+        :param mesh_verts: 
+        :param bust_z_loc: 
+        :return: 
+        """
+        points = mesh_verts[front_line_str_vert_idxs, :]
+        dists_to_bust_z = np.abs(points[:,2] - bust_z_loc)
+        bust_point_idx =  np.argmin(dists_to_bust_z)
+        shoulder_to_bust_points = points[:bust_point_idx, :]
+        segs = np.diff(shoulder_to_bust_points)
+        totol_len = np.sum(np.linalg.norm(segs, 1))
+        return totol_len
+
+    @staticmethod
+    def calc_shoulder_to_waist_length(front_line_str_vert_idxs, mesh_verts, waist_z_loc):
+        """
+        Measure from top of shoulder to waist, over the bust
+        - Have client put hands on waist.
+        - Top of shoulder: where neck meets shoulder, right above collar bone
+        :param front_line_str_vert_idxs: 
+        :param mesh_verts: 
+        :param waist_z_loc: 
+        :return: 
+        """
+        points = mesh_verts[front_line_str_vert_idxs, :]
+        dists_to_waist_z = np.abs(points[:,2] - waist_z_loc)
+        waist_point_idx =  np.argmin(dists_to_waist_z)
+        shoulder_to_waist_points = points[:waist_point_idx, :]
+        segs = np.diff(shoulder_to_waist_points)
+        totol_len = np.sum(np.linalg.norm(segs, 1))
+        return totol_len
+
+    @staticmethod
+    def calc_waist_to_crotch_length(front_line_str_vert_idxs, mesh_verts, waist_z_loc):
+        """
+        Measure from waist to pubic bone line
+        - Have client put hands on waist
+        :param front_line_str_vert_idxs: 
+        :param mesh_verts: 
+        :param waist_z_loc: 
+        :return: 
+        """
+        points = mesh_verts[front_line_str_vert_idxs, :]
+        dists_to_waist_z = np.abs(points[:,2] - waist_z_loc)
+        waist_point_idx =  np.argmin(dists_to_waist_z)
+        waist_to_pubic_points = points[waist_point_idx:, :]
+        segs = np.diff(waist_to_pubic_points)
+        totol_len = np.sum(np.linalg.norm(segs, 1))
+        return totol_len
+
+    @staticmethod
+    def calc_bikini_girth(front_line_str_vert_idxs, back_line_str_vert_idxs, mesh_verts, high_hip_z_loc):
+        """
+        At center of body, measure from front high hip line to back high hip line, through crotch
+        :param front_line_str_vert_idxs: 
+        :param back_line_str_vert_idxs: 
+        :param mesh_verts: 
+        :param high_hip_z_loc: 
+        :return: 
+        """
+        def high_hip_to_crotch_line(line_vert_idxs):
+            points = mesh_verts[line_vert_idxs, :]
+            dists_to_hip_z = np.abs(points[:, 2] - high_hip_z_loc)
+            hip_point_idx = np.argmin(dists_to_hip_z)
+            hip_to_pubic_points = points[hip_point_idx:, :]
+            segs = np.diff(hip_to_pubic_points)
+            totol_len = np.sum(np.linalg.norm(segs, 1))
+            return totol_len
+
+        front_len = high_hip_to_crotch_line(front_line_str_vert_idxs)
+        back_len = high_hip_to_crotch_line(back_line_str_vert_idxs)
+        return front_len + back_len
+
+    @staticmethod
+    def calc_half_girth(front_line_str_vert_idxs, back_line_str_vert_idxs, mesh_verts, waist_z_loc):
+        """
+        At center of body, measure from front waist to back waist, through crotch.
+        :param front_line_str_vert_idxs: 
+        :param back_line_str_vert_idxs: 
+        :param mesh_verts: 
+        :param waist_z_loc: 
+        :return: 
+        """
+        def waist_to_crotch_length(line_vert_idxs):
+            points = mesh_verts[line_vert_idxs, :]
+            dists_to_hip_z = np.abs(points[:, 2] - waist_z_loc)
+            waist_point_idx = np.argmin(dists_to_hip_z)
+            hip_to_pubic_points = points[waist_point_idx:, :]
+            segs = np.diff(hip_to_pubic_points)
+            totol_len = np.sum(np.linalg.norm(segs, 1))
+            return totol_len
+
+        front_len = waist_to_crotch_length(front_line_str_vert_idxs)
+        back_len = waist_to_crotch_length(back_line_str_vert_idxs)
+        return front_len + back_len
+
+    @staticmethod
+    def calc_full_girth(front_line_str_vert_idxs, back_line_str_vert_idxs, mesh_verts):
+        """
+        Measure from top of shoulder to (same) top of shoulder, measuring through crotch and over the bust
+        :param front_line_str_vert_idxs: 
+        :param back_line_str_vert_idxs: 
+        :param mesh_verts: 
+        :return: 
+        """
+        front_points = mesh_verts[front_line_str_vert_idxs, :]
+        front_segs = np.diff(front_points)
+        front_len = np.sum(np.linalg.norm(front_segs, 1))
+
+        back_points = mesh_verts[back_line_str_vert_idxs, :]
+        back_segs = np.diff(back_points)
+        back_len = np.sum(np.linalg.norm(back_segs, 1))
+
+        return front_len + back_len
 
     @staticmethod
     def correct_height(verts, expected_height):
@@ -271,46 +531,6 @@ class HumanMeasure():
 
         return measure
 
-    def _filter_circumference_contours(self, verts):
-        """
-        reduce the point-cloud vertices of circumfernces to closed contours
-        :param filter_neighbor_idxs:
-        :param verts:
-        :return:
-        """
-        filtered_contours = dict()
-
-        for grp_name, neighbor_idxs in self.contour_circ_neighbor_idxs.items():
-            points = []
-
-            #averge a set of neighboring vertices to a contour point
-            for idxs in neighbor_idxs:
-                p = np.mean(verts[idxs, :], axis=0)
-                points.append(p)
-
-            points = np.array(points)
-            points = align_vertical_axis(points)
-            filtered_contours[grp_name] = points
-
-            # if 'upperarm' in grp_name:
-            #     fig = plt.figure()
-            #     ax = fig.add_subplot(111)
-            #     ax.set_aspect(1.0)
-            #     ax.plot(points[:,0], points[:,1], 'r-')
-            #     ax.set_title(f'{path.name}-{grp_name}')
-            #     plt.show()
-            #
-            #     fig = plt.figure()
-            #     ax = fig.add_subplot(111, projection='3d')
-            #     ax.set_aspect(1.0)
-            #     ax.scatter(points[:, 0], points[:, 1], points[:, 2], 'r+')
-            #     ax.scatter(all_points[:, 0], all_points[:, 1], all_points[:, 2], 'r+')
-            #     ax.set_title(path.name)
-            #     plt.show()
-
-        return filtered_contours
-
-
     def filter_landmarks(self, vert_group_idxs, verts):
         """
         average point cloud around each landmark to a single landmark point.
@@ -329,77 +549,57 @@ class HumanMeasure():
 
         return ld_points
 
-    def calc_measurements(self, contours, landmarks):
-        M = dict()
-
-        M['m_circ_neck'] = calc_circumference(contours['verts_circ_neck'])
-        M['m_circ_bust'] = calc_circumference(contours['verts_circ_bust'])
-        M['m_circ_underbust'] = calc_circumference(contours['verts_circ_underbust'])
-        M['m_circ_waist'] = calc_circumference(contours['verts_circ_waist'])
-        M['m_circ_midwaist'] = calc_circumference(contours['verts_circ_midwaist'])
-        M['m_circ_thigh'] = calc_circumference(contours['verts_circ_thigh'])
-        M['m_circ_hip'] = calc_circumference(contours['verts_circ_hip'])
-        M['m_circ_knee'] = calc_circumference(contours['verts_circ_knee'])
-
-        M['m_circ_upperarm'] = calc_circumference(contours['verts_circ_upperarm'])
-        M['m_circ_elbow'] = calc_circumference(contours['verts_circ_elbow'])
-        M['m_circ_wrist'] = calc_circumference(contours['verts_circ_wrist'])
-
-        under_neck = landmarks['verts_ld_shoulder']
-        elbow = np.mean(contours['verts_circ_elbow'], axis=0)
-        M['m_len_front_bodice'] = abs(under_neck[2] - elbow[2])
-
-        shoulder = landmarks['verts_ld_underneck']
-        M['m_len_upperarm'] = np.linalg.norm(shoulder - elbow)
-
-        knee = np.mean(contours['verts_circ_knee'], axis=0)
-        waist = np.mean(contours['verts_circ_waist'], axis=0)
-        M['m_len_waist_knee'] = np.linalg.norm(waist - knee)
-
-        wrist = np.mean(contours['verts_circ_wrist'], axis=0)
-        M['m_len_sleeve'] = np.linalg.norm(wrist - shoulder)
-
-        hem = landmarks['verts_ld_hem']
-        M['m_len_skirt_waist_to_hem'] = abs(waist[2] - hem[2])
-
-        return M
-
     def vgroup_points(self, verts, vert_groups, name):
-        print(name)
+        #print(name)
         return verts[vert_groups[name], :]
-
-    def shoulder_pubic_line(self, points):
-        import scipy.interpolate as interpolate
-        points = points[:,1:3]
-        points = np.roll(points,1,0)
-        s = interpolate.InterpolatedUnivariateSpline(points[:,0], points[:,1])
-        unew = np.arange(0, 1.01, 0.01)
-        out = s(unew)
-        plt.axes().set_aspect(1.0)
-        plt.plot(points[:,0], points[:,1], "+b")
-        plt.plot(unew, out, "+r")
-        plt.show()
 
     def calc_all_measurements(self, verts, vert_groups,  landmarks):
         M = dict()
 
-        self.shoulder_pubic_line(self.vgroup_points(verts, vert_groups, 'verts_measure_shoulder_pubic'))
+        M['m_breast_depth'] = calc_breast_depth(self.vgroup_points(verts, vert_groups, 'verts_measure_rbreast'))
+        M['m_cross_breast'] = calc_cross_right_breast(self.vgroup_points(verts, vert_groups, 'verts_measure_rbreast'))
+
+        bust_circ, bust_ver_z = HumanMeasure.calc_best_bust_circumference(vert_groups, verts, "verts_circ_bust_")
+        M['m_circ_bust'] = bust_circ
+        waist_circ, waist_ver_z = HumanMeasure.calc_best_waist_circumference(vert_groups, verts, "verts_circ_waist_")
+        M['m_circ_waist'] = waist_circ
+        hip_circ, hip_ver_z = HumanMeasure.calc_best_hip_circumference(vert_groups, verts, "verts_circ_hip_")
+        M['m_circ_hip'] = hip_circ
+
+        # approximate high hip vertical location
+        high_hip_ver_z = 0.7*hip_ver_z + 0.3*waist_ver_z
+
+        M['m_len_front_body'] = HumanMeasure.calc_front_body_length(self.vert_grps['verts_measure_front_line_string'], verts)
+
+        M['m_len_half_girth'] = HumanMeasure.calc_half_girth(
+            self.vert_grps['verts_measure_front_line_string'],
+            self.vert_grps['verts_measure_back_line_string'],
+            verts,
+            waist_ver_z)
+
+        M['m_len_bikini_girth'] = HumanMeasure.calc_bikini_girth(
+            self.vert_grps['verts_measure_front_line_string'],
+            self.vert_grps['verts_measure_back_line_string'],
+            verts,
+            high_hip_ver_z)
+
+        M['m_len_full_girth'] = HumanMeasure.calc_full_girth(
+            self.vert_grps['verts_measure_front_line_string'],
+            self.vert_grps['verts_measure_back_line_string'],
+            verts)
+
 
         M['m_circ_neck'] = calc_point_set_circumference(self.vgroup_points(verts, vert_groups, 'verts_circ_neck'))
         M['m_circ_upper_bust'] = calc_point_set_circumference(self.vgroup_points(verts, vert_groups, 'verts_circ_upper_bust'))
-        M['m_circ_bust'] = calc_point_set_circumference(self.vgroup_points(verts, vert_groups, 'verts_circ_bust'))
         M['m_circ_underbust'] = calc_point_set_circumference(self.vgroup_points(verts, vert_groups, 'verts_circ_underbust'))
-        M['m_circ_waist'] = calc_point_set_circumference(self.vgroup_points(verts, vert_groups, 'verts_circ_waist'))
         M['m_circ_midwaist'] = calc_point_set_circumference(self.vgroup_points(verts, vert_groups, 'verts_circ_midwaist'))
         M['m_circ_thigh'] = calc_point_set_circumference(self.vgroup_points(verts, vert_groups, 'verts_circ_thigh'))
-        M['m_circ_hip'] = calc_point_set_circumference(self.vgroup_points(verts, vert_groups, 'verts_circ_hip'), 5)
+        M['m_circ_hip'] = calc_point_set_circumference(self.vgroup_points(verts, vert_groups, 'verts_circ_hip'), alpha_threshold=5)
         M['m_circ_knee'] = calc_point_set_circumference(self.vgroup_points(verts, vert_groups, 'verts_circ_knee'))
 
         M['m_circ_upperarm'] = calc_point_set_circumference(self.vgroup_points(verts, vert_groups, 'verts_circ_upperarm'))
         M['m_circ_elbow'] = calc_point_set_circumference(self.vgroup_points(verts, vert_groups, 'verts_circ_elbow'))
         M['m_circ_wrist'] = calc_point_set_circumference(self.vgroup_points(verts, vert_groups, 'verts_circ_wrist'))
-
-        M['m_cross_breast'] = calc_cross_right_breast(self.vgroup_points(verts, vert_groups, 'verts_measure_rbreast'))
 
 
         top_shoulder = np.mean(self.vgroup_points(verts, vert_groups, 'verts_measure_top_shoulder'))
@@ -486,51 +686,12 @@ class HmJointEstimator():
             joints[joint_name] = joint
         return joints
 
-def main_test():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("-obj", type=str, required=False, help='path to an obj file of victoria topo to measure')
-    ap.add_argument("-grp", type=str, required=True, help='meta_data/victoria_measure_vert_groups.pkl')
-    ap.add_argument("-nbr", type=str, required=True, help='meta_data/victoria_measure_contour_circ_neighbor_idxs.pkl')
-    args = ap.parse_args()
-
-    #measure_vert_grps_path  = '/home/khanhhh/data_1/projects/Oh/codes/human_estimation/data/meta_data/victoria_measure_vert_groups.pkl'
-    #circ_neighbor_idxs_path = '/home/khanhhh/data_1/projects/Oh/codes/human_estimation/data/meta_data/victoria_measure_contour_circ_neighbor_idxs.pkl'
-    measure_vert_grps_path = args.grp
-    circ_neighbor_idxs_path = args.nbr
-    assert Path(args.obj).exists(), f'non existing file {args.obj}'
-    assert Path(measure_vert_grps_path).exists(),  f'non existing file {measure_vert_grps_path}'
-    assert Path(circ_neighbor_idxs_path).exists(), f'non existing file {circ_neighbor_idxs_path}'
-
-    bd_measure = HumanMeasure(vert_grp_path=measure_vert_grps_path, contour_circ_neighbor_idxs_path=circ_neighbor_idxs_path)
-
-    verts, _  = import_mesh_obj(args.obj)
-    M = bd_measure.measure(verts)
-
-    print('\n\n')
-    print(f'measurement of file {Path(args.obj).name}:\n')
-    for name, m in M.items():
-        print(name, ": ", m)
-
-    # mesh_dir = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/vic_pca_models_1/pca_coords/debug_female'
-    # for path in Path(mesh_dir).glob('*.obj'):
-    #
-    #     verts, _  = import_mesh(path)
-    #
-    #     M = bd_measure.measure(verts)
-    #
-    #     print('\n\n')
-    #     print(path.name)
-    #     for name, m in M.items():
-    #         print(name, ": ", m)
-
 def precalculate_measure_info():
     dir = '/media/D1/data_1/projects/Oh/codes/human_estimation/data/meta_data_shared/'
     measure_vert_groups_path = f'{dir}/victoria_measure_vert_groups.pkl'
     mesh_path = f'{dir}/predict_sample_mesh.obj'
     calculate_contour_circ_neighbor_idxs(dir, measure_vert_groups_path, mesh_path)
 
-
-from scipy.spatial import Delaunay
 if __name__ == '__main__':
     dir = '/media/D1/data_1/projects/Oh/codes/human_estimation/data/meta_data_shared/'
     measure_vert_groups_path = f'{dir}/victoria_measure_vert_groups.pkl'
@@ -539,11 +700,9 @@ if __name__ == '__main__':
     with open(measure_vert_groups_path, 'rb') as file:
         vgroups = pickle.load(file)
 
-    hmmeasure = HumanMeasure(measure_vert_groups_path, f'{dir}/victoria_measure_contour_circ_neighbor_idxs.pkl')
+    hmmeasure = HumanMeasure(measure_vert_groups_path, mesh_path)
     h = (verts.max() -verts.min()).max()
     measure = hmmeasure.measure(verts, h, correct_height=False)
     for k, v in measure.items():
         print(k, v)
-
-    #print(measure)
 
