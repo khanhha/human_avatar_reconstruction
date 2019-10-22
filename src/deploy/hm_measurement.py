@@ -692,6 +692,52 @@ def precalculate_measure_info():
     mesh_path = f'{dir}/predict_sample_mesh.obj'
     calculate_contour_circ_neighbor_idxs(dir, measure_vert_groups_path, mesh_path)
 
+import vtk
+from mayavi.mlab import *
+from mayavi import mlab
+import tempfile
+import cv2 as cv
+def test_measure_viz(verts, triangles):
+
+    #mlab.options.offscreen = True
+    m = triangular_mesh(verts[:, 0], verts[:, 1], verts[:, 2], triangles, color=(0.2,0.4,0.8))
+    #mlab.view(-90, 90)
+    #mlab.plot3d([0,0], [0,0], [0,1], tube_radius=0.5)
+    n_mer, n_long = 6, 11
+    dphi = np.pi / 1000.0
+    phi = np.arange(0.0, 2 * np.pi + 0.5 * dphi, dphi)
+    mu = phi * n_mer
+    x = np.cos(mu) * (1 + np.cos(n_long * mu / n_mer) * 0.5)
+    y = np.sin(mu) * (1 + np.cos(n_long * mu / n_mer) * 0.5)
+    z = np.sin(n_long * mu / n_mer) * 0.5
+
+    #l = mlab.plot3d(x, y, z, np.sin(mu), tube_radius=0.025, colormap='Spectral')
+    mlab.plot3d([0,0], [0,0], [0,1.], tube_radius=0.025, colormap='Spectral')
+    mlab.show()
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        #front view
+        #path_f = f'{tmp_dir}/f.png'
+        mlab.view(-90, 90)
+        #mlab.savefig(path_f)
+        mlab.show()
+        #img = cv.imread(path_f)
+        #img_f = img[:, 200 - 150:200 + 150, :3]
+        #img_f = img_f[:,:,::-1]
+
+        #side view
+        #path_s = f'{tmp_dir}/s.png'
+        #mlab.view(0, 90)
+        #mlab.savefig(path_s)
+        #img = cv.imread(path_s)
+        #img_s = img[:, 200 - 150:200 + 150, :3]
+        #img_s = img_s[:,:,::-1]
+
+    #otherwise, it will cause leak mem
+    #mlab.clf()
+
+    #return img_f, img_s
+
 if __name__ == '__main__':
     dir = '/media/D1/data_1/projects/Oh/codes/human_estimation/data/meta_data_shared/'
     measure_vert_groups_path = f'{dir}/victoria_measure_vert_groups.pkl'
@@ -706,3 +752,6 @@ if __name__ == '__main__':
     for k, v in measure.items():
         print(k, v)
 
+    tri_mesh_path = f'{dir}/vic_mesh_only_triangle.obj'
+    _, tris = import_mesh_obj(tri_mesh_path)
+    test_measure_viz(verts, tris)
