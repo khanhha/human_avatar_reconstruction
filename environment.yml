@@ -42,6 +42,7 @@ dependencies:
   - defusedxml=0.6.0=py_0
   - entrypoints=0.3=py36_0
   - envisage=4.8.0=py_0
+  - et_xmlfile=1.0.1=py36_0
   - expat=2.2.6=he6710b0_0
   - fastprogress=0.1.19=py_0
   - ffmpeg=4.0=hcdf2ecd_0
@@ -76,6 +77,7 @@ dependencies:
   - ipython_genutils=0.2.0=py36_0
   - ipywidgets=7.5.1=py_0
   - jasper=2.0.14=h07fcdf6_1
+  - jdcal=1.4.1=py_0
   - jedi=0.15.1=py36_0
   - jinja2=2.10.1=py36_0
   - jpeg=9c=h14c3975_1001
@@ -144,6 +146,7 @@ dependencies:
   - openblas=0.3.3=h9ac9557_1001
   - opencv=3.4.2=py36h6fd60c2_1
   - openh264=1.8.0=hdbcaa40_1000
+  - openpyxl=3.0.0=py_0
   - openssl=1.1.1d=h7b6447c_3
   - packaging=19.0=py36_0
   - pandas=0.25.1=py36he6710b0_0
@@ -228,6 +231,7 @@ dependencies:
   - widgetsnbextension=3.5.1=py36_0
   - wrapt=1.10.11=py36h14c3975_2
   - x264=1!152.20180717=h14c3975_1001
+  - xlrd=1.2.0=py36_0
   - xz=5.2.4=h14c3975_4
   - yaml=0.1.7=had09818_2
   - zeromq=4.3.1=he6710b0_3
