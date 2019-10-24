@@ -15,7 +15,7 @@ def static_vars(**kwargs):
     return decorate
 
 @static_vars(init=False)
-def project_silhouette_mayavi(verts, triangles):
+def project_silhouette_mayavi(verts, triangles, measure_contours = None):
     if project_silhouette_mayavi.init == False:
         #disable vtk warning
         errOut = vtk.vtkFileOutputWindow()
@@ -26,6 +26,10 @@ def project_silhouette_mayavi(verts, triangles):
 
     mlab.options.offscreen = True
     m = triangular_mesh(verts[:, 0], verts[:, 1], verts[:, 2], triangles, color=(0.2,0.4,0.8))
+
+    if measure_contours is not None:
+        for name, contour in measure_contours.items():
+            mlab.plot3d(contour[:, 0], contour[:, 1], contour[:, 2], tube_radius=0.005, colormap='Spectral')
 
     with tempfile.TemporaryDirectory() as tmp_dir:
         #front view
@@ -44,11 +48,14 @@ def project_silhouette_mayavi(verts, triangles):
         img_s = img[:, 200 - 150:200 + 150, :3]
         img_s = img_s[:,:,::-1]
 
+        #plt.subplot(121); plt.imshow(img_f)
+        #plt.subplot(122); plt.imshow(img_s)
+        #plt.show()
+
     #otherwise, it will cause leak mem
     mlab.clf()
 
     return img_f, img_s
-
 
 from mpl_toolkits.mplot3d import Axes3D
 #TODO: matplotlib suffers from aspect distortion. it makes the mesh look fatter than it actually is
