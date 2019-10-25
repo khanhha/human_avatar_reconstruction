@@ -12,7 +12,7 @@ import alphashape
 from shapely.geometry.polygon import orient
 from shapely.geometry import MultiPolygon, Polygon, MultiPoint
 import copy
-from common.viz_util import project_silhouette_mayavi
+from common.viz_util import project_silhouette_mayavi, gen_measurement_color_annotation
 
 def fit_plane(points):
     """
@@ -240,14 +240,21 @@ def convex_contour_points(points):
     contour_points = np.array(convex.exterior.coords)
     return contour_points
 
-def calc_point_set_circumference(points, convex_hull = True, alpha_threshold = 5, proj_fit_plane = True):
+def calc_point_set_circumference(points, convex_hull = True, alpha_threshold = 5, proj_fit_plane = False):
+    trans_mat = None
     if proj_fit_plane:
         N = points.shape[0]
         pln_pnt, pln_n = fit_plane(points.T)
 
-        proj_mat = projection_matrix(pln_pnt, pln_n)
+        #proj_mat = projection_matrix(pln_pnt, pln_n)
+        #points = np.hstack([points, np.ones((N,1), dtype=points.dtype)])
+        #points = np.matmul(proj_mat, points.T).T[:,:3]
+
+        v0 = pln_n
+        z = np.array([0.0,0.0, 1.0])
+        trans_mat = rotation_matrix(angle_between_vectors(v0, z), vector_product(v0, z), pln_pnt)
         points = np.hstack([points, np.ones((N,1), dtype=points.dtype)])
-        points = np.matmul(proj_mat, points.T).T[:,:3]
+        points = np.matmul(trans_mat, points.T).T[:,:3]
 
     point2ds = points[:,:2]
     if convex_hull:
@@ -272,7 +279,14 @@ def calc_point_set_circumference(points, convex_hull = True, alpha_threshold = 5
 
     contour_z = 0.5 * (points[:, 2].max() + points[:, 2].min())
     z_vals = np.full((contour_points.shape[0], 1), contour_z)
+
     contour_points = np.hstack([contour_points, z_vals])
+
+    if trans_mat is not None:
+        inv = inverse_matrix(trans_mat)
+        n = contour_points.shape[0]
+        contour_points = np.hstack([contour_points, np.ones((n, 1), dtype=points.dtype)])
+        contour_points = np.matmul(inv, contour_points.T).T[:, :3]
 
     return (circ, contour_points)
 
@@ -317,7 +331,7 @@ class HumanMeasure():
         idxs_sorted = np.argsort(-verts[:,1])
 
         vert_idxs_sorted = vert_idxs[idxs_sorted]
-        verts_sorted = mesh_verts[vert_idxs_sorted, 1:3]
+        #verts_sorted = mesh_verts[vert_idxs_sorted, 1:3]
         #plt.axes().set_aspect(1.0)
         #plt.plot(verts_sorted[:,0], verts_sorted[:,1], '-r')
         #plt.plot(verts_sorted[0,0], verts_sorted[0,1], '+b')
@@ -513,7 +527,7 @@ class HumanMeasure():
         #print('final_height: ', final_height, " expected height: ", expected_height)
         return verts
 
-    def measure(self, verts, true_height, correct_height = True):
+    def measure(self, verts):
         """
         :param verts: customer vertices in form of Victoria's topology
         :return: a dict of measurement values
@@ -522,10 +536,6 @@ class HumanMeasure():
         """
         assert verts.shape[0] == 49963, 'unexpected number of vertices'
         assert verts.shape[1] == 3, 'unexpected vertex format'
-
-        if correct_height:
-            verts =  HumanMeasure.correct_height(verts, true_height)
-
 
         landmarks = self.filter_landmarks(self.vert_grps, verts)
 
@@ -569,9 +579,10 @@ class HumanMeasure():
         data['m_cross_breast']  = calc_cross_right_breast(self.vgroup_points(verts, vert_groups, 'verts_measure_rbreast'))
 
         bust_info  = HumanMeasure.calc_best_bust_circumference(vert_groups, verts, "verts_circ_bust_")
-        waist_info = HumanMeasure.calc_best_waist_circumference(vert_groups, verts, "verts_circ_waist_")
-        hip_info = HumanMeasure.calc_best_hip_circumference(vert_groups, verts, "verts_circ_hip_")
-
+        #waist_info = HumanMeasure.calc_best_waist_circumference(vert_groups, verts, "verts_circ_waist_")
+        waist_info = calc_point_set_circumference(self.vgroup_points(verts, vert_groups, 'verts_circ_waist'))
+        #hip_info = HumanMeasure.calc_best_hip_circumference(vert_groups, verts, "verts_circ_hip_")
+        hip_info = calc_point_set_circumference(self.vgroup_points(verts, vert_groups, 'verts_circ_hip'))
         data['m_circ_bust'] = bust_info
         data['m_circ_waist'] = waist_info
         data['m_circ_hip'] = hip_info
@@ -603,12 +614,11 @@ class HumanMeasure():
             self.vert_grps['verts_measure_back_line_string'],
             verts)
         #
-        data['m_circ_neck'] = calc_point_set_circumference(self.vgroup_points(verts, vert_groups, 'verts_circ_neck'))
-        data['m_circ_upper_bust'] = calc_point_set_circumference(self.vgroup_points(verts, vert_groups, 'verts_circ_upper_bust'))
+        data['m_circ_neck'] = calc_point_set_circumference(self.vgroup_points(verts, vert_groups, 'verts_circ_neck'), proj_fit_plane=True)
+        data['m_circ_upperbust'] = calc_point_set_circumference(self.vgroup_points(verts, vert_groups, 'verts_circ_upperbust'))
         data['m_circ_underbust'] = calc_point_set_circumference(self.vgroup_points(verts, vert_groups, 'verts_circ_underbust'))
-        data['m_circ_midwaist'] = calc_point_set_circumference(self.vgroup_points(verts, vert_groups, 'verts_circ_midwaist'))
+        data['m_circ_highhip'] = calc_point_set_circumference(self.vgroup_points(verts, vert_groups, 'verts_circ_highhip'), alpha_threshold=5)
         data['m_circ_thigh'] = calc_point_set_circumference(self.vgroup_points(verts, vert_groups, 'verts_circ_thigh'))
-        data['m_circ_hip'] = calc_point_set_circumference(self.vgroup_points(verts, vert_groups, 'verts_circ_hip'), alpha_threshold=5)
         data['m_circ_knee'] = calc_point_set_circumference(self.vgroup_points(verts, vert_groups, 'verts_circ_knee'))
 
         data['m_circ_upperarm'] = calc_point_set_circumference(self.vgroup_points(verts, vert_groups, 'verts_circ_upperarm'), proj_fit_plane=True)
@@ -619,62 +629,40 @@ class HumanMeasure():
         mid_nipple = np.mean(self.vgroup_points(verts, vert_groups, 'verts_measure_mid_nipple'), axis=0)
         data['m_shoulder_to_bust'] = (np.linalg.norm(top_shoulder - mid_nipple), np.vstack([top_shoulder, mid_nipple]))
 
-        under_neck = landmarks['verts_ld_shoulder']
-        elbow = np.mean(self.vgroup_points(verts, vert_groups, 'verts_circ_elbow'), axis=0)
-        data['m_len_front_bodice'] = (abs(under_neck[2] - elbow[2]), np.vstack([under_neck, elbow]))
+        #under_neck = landmarks['verts_ld_shoulder']
+        #data['m_len_front_bodice'] = (abs(under_neck[2] - elbow[2]), np.vstack([under_neck, elbow]))
 
-        shoulder = landmarks['verts_ld_underneck']
+        shoulder = landmarks['verts_ld_shoulder']
+        elbow = np.mean(self.vgroup_points(verts, vert_groups, 'verts_circ_elbow'), axis=0)
         data['m_len_upperarm'] = (np.linalg.norm(shoulder - elbow), np.vstack([shoulder, elbow]))
 
-        knee = np.mean(self.vgroup_points(verts, vert_groups, 'verts_circ_knee'), axis=0)
-        waist = np.mean(self.vgroup_points(verts, vert_groups, 'verts_circ_waist'), axis=0)
-        data['m_len_waist_knee'] = (np.linalg.norm(waist - knee), np.vstack([waist, knee]))
-
         wrist = np.mean(self.vgroup_points(verts, vert_groups, 'verts_circ_wrist'), axis=0)
-        data['m_len_sleeve'] = (np.linalg.norm(wrist - shoulder), np.vstack([wrist, shoulder]))
+        seg = np.vstack([wrist, shoulder])
+        #shifting the segment outward a bit for better visualization
+        dir = 0.1*(wrist-shoulder)
+        shift = np.array([-dir[2], 0, dir[0]])
+        seg += shift
+        data['m_len_sleeve'] = (np.linalg.norm(wrist - shoulder), seg)
+
+        knee = np.mean(self.vgroup_points(verts, vert_groups, 'verts_circ_knee'), axis=0)
+        len_waist_knee = np.abs(knee[2] - waist_ver_z)
+        waist_knee = knee.copy(); waist_knee[2] = waist_ver_z
+        data['m_len_waist_knee'] = (len_waist_knee, np.vstack([knee, waist_knee]))
+
 
         hem = landmarks['verts_ld_hem']
-        data['m_len_skirt_waist_to_hem'] = (abs(waist[2] - hem[2]), np.vstack([waist, hem]))
+        len_skirt_waist_to_hem = abs(waist_ver_z - hem[2])
+        waist_hem = hem.copy(); waist_hem[2] = waist_ver_z
+        segs = np.vstack([waist_hem, hem])
+        #for the sake of visualization, shift the segment rightward a bit to avoid overlapping with other segmetns
+        dx = 0.1*waist_ver_z
+        segs[:,0] += dx
+        data['m_len_skirt_waist_to_hem'] = (len_skirt_waist_to_hem, segs)
 
         M = dict([(name, item[0]) for name, item in data.items()])
         C = dict([(name, item[1]) for name, item in data.items()])
 
         return M, C
-
-    def calc_measurements(self, contours, landmarks):
-        M = dict()
-
-        M['m_circ_neck'] = calc_circumference(contours['verts_circ_neck'])
-        M['m_circ_bust'] = calc_circumference(contours['verts_circ_bust'])
-        M['m_circ_underbust'] = calc_circumference(contours['verts_circ_underbust'])
-        M['m_circ_waist'] = calc_circumference(contours['verts_circ_waist'])
-        M['m_circ_midwaist'] = calc_circumference(contours['verts_circ_midwaist'])
-        M['m_circ_thigh'] = calc_circumference(contours['verts_circ_thigh'])
-        M['m_circ_hip'] = calc_circumference(contours['verts_circ_hip'])
-        M['m_circ_knee'] = calc_circumference(contours['verts_circ_knee'])
-
-        M['m_circ_upperarm'] = calc_circumference(contours['verts_circ_upperarm'])
-        M['m_circ_elbow'] = calc_circumference(contours['verts_circ_elbow'])
-        M['m_circ_wrist'] = calc_circumference(contours['verts_circ_wrist'])
-
-        under_neck = landmarks['verts_ld_shoulder']
-        elbow = np.mean(contours['verts_circ_elbow'], axis=0)
-        M['m_len_front_bodice'] = abs(under_neck[2] - elbow[2])
-
-        shoulder = landmarks['verts_ld_underneck']
-        M['m_len_upperarm'] = np.linalg.norm(shoulder - elbow)
-
-        knee = np.mean(contours['verts_circ_knee'], axis=0)
-        waist = np.mean(contours['verts_circ_waist'], axis=0)
-        M['m_len_waist_knee'] = np.linalg.norm(waist - knee)
-
-        wrist = np.mean(contours['verts_circ_wrist'], axis=0)
-        M['m_len_sleeve'] = np.linalg.norm(wrist - shoulder)
-
-        hem = landmarks['verts_ld_hem']
-        M['m_len_skirt_waist_to_hem'] = abs(waist[2] - hem[2])
-
-        return M
 
 def calculate_contour_circ_neighbor_idxs(out_dir, measure_vert_grps_path, mesh_path):
     """
@@ -748,17 +736,20 @@ if __name__ == '__main__':
     dir = '/media/D1/data_1/projects/Oh/codes/human_estimation/data/meta_data_shared/'
     measure_vert_groups_path = f'{dir}/victoria_measure_vert_groups.pkl'
     mesh_path = f'{dir}/predict_sample_mesh.obj'
-    verts, faces = import_mesh_obj(mesh_path)
-    with open(measure_vert_groups_path, 'rb') as file:
-        vgroups = pickle.load(file)
-
     hmmeasure = HumanMeasure(measure_vert_groups_path, mesh_path)
-    h = (verts.max() -verts.min()).max()
-    measure, contours, landmarks = hmmeasure.measure(verts, h, correct_height=False)
+
+    vert_dir = '/media/F/projects/Oh/data/body_test_data/body_designer_1/result_mesh/'
+    name = 'IMG_20191008_152712709_front_IMG_20191008_152732578_side.obj'
+    mesh = import_mesh_tex_obj(f'{vert_dir}/{name}')
+    verts = mesh['v']
+
+    measure, contours, landmarks = hmmeasure.measure(verts)
     for k, v in measure.items():
         print(k, v)
 
     tri_mesh_path = f'{dir}/vic_mesh_only_triangle.obj'
     _, tris = import_mesh_obj(tri_mesh_path)
+
     #test_measure_viz(verts, tris, contours, landmarks)
-    project_silhouette_mayavi(verts, tris, contours)
+    #project_silhouette_mayavi(verts, tris, contours, ortho_proj=True, body_opacity=0.4)
+    gen_measurement_color_annotation()

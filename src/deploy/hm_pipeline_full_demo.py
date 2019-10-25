@@ -103,6 +103,8 @@ def load_data_xlsx_file(path):
         return x
     data  = data.apply(fix_missing_face_img, axis=1)
 
+    data = data.loc[lambda df : [id[0] != '#' for id in df['person_id']]]
+
     data['face_image'] = [os.path.join(*[dir_img, name]) for name in data['face_image']]
     data['front_image'] = [os.path.join(*[dir_img, name]) for name in data['front_image']]
     data['side_image'] = [os.path.join(*[dir_img, name]) for name in data['side_image']]
@@ -139,6 +141,7 @@ def load_data_file(fpath):
         assert False
 
 import copy
+import gc
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
     ap.add_argument("-model_dir",  required=True, type=str, help="the direction where shape_model.jlb  and deeplab model are stored")
@@ -283,22 +286,14 @@ if __name__ == '__main__':
             print(f'\texported obj object to path {out_path}')
             export_mesh(out_path, verts=verts, faces=faces)
 
-        if args.out_viz_dir != '':
-            os.makedirs(args.out_viz_dir, exist_ok=True)
-            sil_f_rgb = np.zeros((sil_f.shape[0], sil_f.shape[1], 3), dtype=np.uint8)
-            for i in range(3):
-                sil_f_rgb[:, :, 0] = sil_f
-            sil_s_rgb = np.zeros((sil_s.shape[0], sil_s.shape[1], 3), dtype=np.uint8)
-            for i in range(3):
-                sil_s_rgb[:, :, 0] = sil_s
-
-            viz_img = build_gt_predict_viz(verts, vic_tris, sil_f_rgb, sil_s_rgb)
-            cv.imwrite(f'{args.out_viz_dir}/{f_name}.png', viz_img[:, :, ::-1])
+        #correct height
+        verts = bd_measure.correct_height(verts, expected_height=height)
+        #calculate measurements on the corrected mesh
+        measurements, measure_contours, landmarks = bd_measure.measure(verts)
 
         if args.out_measure_dir != '':
             os.makedirs(args.out_measure_dir, exist_ok=True)
             measure_path = os.path.join(*[args.out_measure_dir, f'{f_name}.txt'])
-            measurements = bd_measure.measure(verts, height, correct_height=True)
             measurements['person_id'] = person_id
             measurements['front_image'] = Path(front_img_path).stem
 
@@ -310,13 +305,31 @@ if __name__ == '__main__':
                 # (key, [value0, value1]) => (key, [value0, value1, value2])
                 pred_measurements = dict(map(lambda it : (it[0], pred_measurements[it[0]]+[it[1]]), measurements.items()))
 
+        if args.out_viz_dir != '':
+            os.makedirs(args.out_viz_dir, exist_ok=True)
+            sil_f_rgb = np.zeros((sil_f.shape[0], sil_f.shape[1], 3), dtype=np.uint8)
+            for i in range(3):
+                sil_f_rgb[:, :, 0] = sil_f
+            sil_s_rgb = np.zeros((sil_s.shape[0], sil_s.shape[1], 3), dtype=np.uint8)
+            for i in range(3):
+                sil_s_rgb[:, :, 0] = sil_s
+
+            viz_img = build_gt_predict_viz(verts, vic_tris, sil_f_rgb, sil_s_rgb, ortho_proj=True)
+            cv.imwrite(f'{args.out_viz_dir}/{person_id}_{f_name}.png', viz_img[:, :, ::-1])
+
+            viz_img = build_gt_predict_viz(verts, vic_tris, sil_f_rgb, sil_s_rgb, measure_contours=measure_contours, ortho_proj=True, body_opacity=0.5)
+            cv.imwrite(f'{args.out_viz_dir}/{person_id}_{f_name}_measure.png', viz_img[:, :, ::-1])
+
         if args.out_joint_dir != '':
             os.makedirs(args.out_joint_dir, exist_ok=True)
-            joint_path = os.path.join(*[args.out_joint_dir, f'{f_name}.pkl'])
+            joint_path = os.path.join(*[args.out_joint_dir, f'{person_id}_{f_name}.pkl'])
             joints = joint_estimator.estimate_joints(verts)
             with open(joint_path, 'wb') as file:
                 pickle.dump(obj=joints, file=file)
 
+        gc.collect()
+
+    #export measurement comparision in xlsl sheet
     if args.out_measure_dir != '' and gt_mdata is not None:
         pred_measurements_df = pd.DataFrame.from_dict(pred_measurements)
         out_mpath = os.path.join(*[args.out_measure_dir, 'measurement_true_vs_predict.xlsx'])

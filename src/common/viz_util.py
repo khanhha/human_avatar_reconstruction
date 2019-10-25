@@ -14,8 +14,52 @@ def static_vars(**kwargs):
         return func
     return decorate
 
+def measurement_colors():
+    colors = {}
+    colors['body'] = (89, 89, 89)
+    colors['m_circ_neck'] = (68, 102, 0)
+    colors['m_circ_bust'] = (255, 51, 0)
+    colors['m_circ_underbust'] = (255, 153, 0)
+    colors['m_circ_upperbust'] = (153, 204, 0)
+    colors['m_circ_waist'] = (0, 0, 179)
+    colors['m_circ_highhip'] = (255, 26, 255)
+    colors['m_circ_hip'] = (0, 128, 0)
+    colors['m_circ_thigh'] = (0, 102, 153)
+    colors['m_circ_knee'] = (37, 72, 142)
+
+    #we don't have unique contours for these measuremets so far
+    colors['m_len_front_body'] = (0, 153, 115)
+    colors['m_len_half_girth'] = (0, 153, 115)
+    colors['m_len_bikini_girth'] = (0, 153, 115)
+    colors['m_len_full_girth'] = (0, 153, 115)
+
+    colors['m_len_sleeve'] = (102, 26, 255)
+    colors['m_len_upperarm'] = (51, 102, 0)
+
+    colors['m_len_waist_knee'] = (255, 128, 0)
+    colors['m_len_skirt_waist_to_hem'] = (255, 51, 0)
+
+    colors['m_circ_upperarm'] = (0, 68, 204)
+    colors['m_circ_elbow'] = (0, 68, 204)
+    colors['m_circ_wrist'] = (0, 68, 204)
+    colors = dict(map(lambda iter : (iter[0], tuple(v/255.0 for v in iter[1])), colors.items()))
+    return colors
+
+def pick_color(id):
+    colors = measurement_colors()
+    #255 to 1.0
+    default = (0.4, 0.4, 0.4)
+    if id in colors.keys():
+        return colors[id]
+    else:
+        return default
+
+def tube_radius(id):
+    rad = 0.005
+    return rad
+
 @static_vars(init=False)
-def project_silhouette_mayavi(verts, triangles, measure_contours = None):
+def project_silhouette_mayavi(verts, triangles, measure_contours = None, ortho_proj = False, body_opacity = 1.0):
     if project_silhouette_mayavi.init == False:
         #disable vtk warning
         errOut = vtk.vtkFileOutputWindow()
@@ -25,27 +69,38 @@ def project_silhouette_mayavi(verts, triangles, measure_contours = None):
         project_silhouette_mayavi.init = False
 
     mlab.options.offscreen = True
-    m = triangular_mesh(verts[:, 0], verts[:, 1], verts[:, 2], triangles, color=(0.2,0.4,0.8))
+    g = 0.8
+    mlab.gcf().scene.background = tuple(3*[g])
+
+    m = triangular_mesh(verts[:, 0], verts[:, 1], verts[:, 2], triangles, color=pick_color('body'), opacity=body_opacity)
 
     if measure_contours is not None:
         for name, contour in measure_contours.items():
-            mlab.plot3d(contour[:, 0], contour[:, 1], contour[:, 2], tube_radius=0.005, colormap='Spectral')
+            mlab.plot3d(contour[:, 0], contour[:, 1], contour[:, 2], tube_radius=tube_radius(name), color = pick_color(name))
 
+    #must be set after body mesh and contours. dont know why
+    if ortho_proj == True:
+        mlab.gcf().scene.parallel_projection = True
+
+    figsize = (900, 1200)
     with tempfile.TemporaryDirectory() as tmp_dir:
         #front view
         path_f = f'{tmp_dir}/f.png'
         mlab.view(-90, 90)
-        mlab.savefig(path_f)
-        img = cv.imread(path_f)
-        img_f = img[:, 200 - 150:200 + 150, :3]
+        #mlab.show()
+        mlab.savefig(path_f, size=figsize)
+        img_f = cv.imread(path_f)
+        #plt.imshow(img)
+        #plt.show()
+        #img_f = img_f[:, 200 - 150:200 + 150, :3]
         img_f = img_f[:,:,::-1]
 
         #side view
         path_s = f'{tmp_dir}/s.png'
         mlab.view(0, 90)
-        mlab.savefig(path_s)
-        img = cv.imread(path_s)
-        img_s = img[:, 200 - 150:200 + 150, :3]
+        mlab.savefig(path_s, size=figsize)
+        img_s = cv.imread(path_s)
+        #img_s = img_s[:, 200 - 150:200 + 150, :3]
         img_s = img_s[:,:,::-1]
 
         #plt.subplot(121); plt.imshow(img_f)
@@ -123,8 +178,9 @@ def resize_width(img_src, img_target):
     img_src_1 = cv.resize(img_src, dsize=dsize)
     return img_src_1
 
-def build_gt_predict_viz(verts, faces, img_f_org, img_s_org):
-    img_f_pred, img_s_pred = project_silhouette_mayavi(verts, faces)
+import matplotlib.patches as mpatches
+def build_gt_predict_viz(verts, faces, img_f_org, img_s_org, measure_contours = None, ortho_proj = False, body_opacity = 1.0):
+    img_f_pred, img_s_pred = project_silhouette_mayavi(verts, faces, measure_contours, ortho_proj=ortho_proj, body_opacity=body_opacity)
     # print(img_f_pred.shape)
     img_f_org = resize_height(np.array(img_f_org), img_f_pred)
     img_s_org = resize_height(np.array(img_s_org), img_s_pred)
@@ -136,3 +192,11 @@ def build_gt_predict_viz(verts, faces, img_f_org, img_s_org):
     img_full = np.concatenate((img_f_pair, img_s_pair), axis=0)
 
     return img_full
+
+def gen_measurement_color_annotation():
+    patches = []
+    for key, color in measurement_colors().items():
+        red_patch = mpatches.Patch(color=color, label=key)
+        patches.append(red_patch)
+    plt.legend(handles=patches)
+    plt.show()
