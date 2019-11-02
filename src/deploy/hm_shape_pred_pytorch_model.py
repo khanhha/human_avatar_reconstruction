@@ -8,10 +8,14 @@ import PIL
 import time
 
 class HmShapePredPytorchModel():
-    def __init__(self, model_path):
+    def __init__(self, model_path, use_gpu = True):
         data = torch.load(model_path)
         self.model = data['model']
-        self.model = self.model.to('cuda')
+        if use_gpu and torch.cuda.is_available():
+            self.device = torch.device('cuda')
+        else:
+            self.device = torch.device('cpu')
+        self.model = self.model.to(self.device)
         self.model.eval()
 
         self.model_type = data['model_type']
@@ -56,17 +60,17 @@ class HmShapePredPytorchModel():
         aux = aux.astype(np.float32)
 
         with torch.no_grad():
-            aux_var = Variable(torch.from_numpy(aux)).cuda()
+            aux_var = Variable(torch.from_numpy(aux)).to(self.device)
 
             if self.model_type == 'f':
-                input_f_var = Variable(img_f).cuda()
+                input_f_var = Variable(img_f).to(self.device)
                 pred = self.model(input_f_var, aux_var)
             elif self.model_type == 's':
-                input_s_var = Variable(img_s).cuda()
+                input_s_var = Variable(img_s).to(self.device)
                 pred = self.model(input_s_var, aux_var)
             elif self.model_type == 'joint':
-                input_f_var = Variable(img_f).cuda()
-                input_s_var = Variable(img_s).cuda()
+                input_f_var = Variable(img_f).to(self.device)
+                input_s_var = Variable(img_s).to(self.device)
                 pred = self.model(input_f_var, input_s_var, aux_var)
             pred = pred.data.cpu().numpy()
 

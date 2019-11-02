@@ -307,12 +307,8 @@ if __name__ == '__main__':
 
         if args.out_viz_dir != '':
             os.makedirs(args.out_viz_dir, exist_ok=True)
-            sil_f_rgb = np.zeros((sil_f.shape[0], sil_f.shape[1], 3), dtype=np.uint8)
-            for i in range(3):
-                sil_f_rgb[:, :, 0] = sil_f
-            sil_s_rgb = np.zeros((sil_s.shape[0], sil_s.shape[1], 3), dtype=np.uint8)
-            for i in range(3):
-                sil_s_rgb[:, :, 0] = sil_s
+            sil_f_rgb = np.dstack([sil_f, sil_f, sil_f])
+            sil_s_rgb = np.dstack([sil_s, sil_s, sil_s])
 
             viz_img = build_gt_predict_viz(verts, vic_tris, sil_f_rgb, sil_s_rgb, ortho_proj=True)
             cv.imwrite(f'{args.out_viz_dir}/{person_id}_{f_name}.png', viz_img[:, :, ::-1])

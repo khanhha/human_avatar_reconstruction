@@ -5,7 +5,7 @@ from pca.nn_util import crop_silhouette_pair
 from deploy.hm_sil_correct import HmSilCorrector
 
 class HmShapePredModel():
-    def __init__(self, model_path):
+    def __init__(self, model_path, use_gpu = True):
         data = joblib.load(model_path)
         self.tf_graph_str = data['tf_graph_str']
         self.tf_graph_input_keys = data['tf_graph_input_keys']

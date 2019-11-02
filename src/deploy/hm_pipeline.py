@@ -18,21 +18,26 @@ from deploy.hm_sil_correct import HmSilCorrector
 #this module predicts a 3D human mesh from front, side images, height and gender
 class HumanRGBModel:
 
-    def __init__(self, hmshape_model_path, hmsil_model_path, mesh_path):
+    def __init__(self, hmshape_model_path, hmsil_model_path, mesh_path, triangle_mesh_path = None, use_gpu = True):
         if '.jlb' in  hmshape_model_path:
-            self.hmshape_model = HmShapePredModel(model_path=hmshape_model_path)
+            self.hmshape_model = HmShapePredModel(model_path=hmshape_model_path, use_gpu=use_gpu)
         elif '.pt' in hmshape_model_path:
-            self.hmshape_model = HmShapePredPytorchModel(model_path=hmshape_model_path)
+            self.hmshape_model = HmShapePredPytorchModel(model_path=hmshape_model_path, use_gpu=use_gpu)
         else:
             assert False, 'unrecognized model extension. it should be .jlb or .pt'
 
-        self.hmsil_model = HmSilPredModel(model_path=hmsil_model_path, use_gpu=True, use_mobile_model=False)
+        self.hmsil_model = HmSilPredModel(model_path=hmsil_model_path, use_gpu=use_gpu, use_mobile_model=False)
 
-        _, faces = import_mesh_obj(mesh_path)
+        _, self.tpl_faces = import_mesh_obj(mesh_path)
+
+        if triangle_mesh_path is not None:
+            _, self.tpl_triangles = import_mesh_obj(triangle_mesh_path)
 
         self.hm_sil_corrector = HmSilCorrector()
-        self.extractor = PoseExtractorTf()
-        self.tpl_faces = faces
+
+        #TODO
+        #we don't use silhouette correction at the moment. so disable pose estimator and silhouette corrector
+        #self.extractor = PoseExtractorTf()
 
     def predict(self, rgb_img_f, rgb_img_s, height, gender, correct_sil_f = False, correct_sil_s = False):
         """

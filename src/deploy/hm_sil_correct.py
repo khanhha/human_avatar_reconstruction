@@ -1,7 +1,8 @@
 from sklearn.externals import joblib
 import sys
-sys.path.insert(0, '../../third_parties/libigl/python/')
-import pyigl as igl
+#sys.path.insert(0, '/libigl/python/')
+#import pyigl as igl
+from libigl.python import pyigl as igl
 import numpy as np
 import matplotlib.pyplot as plt
 import cv2 as cv
