@@ -6,6 +6,7 @@ import cv2 as cv
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.misc import imread, imsave
+from matplotlib import colors as pltcolors
 
 def static_vars(**kwargs):
     def decorate(func):
@@ -14,35 +15,68 @@ def static_vars(**kwargs):
         return func
     return decorate
 
-def measurement_colors():
+def measure_color_defs():
     colors = {}
-    colors['body'] = (89, 89, 89)
-    colors['m_circ_neck'] = (68, 102, 0)
-    colors['m_circ_bust'] = (255, 51, 0)
-    colors['m_circ_underbust'] = (255, 153, 0)
-    colors['m_circ_upperbust'] = (153, 204, 0)
-    colors['m_circ_waist'] = (0, 0, 179)
-    colors['m_circ_highhip'] = (255, 26, 255)
-    colors['m_circ_hip'] = (0, 128, 0)
-    colors['m_circ_thigh'] = (0, 102, 153)
-    colors['m_circ_knee'] = (37, 72, 142)
+    colors['body'] = 'dimgray'
+    colors['m_circ_neck'] = 'blueviolet'
+    colors['m_circ_bust'] = 'brown'
+    colors['m_circ_underbust'] = 'cadetblue'
+    colors['m_circ_upperbust'] = 'chartreuse'
+    colors['m_circ_waist'] = 'cornflowerblue'
+    colors['m_circ_highhip'] = 'crimson'
+    colors['m_circ_hip'] = 'cyan'
+    colors['m_circ_thigh'] = 'darkblue'
+    colors['m_circ_knee'] = 'darkgoldenrod'
 
     #we don't have unique contours for these measuremets so far
-    colors['m_len_front_body'] = (0, 153, 115)
-    colors['m_len_half_girth'] = (0, 153, 115)
-    colors['m_len_bikini_girth'] = (0, 153, 115)
-    colors['m_len_full_girth'] = (0, 153, 115)
+    colors['m_len_front_body'] = 'darkgray'
+    colors['m_len_half_girth'] = 'darkgreen'
+    colors['m_len_bikini_girth'] = 'darkkhaki'
+    colors['m_len_full_girth'] = 'darkolivegreen'
 
-    colors['m_len_sleeve'] = (102, 26, 255)
-    colors['m_len_upperarm'] = (51, 102, 0)
+    colors['m_len_sleeve'] = 'darkred'
+    colors['m_len_upperarm'] = 'darkseagreen'
 
-    colors['m_len_waist_knee'] = (255, 128, 0)
-    colors['m_len_skirt_waist_to_hem'] = (255, 51, 0)
+    colors['m_len_waist_knee'] = 'deeppink'
+    colors['m_len_skirt_waist_to_hem'] = 'deepskyblue'
 
-    colors['m_circ_upperarm'] = (0, 68, 204)
-    colors['m_circ_elbow'] = (0, 68, 204)
-    colors['m_circ_wrist'] = (0, 68, 204)
-    colors = dict(map(lambda iter : (iter[0], tuple(v/255.0 for v in iter[1])), colors.items()))
+    colors['m_circ_upperarm'] = 'goldenrod'
+    colors['m_circ_elbow'] = 'indianred'
+    colors['m_circ_wrist'] = 'aquamarine'
+
+    return colors
+
+def measurement_colors():
+    # colors = {}
+    # colors['body'] = (89, 89, 89)
+    # colors['m_circ_neck'] = (68, 102, 0)
+    # colors['m_circ_bust'] = (255, 51, 0)
+    # colors['m_circ_underbust'] = (255, 153, 0)
+    # colors['m_circ_upperbust'] = (153, 204, 0)
+    # colors['m_circ_waist'] = (0, 0, 179)
+    # colors['m_circ_highhip'] = (255, 26, 255)
+    # colors['m_circ_hip'] = (0, 128, 0)
+    # colors['m_circ_thigh'] = (0, 102, 153)
+    # colors['m_circ_knee'] = (37, 72, 142)
+    #
+    # #we don't have unique contours for these measuremets so far
+    # colors['m_len_front_body'] = (0, 153, 115)
+    # colors['m_len_half_girth'] = (0, 153, 115)
+    # colors['m_len_bikini_girth'] = (0, 153, 115)
+    # colors['m_len_full_girth'] = (0, 153, 115)
+    #
+    # colors['m_len_sleeve'] = (102, 26, 255)
+    # colors['m_len_upperarm'] = (51, 102, 0)
+    #
+    # colors['m_len_waist_knee'] = (255, 128, 0)
+    # colors['m_len_skirt_waist_to_hem'] = (255, 51, 0)
+    #
+    # colors['m_circ_upperarm'] = (0, 68, 204)
+    # colors['m_circ_elbow'] = (0, 68, 204)
+    # colors['m_circ_wrist'] = (0, 68, 204)
+
+    cnames = measure_color_defs()
+    colors = dict(map(lambda iter : (iter[0], pltcolors.to_rgba(iter[1])[:3]), cnames.items()))
     return colors
 
 def pick_color(id):
