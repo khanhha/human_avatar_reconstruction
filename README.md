@@ -27,6 +27,14 @@ conda env create -f environment.yml
 - conda install -c conda-forge shapely 
 - pip install triangle
 
+## docker
+sudo vim /etc/docker/daemon.json
+add the following line
+{
+    "dns":["192.168.1.1", "8.8.8.8"]
+}
+- remove manual libs from environment.yml: tf-pose, pycoco
+
 # run the pre-trained body models
 - download all the files in [the models directory](https://drive.google.com/open?id=1wNr1uVJH27uRHZZLDnLjjQA38HQ4ltSF) and put them under the folder ./deploy_models
 - move to the folder source
