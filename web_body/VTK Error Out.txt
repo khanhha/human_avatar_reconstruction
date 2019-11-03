@@ -1,0 +1,24 @@
+Generic Warning: In ../Rendering/Core/vtkWindowToImageFilter.cxx, line 753
+vtkWindowToImageFilter::SetMagnification was deprecated for VTK 8.1 and will be removed in a future version.  Use vtkWindowToImageFilter::SetScale instead.
+
+
+Generic Warning: In ../Rendering/Core/vtkRenderWindow.cxx, line 1492
+vtkRenderWindow::SetAAFrames was deprecated for VTK 8.1 and will be removed in a future version.
+
+
+Generic Warning: In ../Rendering/Core/vtkRenderWindow.cxx, line 1492
+vtkRenderWindow::SetAAFrames was deprecated for VTK 8.1 and will be removed in a future version.
+
+
+Generic Warning: In ../Rendering/Core/vtkWindowToImageFilter.cxx, line 753
+vtkWindowToImageFilter::SetMagnification was deprecated for VTK 8.1 and will be removed in a future version.  Use vtkWindowToImageFilter::SetScale instead.
+
+
+Generic Warning: In ../Rendering/Core/vtkRenderWindow.cxx, line 1492
+vtkRenderWindow::SetAAFrames was deprecated for VTK 8.1 and will be removed in a future version.
+
+
+Generic Warning: In ../Rendering/Core/vtkRenderWindow.cxx, line 1492
+vtkRenderWindow::SetAAFrames was deprecated for VTK 8.1 and will be removed in a future version.
+
+

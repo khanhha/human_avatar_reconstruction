@@ -1,0 +1,82 @@
+
+<form action="{% url 'polls:subject-list' %}" method="GET">
+  {% csrf_token %}
+  <button type="submit">back to subject listing</button>
+</form>
+
+<h1>{{ subject.name }}</h1>
+
+<h2>input images</h2>
+<img src="{{ subject.img_f.url }}" alt="front image" style="width:100px;">
+<img src="{{ subject.img_s.url }}" alt="front image" style="width:100px;">
+
+<h2>result visualizations</h2>
+<table>
+    <thead>
+        <tr>
+            <th>3d shape</th>
+            <th>3d shape with measurements</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <th>
+                {% if subject.img_result %}
+                <img src="{{ subject.img_result.url }}" style="height:300px;">
+                {% endif %}
+            </th>
+            <th>
+                {% if subject.img_measure_viz %}
+                <img src="{{ subject.img_measure_viz.url }}" style="height:300px;">
+                {% endif %}
+            </th>
+        </tr>
+        <tr>
+            <th>
+                <form action="{% url 'polls:predict-shape' subject.id %}" method="POST">
+                {% csrf_token %}
+                    <button type="submit">predict 3d shape</button>
+                </form>
+            </th>
+            <th>
+                <form action="{% url 'polls:predict-measure' subject.id %}" method="POST">
+                    {% csrf_token %}
+                    <button type="submit">predict measurements</button>
+                </form>
+            </th>
+        </tr>
+    </tbody>
+</table>
+
+<h2>measurement detail</h2>
+
+<table class="table mb-0">
+<thead>
+    <tr>
+        <th>measure_id</th>
+        <th>groundtruth</th>
+        <th>prediction</th>
+    </tr>
+</thead>
+<tbody>
+  {% for k,v in subject.measures_gt.items %}
+    <tr>
+        <th>{{k}}</th>
+        <th>{{v|floatformat:2}}</th>
+        <th>{{subject.measures_pred|dict_key:k|floatformat:2}}</th>
+        <th>{{subject.measures_pred|dict_key:k|err_str:v}}</th>
+    </tr>
+  {% endfor %}
+    <tr>
+        <th></th>
+        <th>
+            <form action="{% url 'polls:update-mgt' subject.id %}" method="GET">
+                <button type="submit">edit GT</button>
+            </form>
+        </th>
+        <th></th>
+    </tr>
+</tbody>
+</table>
+
+

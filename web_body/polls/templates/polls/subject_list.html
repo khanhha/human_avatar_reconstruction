@@ -1,0 +1,64 @@
+{% block content %}
+
+{% block content_header %}
+<h2>Subjects</h2>
+{% endblock %}
+
+<form action="{% url 'polls:add-subject' %}" method="POST">
+  {% csrf_token %}
+  <button type="submit">add new subject</button>
+</form>
+
+<table class="table mb-0">
+  <thead>
+    <tr>
+      <th>id</th>
+      <th>img_f</th>
+      <th>img_s</th>
+      <th>name</th>
+      <th>gender</th>
+      <th>height</th>
+      <th>detail</th>
+      <th>delete</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% load static %}
+    {% static "" as baseurl%}
+    {% for subject in subjects %}
+      <tr>
+        <td>{{ subject.id }}</td>
+        <td>
+          {% if subject.img_f %}
+            <img src="{{ subject.img_f.url }}" style="width:32px;">
+          {% else %}
+            <span class="text-muted">no image</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if subject.img_s %}
+            <img src="{{ subject.img_s.url }}"  style="width:32">
+          {% else %}
+            <span class="text-muted">no image</span>
+          {% endif %}
+        </td>
+        <td>{{ subject.name }}</td>
+        <td>{{ subject.gender }}</td>
+        <td>{{ subject.height }}</td>
+        <td>
+          <form action="{% url 'polls:subject-detail' subject.id %}" method="GET">
+            {% csrf_token %}
+            <button type="submit">detail</button>
+          </form>
+        </td>
+        <td>
+          <form action="{% url 'polls:delete-subject' subject.id %}" method="POST">
+            {% csrf_token %}
+            <button type="submit">delete</button>
+          </form>
+        </td>
+      </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

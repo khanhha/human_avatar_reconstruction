@@ -1,0 +1,42 @@
+{% block content %}
+  <h2>edit ground truth measures</h2>
+  <table>
+    <tr>
+      <th>
+          <form method="post">
+          {% csrf_token %}
+          <table>
+            <thead>
+              <tr>
+                <th>measure_id</th>
+                <th>value</th>
+                <th>color</th>
+              </tr>
+            </thead>
+            <tbody>
+            {% for k,v in subject.measures_gt.items %}
+              <tr>
+                <th>{{k}}</th>
+                <th><input type="number" id = "{{k}}" name="{{k}}" value = "{{v}}" max="2.5" step="0.001"></th>
+                <th>
+                  <div style="background-color:{{k|measure_color}};padding:7px;"></div>
+                </th>
+              </tr>
+            {% endfor %}
+              <tr>
+                <th></th>
+                <th><button type="submit" class="btn btn-primary">update GT measuremnts</button></th>
+              </tr>
+            </tbody>
+          </table>
+        </form>
+      </th>
+      <th>
+        {% if subject.img_measure_viz %}
+        <img src="{{ subject.img_measure_viz.url }}" style="height:600px;">
+        {% endif %}
+      </th>
+    </tr>
+  </table>
+
+{% endblock %}
