@@ -3,9 +3,8 @@ from mayavi import mlab
 import vtk
 import tempfile
 import cv2 as cv
-import matplotlib.pyplot as plt
 import numpy as np
-from scipy.misc import imread, imsave
+from imageio import imread, imsave
 from matplotlib import colors as pltcolors
 
 def static_vars(**kwargs):
@@ -149,6 +148,7 @@ def project_silhouette_mayavi(verts, triangles, measure_contours = None, ortho_p
 from mpl_toolkits.mplot3d import Axes3D
 #TODO: matplotlib suffers from aspect distortion. it makes the mesh look fatter than it actually is
 def project_silhouette_matplot(verts, triangles):
+    import matplotlib.pyplot as plt
     plt.clf()
     ax = plt.gca(projection='3d')
     center = 0.5*(verts.max(0) + verts.min(0))
@@ -212,7 +212,6 @@ def resize_width(img_src, img_target):
     img_src_1 = cv.resize(img_src, dsize=dsize)
     return img_src_1
 
-import matplotlib.patches as mpatches
 def build_gt_predict_viz(verts, faces, img_f_org, img_s_org, measure_contours = None, ortho_proj = False, body_opacity = 1.0):
     img_f_pred, img_s_pred = project_silhouette_mayavi(verts, faces, measure_contours, ortho_proj=ortho_proj, body_opacity=body_opacity)
     # print(img_f_pred.shape)
@@ -228,6 +227,8 @@ def build_gt_predict_viz(verts, faces, img_f_org, img_s_org, measure_contours = 
     return img_full
 
 def gen_measurement_color_annotation():
+    import matplotlib.patches as mpatches
+    import matplotlib.pyplot as plt
     patches = []
     for key, color in measurement_colors().items():
         red_patch = mpatches.Patch(color=color, label=key)

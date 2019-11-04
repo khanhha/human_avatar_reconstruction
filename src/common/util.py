@@ -1,5 +1,4 @@
 import numpy as np
-import matplotlib.pyplot as plt
 from shapely.geometry import Point, Polygon, MultiPoint, LinearRing, LineString
 from shapely.ops import nearest_points
 import shapely.affinity as affinity
@@ -82,6 +81,7 @@ def sample_contour_radial(X, Y, center, n_sample):
 
 from scipy.fftpack import fft2, ifft2, fft, ifft, dct, idct
 def calc_fourier_descriptor(X, Y, resolution, use_radial = False, path_debug = None):
+    import matplotlib.pyplot as plt
     np.set_printoptions(suppress=True)
     cnt_complex = np.array([np.complex(x,y) for x, y in zip(X,Y)])
     #cnt_complex = cnt_complex[:int(cnt_complex.shape[0]/2)]
@@ -165,6 +165,8 @@ def reconstruct_contour_fourier(fourier, use_radal = False):
 
 #this function is just for the debugging about the behavior of fourier descriptor
 def reconstruct_contour_fourier_zero_padding(fourier, use_radal=False):
+    import matplotlib.pyplot as plt
+
     n = len(fourier)
     fouriers = []
     fouriers.append(np.complex(0.0, 0.0))
@@ -286,6 +288,8 @@ def reconstruct_torso_slice_contour(feature, D, W, mirror = False):
     return np.vstack([X, Y])
 
 def symmetrize_contour(X, Y, debug_path = None):
+    import matplotlib.pyplot as plt
+
     if debug_path is not None:
         plt.clf()
         plt.axes().set_aspect(1)
@@ -320,6 +324,8 @@ def symmetrize_contour(X, Y, debug_path = None):
     return X, Y
 
 def align_torso_contour(X, Y, anchor_pos_x = True, debug_path = None):
+    import matplotlib.pyplot as plt
+
     idx_ymax, idx_ymin = np.argmax(Y), np.argmin(Y)
     center_y = 0.5 * (Y[idx_ymax] + Y[idx_ymin])
     center_x = X[idx_ymin]

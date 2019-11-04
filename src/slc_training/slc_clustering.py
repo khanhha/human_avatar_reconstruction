@@ -10,7 +10,6 @@ import sklearn.metrics as metrics
 import os
 import shutil
 from collections import defaultdict
-import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 
 def find_minimum_good_slc_names(SLC_DIR, BAD_SLC_DIR, ids):
@@ -80,6 +79,8 @@ def apply_clustering(X, K):
     return labels
 
 def plot_cluster_contour(labels, all_names, all_contours, DIR_OUT):
+    import matplotlib.pyplot as plt
+
     clusters = {}
     unq_clusters = np.unique(labels)
     for k in unq_clusters:
@@ -159,6 +160,8 @@ def plot_cluster_contour(labels, all_names, all_contours, DIR_OUT):
     return mean_var
 
 def convert_to_radial_points(DIR_SLC, n_sample = 30, DIR_VIZ = None):
+    import matplotlib.pyplot as plt
+
     rad_contours = {}
     for path in Path(DIR_SLC).glob('*.*'):
         with open(str(path), 'rb') as file:

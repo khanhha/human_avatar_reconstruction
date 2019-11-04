@@ -1,26 +1,17 @@
 from sklearn.externals import joblib
-import sys
-#sys.path.insert(0, '/libigl/python/')
-#import pyigl as igl
 from libigl.python import pyigl as igl
 import numpy as np
-import matplotlib.pyplot as plt
 import cv2 as cv
-import shutil
 import argparse
-from pathlib import Path
 import pickle
 import os
 from pose.pose_extract_tfpose import PoseExtractorTf
 from pose.pose_common import HumanPose
 from pose.pose_common import CocoPart as HmPart
-from common.transformations import angle_between_vectors
 from pca.nn_util import crop_silhouette_pair
 from deploy.hm_sil_pred_model import HmSilPredModel
 from pathlib import Path
-from  common.util import find_largest_contour, smooth_contour, resample_contour
-#import triangle as tr
-
+from  common.util import find_largest_contour, resample_contour
 
 class HmSilCorrector():
     def __init__(self, size = (384,256)):

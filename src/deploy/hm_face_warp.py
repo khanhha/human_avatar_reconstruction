@@ -1,23 +1,12 @@
 # import the necessary packages
 import face_utils
-import numpy as np
-import argparse
 import dlib
 import cv2 as cv
-import matplotlib.pyplot as plt
-from common.obj_util import import_mesh_tex_obj, import_mesh_obj
+from common.obj_util import import_mesh_tex_obj
 from skimage import draw
-import pickle
-import os
-from collections import defaultdict, Counter
-from sklearn import mixture
-from sklearn.cluster import KMeans
+from collections import defaultdict
 from sklearn.mixture import BayesianGaussianMixture
 from tex_syn.generate import *
-import time
-from scipy.ndimage.morphology import binary_closing, generate_binary_structure, iterate_structure
-from face_parse.face_parser import FaceParser
-from pathlib import Path
 from deploy.data_config import config_get_data_path
 
 G_debug_id = 0
@@ -700,9 +689,10 @@ class HmFPrnNetFaceTextureEmbedder():
         return head_texture_1
 
 import pickle
-import matplotlib as mpl
-mpl.rc('image', cmap='gray')
 if __name__ == '__main__':
+    import matplotlib as mpl
+    mpl.rc('image', cmap='gray')
+
     meta_data_dir = '/home/khanhhh/data_1/projects/Oh/codes/human_estimation/data/meta_data_shared/'
     model_dir = "/media/khanhhh/42855ff5-574e-4a41-ad10-0f08087b0ff6/data_1/projects/Oh/data/3d_human/deploy_models_nosyn"
     rect_path = os.path.join(*[meta_data_dir, 'prn_texture_in_victoria_texture.txt'])

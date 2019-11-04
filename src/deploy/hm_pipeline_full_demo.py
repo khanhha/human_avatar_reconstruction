@@ -1,6 +1,4 @@
 import cv2 as cv
-import matplotlib.pyplot as plt
-import numpy as np
 import argparse
 import os
 from pathlib import Path
@@ -16,7 +14,6 @@ from common.obj_util import import_mesh_tex_obj, export_mesh_tex_obj
 from deploy.data_config import config_get_data_path
 import pickle
 from common.viz_util import build_gt_predict_viz
-import pandas as pd
 
 def calc_measurement_comparsion(gt_mdata, predict_person_mdata):
     def get_gt_measure(person_id, measure_id):
@@ -58,6 +55,7 @@ def calc_measurement_comparsion(gt_mdata, predict_person_mdata):
     return result_compare
 
 def load_data_txt_file(path):
+    import pandas as pd
     datalist = []
     with open(path, 'rt') as file:
         dir = path.parent
@@ -94,6 +92,7 @@ def load_data_txt_file(path):
     return data
 
 def load_data_xlsx_file(path):
+    import pandas as pd
     data = pd.read_excel(path, sheet_name='images')
     dir_img = os.path.join(*[path.parent, 'images'])
 
@@ -121,6 +120,7 @@ def load_data_xlsx_file(path):
 
 import warnings
 def load_measurement_data(path, person_ids):
+    import pandas as pd
     mdata = pd.read_excel(path, sheet_name='measurement')
     for person_id in person_ids:
         if person_id not in mdata:
@@ -143,6 +143,7 @@ def load_data_file(fpath):
 import copy
 import gc
 if __name__ == '__main__':
+    import pandas as pd
     ap = argparse.ArgumentParser()
     ap.add_argument("-model_dir",  required=True, type=str, help="the direction where shape_model.jlb  and deeplab model are stored")
     ap.add_argument("-meta_data_dir",  required=True, type=str, help="meta data directory")

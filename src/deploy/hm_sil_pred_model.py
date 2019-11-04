@@ -2,12 +2,9 @@ import tensorflow as tf
 import cv2 as cv
 import urllib
 import os
-import sys
 import tarfile
 from six.moves import urllib
 import numpy as np
-import time
-from matplotlib import pyplot as plt
 
 class NoSilhouetteFound(Exception):
     pass

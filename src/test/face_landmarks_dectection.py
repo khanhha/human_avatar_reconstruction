@@ -3,7 +3,6 @@ import cv2 as cv
 import face_utils
 import numpy as np
 from pathlib import Path
-import matplotlib.pyplot as plt
 from tqdm import tqdm
 import os
 

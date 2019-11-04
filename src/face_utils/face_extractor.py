@@ -3,7 +3,6 @@ import face_utils
 import numpy as np
 import dlib
 import cv2 as cv
-import matplotlib.pyplot as plt
 import os
 from pathlib import Path
 from face_parse.face_parser import FaceParser
@@ -99,6 +98,7 @@ class FaceExtractor():
         face_seg = self.face_parser.parse_face(img_1)
 
         if debug_name is not None:
+            import matplotlib.pyplot as plt
             debug_dir = '/home/khanhhh/data_1/projects/Oh/data/face/google_front_faces/debug_face_extract'
             for i in range(68):
                 cv.circle(img_1, (ldms[i,0],ldms[i,1]), 1, (255,0,0), thickness=cv.FILLED)

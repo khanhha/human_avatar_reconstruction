@@ -7,7 +7,6 @@ from mpl_toolkits.mplot3d import Axes3D  # noqa: F401 unused import
 from common.transformations import *
 import argparse
 from common.obj_util import import_mesh_tex_obj
-import matplotlib.pyplot as plt
 import alphashape
 from shapely.geometry.polygon import orient
 from shapely.geometry import MultiPolygon, Polygon, MultiPoint

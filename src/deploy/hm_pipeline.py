@@ -1,17 +1,13 @@
 from deploy.hm_shape_pred_pytorch_model import HmShapePredPytorchModel
 from deploy.hm_shape_pred_model import HmShapePredModel
 from deploy.hm_sil_pred_model import HmSilPredModel
-from pca.nn_util import crop_silhouette_pair
 import cv2 as cv
-import matplotlib.pyplot as plt
 import numpy as np
 import argparse
 import os
 from pathlib import Path
 from common.obj_util import import_mesh_obj, export_mesh
 from deploy.data_config import  config_get_data_path
-from pose.pose_extract_tfpose import PoseExtractorTf
-from pose.pose_common import CocoPart as HmPart
 from pose.pose_common import HumanPose
 from deploy.hm_sil_correct import HmSilCorrector
 

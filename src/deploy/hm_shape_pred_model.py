@@ -1,8 +1,6 @@
 from sklearn.externals import joblib
 import tensorflow as tf
 import numpy as np
-from pca.nn_util import crop_silhouette_pair
-from deploy.hm_sil_correct import HmSilCorrector
 
 class HmShapePredModel():
     def __init__(self, model_path, use_gpu = True):
@@ -15,7 +13,6 @@ class HmShapePredModel():
         self.pca_model = data['pca_model']
         self.pca_target_transform = data['pca_target_transform']
         self.aux_input_transform =  data['aux_input_transform']
-
 
         self.graph = tf.Graph()
         with self.graph.as_default():

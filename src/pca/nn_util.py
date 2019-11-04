@@ -11,7 +11,6 @@ from PIL import Image
 import scipy.io as io
 from os.path import join
 import os
-import matplotlib.pyplot as plt
 import cv2 as cv
 from sklearn.externals import joblib
 import re

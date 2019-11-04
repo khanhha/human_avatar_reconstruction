@@ -3,10 +3,8 @@ import os
 from os.path import join
 from pathlib import Path
 from tqdm import tqdm
-import matplotlib.pyplot as plt
 import cv2 as cv
 from pca.nn_util import crop_silhouette_pair_blender
-import numpy as np
 
 def find_largest_contour(img_bi, app_type=cv.CHAIN_APPROX_TC89_L1):
     contours, _ = cv.findContours(img_bi, cv.RETR_LIST, app_type)

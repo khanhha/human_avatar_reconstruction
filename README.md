@@ -33,6 +33,8 @@ add the following line
 {
     "dns":["192.168.1.1", "8.8.8.8"]
 }
+sudo systemctl daemon-reload
+sudo systemctl restart docker
 - remove manual libs from environment.yml: tf-pose, pycoco
 
 # run the pre-trained body models

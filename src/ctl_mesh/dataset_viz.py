@@ -1,5 +1,4 @@
 import numpy as np
-import matplotlib.pylab as plt
 import argparse
 from pathlib import Path
 import pickle
@@ -120,6 +119,8 @@ def reconstruct_torso_slice_contour(feature, D, W, mirror = False):
     return np.vstack([X, Y])
 
 if __name__ == '__main__':
+    import matplotlib.pylab as plt
+
     ap = argparse.ArgumentParser()
     ap.add_argument("-i", "--IN_DIR", required=True, help="dataset input directory")
     ap.add_argument("-s", "--SLC_TYPE", required=True, help="slice type")

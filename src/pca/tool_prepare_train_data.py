@@ -8,7 +8,6 @@ import shutil
 import cv2 as cv
 from pca.nn_util import crop_silhouette_pair_blender
 from tqdm import tqdm
-import matplotlib.pyplot as plt
 from multiprocessing import Pool
 from functools import partial
 

@@ -9,12 +9,14 @@ import time
 
 class HmShapePredPytorchModel():
     def __init__(self, model_path, use_gpu = True):
-        data = torch.load(model_path)
-        self.model = data['model']
         if use_gpu and torch.cuda.is_available():
             self.device = torch.device('cuda')
         else:
             self.device = torch.device('cpu')
+
+        data = torch.load(model_path, map_location=self.device)
+
+        self.model = data['model']
         self.model = self.model.to(self.device)
         self.model.eval()
 

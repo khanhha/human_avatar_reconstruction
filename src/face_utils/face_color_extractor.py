@@ -4,7 +4,6 @@ import numpy as np
 from skimage.io import imread, imsave
 from skimage.transform import rescale, resize
 import cv2 as cv
-import matplotlib.pyplot as plt
 from sklearn.mixture import GaussianMixture, BayesianGaussianMixture
 from sklearn.cluster import SpectralClustering
 
@@ -14,6 +13,8 @@ class FaceColorExtractor():
         self.predictor = dlib.shape_predictor(dlib_model_path)
 
     def extract(self, face_img, sample_skin, hsv = False):
+        import matplotlib.pyplot as plt
+
         debug_imgs, skin_color = self._extract_gmm(face_img, hsv)
 
         L = cv.Laplacian(cv.cvtColor(sample_skin, cv.COLOR_BGR2GRAY), cv.CV_32F, ksize=7)
