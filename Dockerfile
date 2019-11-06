@@ -18,10 +18,13 @@ RUN make
 WORKDIR /
 COPY /src /tmp/src/
 COPY /web_body /tmp/web_body
-
+COPY /google_auth /tmp/google_auth
 
 RUN conda install -c conda-forge google-auth-oauthlib
 RUN conda install -c conda-forge google-api-python-client
+
+WORKDIR /tmp
+RUN python /google_auth/download_run_data.py cnn_run_data ./
 
 WORKDIR /tmp/web_body
 
