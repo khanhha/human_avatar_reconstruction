@@ -1,5 +1,5 @@
 from django.template.defaultfilters import register
-from common.viz_util import measure_color_defs
+#from common.viz_util import measure_color_defs
 
 @register.filter(name='dict_key')
 def dict_key(d, k):
