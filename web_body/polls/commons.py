@@ -7,8 +7,8 @@ from deploy.hm_measurement import HumanMeasure
 from deploy.data_config import config_get_data_path
 import numpy as np
 
-g_model_dir = '/media/F/projects/Oh/data/models/deploy_models_pose_nosyn/'
-g_metadata_dir = '/media/D1/data_1/projects/Oh/codes/human_estimation/data/meta_data_shared/'
+g_model_dir = '../cnn_run_data/models/'
+g_metadata_dir = '../cnn_run_data/metadata/'
 
 def get_body_model():
     shape_model_path = config_get_data_path(g_model_dir, 'shape_model_pytorch_joint')

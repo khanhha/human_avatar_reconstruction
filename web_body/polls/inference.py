@@ -1,11 +1,11 @@
 import json
 import numpy as np
-#from .commons import get_model, transform_image, get_body_model, get_body_measure
-#from common.viz_util import build_gt_predict_viz
+from .commons import get_model, transform_image, get_body_model, get_body_measure
+from common.viz_util import build_gt_predict_viz
 
 #update
-#body_model = get_body_model()
-#body_measure = get_body_measure()
+body_model = get_body_model()
+body_measure = get_body_measure()
 
 #model = get_model()
 #imagenet_class_index = json.load(open('imagenet_class_index.json'))

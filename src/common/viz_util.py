@@ -5,7 +5,6 @@ import tempfile
 import cv2 as cv
 import numpy as np
 from imageio import imread, imsave
-from matplotlib import colors as pltcolors
 
 def static_vars(**kwargs):
     def decorate(func):
@@ -46,6 +45,7 @@ def measure_color_defs():
     return colors
 
 def measurement_colors():
+    from matplotlib import colors as pltcolors
     # colors = {}
     # colors['body'] = (89, 89, 89)
     # colors['m_circ_neck'] = (68, 102, 0)
