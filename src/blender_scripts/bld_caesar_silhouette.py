@@ -115,6 +115,7 @@ def collect_joint_vertex_grp_cos(obj):
 
     return joints, joint_vert_idxs
 
+#estimate joint as the average of its vertex group
 def estimate_joint_positions(obj, grp_vert_cos):
     joints = {}
     for grp_name, vert_cos in grp_vert_cos.items():
@@ -125,6 +126,7 @@ def estimate_joint_positions(obj, grp_vert_cos):
         joints[grp_name] = avg
     return joints
 
+#assign the estimated joint locations to the armarture object
 def set_joints(obj, joints):
     #obj.select = True
     #bpy.context.scene.objects.active = obj
@@ -257,22 +259,26 @@ def rotate_front_armature_random(arm_obj):
     leg_angle_range = [0,15]
     axis = 'Z'
 
+    #upper arm left
     angle = np.random.rand() * (arm_angle_range[1]-arm_angle_range[0]) + arm_angle_range[0]
     pbone = arm_obj.pose.bones['upper_arm.L']
     pbone.rotation_mode='XYZ'
     pbone.rotation_euler.rotate_axis(axis, math.radians(angle))
 
+    #upper arm right
     pbone = arm_obj.pose.bones['upper_arm.R']
     pbone.rotation_mode='XYZ'
     angle = -angle
     pbone.rotation_euler.rotate_axis(axis, math.radians(angle))
 
+    #thigh left
     leg_delta_angle = np.random.rand() * (leg_angle_range[1]-leg_angle_range[0]) + leg_angle_range[0]
     pbone = arm_obj.pose.bones['thigh.L']
     pbone.rotation_mode='XYZ'
     leg_delta_angle = -leg_delta_angle
     pbone.rotation_euler.rotate_axis(axis, math.radians(leg_delta_angle))
 
+    #thigh right
     pbone = arm_obj.pose.bones['thigh.R']
     pbone.rotation_mode='XYZ'
     leg_delta_angle = -leg_delta_angle
@@ -286,12 +292,14 @@ def rotate_side_armature_random(arm_obj):
 
     axis = 'Z'
 
+    #rotate spine
     hip_angle_range=[-10,15]
     angle = np.random.rand()*(hip_angle_range[1] - hip_angle_range[0]) + hip_angle_range[0]
     pbone = arm_obj.pose.bones['upper_hip']
     pbone.rotation_mode = 'XYZ'
     pbone.rotation_euler.rotate_axis(axis, math.radians(angle))
 
+    #rotate neck angle
     head_angle_range = [-15,15]
     angle = np.random.rand()*(head_angle_range[1] - head_angle_range[0]) + head_angle_range[0]
     pbone = arm_obj.pose.bones['head']
@@ -300,63 +308,86 @@ def rotate_side_armature_random(arm_obj):
 
     bpy.ops.object.mode_set(mode='OBJECT')
 
-def project_synthesized():
-    #pca_co_dir = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/vic_pca_models_debug/verts/male/'
-    verts_co_dir = '/home/khanhhh/data_1/projects/Oh/data/3d_human/caesar_obj/vic_pca_models_syn/verts/female/'
-    sil_root_dir = '/home/khanhhh/Oh/blender_images/syn/female/'
-    front_sil = True
-    side_sil = True
-
+def project_synthesized(verts_co_dir, out_sil_root_dir, N_pose_variants_per_mesh=20,
+                        joint_path = None, n_file_to_process = -1,
+                        do_front_sil = True, do_side_sil = True,
+                        always_renew = False):
+    """
+    project front/side silhoutte for N_pose_variants_per_mesh
+    :param verts_co_dir: folder containers *.npy vertex array files
+    :param out_sil_root_dir: output folder contain output front/side silhouettes
+    :param N_pose_variants_per_mesh: number of random pose per mesh
+    :param joint_path: path to export joint vertex groups.
+    :param n_file_to_process: debug. set it to -1 for prcessing all meshes
+    :param do_front_sil: project front silhouette or not
+    :param do_side_sil: project side silhouette or not
+    :param always_renew: always renew silhouette or ignore generated ones.
+    """
+    #output silhouette folder
+    sil_root_dir = out_sil_root_dir
     sil_f_dir = os.path.join(*[sil_root_dir , 'sil_f_raw'])
     sil_s_dir = os.path.join(*[sil_root_dir , 'sil_s_raw'])
     os.makedirs(sil_f_dir, exist_ok=True)
     os.makedirs(sil_s_dir, exist_ok=True)
-    #for path in Path(sil_f_dir).glob('*.*'):
-    #    os.remove(str(path))
-    #for path in Path(sil_s_dir).glob('*.*'):
-    #    os.remove(str(path))
 
+    #project only front,side or both?    
+    front_sil = do_front_sil
+    side_sil = do_side_sil
+
+    # the number of pose variants per mesh that we want to create
+    N_pos_variants = N_pose_variants_per_mesh
+
+    #get the template mesh 
     vic_tpl_obj = bpy.data.objects['vic_template']
     vic_tpl_mesh = vic_tpl_obj.data
-
+    
+    #get the skeleton/armature object
     armature_obj = bpy.data.objects['metarig']
-
+    
+    #get vertex indices of left and right arms
+    # for side profile, we collapse left and right arm to a single point so that left/right arm
+    # do not interfere with the side silhouette
     larm_v_idxs = collect_vertex_group_idxs(vic_tpl_obj, 'larm')
     rarm_v_idxs = collect_vertex_group_idxs(vic_tpl_obj, 'rarm')
-    neck_v_idxs = collect_vertex_group_idxs(vic_tpl_obj, 'neck_landmark')
-
     rarm_sample_v_idx = find_heightest_vert_idx(vic_tpl_obj, larm_v_idxs) #a sample vert1ex on right arm to collapse arm
     larm_sample_v_idx = find_heightest_vert_idx(vic_tpl_obj, rarm_v_idxs) #a sample vertex on left arm to collapse arm
-
+    
+    # neck landmark vertex indices for adjusing camera height.
+    # for each mesh, we set camera height to the neck level.
+    neck_v_idxs = collect_vertex_group_idxs(vic_tpl_obj, 'neck_landmark')
+    
+    # list all vertex file paths. sort it for consistent order    
     paths = sorted([path for path in Path(verts_co_dir).glob('*.npy')])
-
+    
+    # we use two cameras: one for front silhouette and one for side silhouette
     cam_front_obj = bpy.data.objects['Camera']
     cam_side_obj = bpy.data.objects['Camera_side']
 
+    #for debugging
     #idx = np.random.randint(0, len(paths))
     #paths = [paths[idx]]
     #paths = [paths[15]]
     #paths = paths[:5]
 
+    # export the joint vertex indices. for example. left shoulder joint vertex groups = [10, 20, 1000, 2000, ...]
     joint_grp_vert_cos, joint_vert_groups = collect_joint_vertex_grp_cos(vic_tpl_obj)
-    #exporting joint vertices for joint estimation later
-    #joint_path =  '/media/D1/data_1/projects/Oh/codes/human_estimation/data/meta_data_shared/victoria_joint_vert_groups.pkl'
-    #with open(joint_path, 'wb') as file:
-    #    pickle.dump(obj=joint_vert_groups, file=file)
-    #return
+    if joint_path is not None:
+        with open(joint_path, 'wb') as file:
+            pickle.dump(obj=joint_vert_groups, file=file)
 
+    #get reference to left and right arm vertex coordinates for speed optimization
     larm_cos = [vic_tpl_mesh.vertices[vi].co for vi in larm_v_idxs]
     rarm_cos = [vic_tpl_mesh.vertices[vi].co for vi in rarm_v_idxs]
 
-    #print('file idx: ', idx)
-    N_pos_variants = 20
-    N_files = len(paths)
+    N_files = len(paths) if n_file_to_process <=0 else min(n_file_to_process, len(paths))
     for i in range(N_files):
         #time_start = time.time()
         print('prog: ', i, '/', N_files)
         path = paths[i]
         name = path.stem
 
+        #genearte file names for all pose variants
+        #object1_pose0.png, object1_pose1.png, ... object1_pose20.png
         front_sil_paths = []
         side_sil_paths = []
         processed_file = True
@@ -366,43 +397,48 @@ def project_synthesized():
             side_sil_path = os.path.join(*[sil_s_dir, name_i])
             front_sil_paths.append(front_sil_path)
             side_sil_paths.append(side_sil_path)
+            #if one of silhouette pose is missing, we considconer this obj file as non-processed  yet
+            #HOWEVER: this is not 100% correct because even two front/side images exist, they could be broken file
+            #it happens when we turn off blender while it is dumping an image to di sk => the image will be borken.
+            #TRICK to get around: when you resume blender file, please try to delete 100 recent dumped images for safe
+            #or it is recommended to run Blender until it is done.
             if not Path(front_sil_path+'.png').exists() or  not Path(side_sil_path+'.png').exists():
-                #if one of silhouette is missing, we considconer this obj file as non-processed  yet
                 processed_file = False
 
         #if this obj file is already processed, go on and ignore it
-        #by doing it, we can shutdown the blender file and resume it at another time
-        if processed_file:
+        #by doing it, we can turn off the blender file and resume the process at another time
+        if (not always_renew) and processed_file:
            continue
 
+        #load vertex array of the subject from disk
         verts = np.load(path)
         #print('verts.shape = ', verts.shape)
 
+        #replace with the current vertex array
         #for vi in range(n_v):
         #    vic_tpl_mesh.vertices[vi].co[:] = verts[vi,:]
         vic_tpl_mesh.vertices.foreach_set("co", verts.flatten())
 
+        #translate, scale the imported object
         transform_obj_caesar_pca(vic_tpl_obj, s = 10.0)
 
+        #set camera height
         neck_ld_co = avg_co(vic_tpl_mesh, neck_v_idxs)
         cam_front_obj.location[2] = neck_ld_co[2]
         cam_side_obj.location[2] = neck_ld_co[2]
 
+        #estimate joint location and assign joint location to the armature object
         joints = estimate_joint_positions(vic_tpl_obj, joint_grp_vert_cos)
         set_joints(armature_obj, joints)
 
-        #t0 = time.time()
         #select both objects and make the armature object active
         vic_tpl_obj.select = True
         armature_obj.select = True
         bpy.context.scene.objects.active = armature_obj #make the armature object active
 
-        #weight calculation: it could be disabled for fast debugging with a single object.
+        #rigging weight calculation: it could be disabled for fast debugging with a single object.
         bpy.ops.object.parent_set(type='ARMATURE_AUTO')
 
-        #t1 = time.time()
-
-        #t2 = time.time()
         #the file with posfix _0 is the original file
         if front_sil:
             for i in range(N_pos_variants):
@@ -412,10 +448,12 @@ def project_synthesized():
 
                 #hide the armature so that it won't appear in the silhouette
                 armature_obj.hide = True
+                #set the output front silhouette path
                 bpy.data.scenes['Scene'].render.filepath = front_sil_paths[i]
                 bpy.ops.render.opengl(write_still=True, view_context=True)
                 armature_obj.hide = False
 
+                #randomly rotate leg, arm
                 rotate_front_armature_random(armature_obj)
 
             #reset pose after we're done
@@ -442,19 +480,42 @@ def project_synthesized():
 
                 #hide the armature so that it won't appear in the silhouette
                 armature_obj.hide = True
+                #set the output side silhouette path
                 bpy.data.scenes['Scene'].render.filepath = side_sil_paths[i]
                 bpy.ops.render.opengl(write_still=True, view_context=True)
                 armature_obj.hide = False
 
                 rotate_side_armature_random(armature_obj)
 
-        #t3 = time.time()
-
         reset_pose(armature_obj)
 
-        #time_end = time.time()
-        #print('time = ', time_end-time_start)
-        #print('parenting time = ', t1-t0)
-        #print('render time = ', t3-t2)
 
-project_synthesized()
+#main function
+#please manually adjust the folder paths to the paths on your PC. It is kind of tricky to use blender argument parsing
+
+#set verts_co_root_dir to the correct path on our PC
+#the folder contain the vertex arrays of all male/female subjects
+verts_co_root_dir = '/media/D1/data_1/projects/Oh/data/3d_human/caesar_obj/vic_pca_models_syn/verts/'
+obj_vert_dirs = [os.path.join(*[verts_co_root_dir, 'male']), os.path.join(*[verts_co_root_dir, 'female'])]
+
+#set out_sil_root_dir to a folder on our PC
+#the output front front/side silhouettes will be exported to this folder
+out_sil_root_dir = '/home/khanhhh/Oh/blender_images/syn_test/'
+os.makedirs(out_sil_root_dir, exist_ok=True)
+out_sil_dirs = [os.path.join(*[out_sil_root_dir, 'male']), os.path.join(*[out_sil_root_dir, 'female'])]
+
+# output file: exporting joint vertices for joint estimation later
+# Oh said that we need the jont location so the prediction mesh should be rigged
+#joint_path = '/media/D1/data_1/projects/Oh/codes/human_estimation/data/meta_data_shared/victoria_joint_vert_groups.pkl'
+#it should be exported once. because we are done now, so set it to none
+joint_path = None
+
+#loop over folder for male/female
+for vert_dir, out_sil_dir in zip(obj_vert_dirs, out_sil_dirs):
+    print('=====================================')
+    print('start processing folder: ', vert_dir, out_sil_dir)
+    project_synthesized(verts_co_dir=vert_dir, out_sil_root_dir=out_sil_dir, n_file_to_process=2, always_renew=True)
+    print('finish folder: ', vert_dir, out_sil_dir)
+    print('=====================================')
+
+print('finish processing for all folfders')
