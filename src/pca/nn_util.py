@@ -125,9 +125,8 @@ class ImgFullDataSet(Dataset):
 
 class ImgFullDataSetPoseVariants(Dataset):
     def __init__(self, img_transform, dir_f, dir_s, dir_target, id_to_heights, target_transform=None,
-                 height_transform=None, use_input_gender=False, n_pose_variant = 0, shuffle_front_side_pairs = False):
+                 height_transform=None, use_input_gender=False, shuffle_front_side_pairs = False):
         """
-
         :param img_transform:
         :param dir_f:
         :param dir_s:
@@ -141,13 +140,14 @@ class ImgFullDataSetPoseVariants(Dataset):
         if it is random, it is assumed the ouput target of all pose_variants are the same.
         """
         print(f'create data loader (with pose variant) for folders: {dir_f}, {dir_s}, {dir_target}.')
-        self.n_pose_variant = n_pose_variant
         self.shuffle_front_side_pairs = shuffle_front_side_pairs
 
         paths_f, paths_s, paths_target = self._load_names(dir_f=dir_f, dir_s=dir_s, dir_target=dir_target)
         assert len(paths_f) > 0 and len(paths_s) > 0, f'empty folder {dir_f}, {dir_s}'
 
-        paths_f, paths_s, paths_target = self._sort_subject_pose_variant_names(paths_f, paths_s, paths_target, n_pose_variant)
+        self.n_pose_variant = self.get_number_of_pose_variants(paths_f)
+
+        paths_f, paths_s, paths_target = self._sort_subject_pose_variant_names(paths_f, paths_s, paths_target, self.n_pose_variant)
 
         self.img_transform = img_transform
         self.img_paths_f = paths_f
@@ -157,8 +157,8 @@ class ImgFullDataSetPoseVariants(Dataset):
 
         #verification
         self.N_subject = self.count_unique_subjects(self.img_paths_f, self.img_paths_s)
-        assert len(self.img_paths_f) % n_pose_variant == 0, 'incorrect number of files: n_file % n_pose_variant_per_file != 0'
-        assert self.N_subject == int(len(self.img_paths_f)//n_pose_variant), 'incorrect number of files: something wrong'
+        assert len(self.img_paths_f) % self.n_pose_variant == 0, 'incorrect number of files: n_file % n_pose_variant_per_file != 0'
+        assert self.N_subject == int(len(self.img_paths_f)//self.n_pose_variant), 'incorrect number of files: something wrong'
 
         if self.shuffle_front_side_pairs == True:
             self.verify_targets(self.target_paths, self.N_subject, self.n_pose_variant)
@@ -189,6 +189,20 @@ class ImgFullDataSetPoseVariants(Dataset):
         self.dummy_target = np.zeros(50)
         self.dummy_height = np.zeros(1)
 
+    @classmethod
+    def get_number_of_pose_variants(cls, paths):
+        paths = sorted(paths)
+        sample_name = remove_pose_variant_in_file_name(paths[0].name)
+        n_pose = 0
+        #after paths are sorted, we assume that pose variants of a subject will be continuous name0_pose0.png, name0_pose1.png, name0_pose2, ..., name0_pose30.
+        for path in paths:
+            name = remove_pose_variant_in_file_name(path.name)
+            if name == sample_name:
+                n_pose += 1
+            else:
+                break
+        return n_pose
+
     @staticmethod
     def count_unique_subjects(f_paths, s_paths):
         unq_names = set()
@@ -215,7 +229,8 @@ class ImgFullDataSetPoseVariants(Dataset):
             else:
                 assert False, f'missing front or side silhouette : {name}'
 
-        # TODO debug. for faster training test. comment the code after finish. the two below lines should never been included in the real traning time
+        # TODO debug. for testing training. remember to comment the code after you're done with debugging.
+        #  the two below lines should never been included in the real traning time
         # s_paths = s_paths[:100]
         # f_paths = f_paths[:100]
 
@@ -242,9 +257,8 @@ class ImgFullDataSetPoseVariants(Dataset):
                 same = np.allclose(target_0, target_j)
                 assert same, f'targets of pose variants are different for subject {i}'
 
-    @staticmethod
-    def _sort_subject_pose_variant_names(f_paths, s_paths, y_paths, n_pose_variant):
-        assert n_pose_variant > 0
+    @classmethod
+    def _sort_subject_pose_variant_names(cls, f_paths, s_paths, y_paths, n_pose_variant):
         verify_pose_variants_per_name(f_paths, n_pose_variant)
         verify_pose_variants_per_name(s_paths, n_pose_variant)
         verify_pose_variants_per_name(y_paths, n_pose_variant)

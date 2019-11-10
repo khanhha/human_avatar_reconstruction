@@ -364,17 +364,14 @@ def split_train_valid_test(sil_f_paths, sil_s_paths):
 
     return train_idxs, valid_idxs, test_idxs
 
+def check_input_visually(sil_f_ml_dir, sil_s_ml_dir, sil_f_fml_dir, sil_s_fml_dir):
+    import matplotlib.pyplot as plt
 
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
-    ap.add_argument("-sil_f_ml_dir",  default=True, required=False)
-    ap.add_argument("-sil_s_ml_dir",  default=True, required=False)
-    ap.add_argument("-sil_f_fml_dir",  default=True, required=False)
-    ap.add_argument("-sil_s_fml_dir",  default=True, required=False)
-
+    ap.add_argument("-sil_dir",  default=True, required=True)
     ap.add_argument("-target_ml_dir",  default=True, required=False)
     ap.add_argument("-target_fml_dir",  default=True, required=False)
-
     ap.add_argument("-pca_ml_model_path",  default=True, required=False)
     ap.add_argument("-pca_fml_model_path",  default=True, required=False)
     ap.add_argument("-vic_mesh_path", required=True, help="path to victoria template mesh to store in the output directory")
@@ -387,6 +384,15 @@ if __name__ == '__main__':
 
     size = args.resize_size.split('x')
     size = (int(size[0]), int(size[1]))
+
+    sil_f_ml_dir = f'{args.sil_dir}/male/sil_f_raw/'
+    sil_s_ml_dir = f'{args.sil_dir}/male/sil_s_raw/'
+    sil_f_fml_dir = f'{args.sil_dir}/female/sil_f_raw/'
+    sil_s_fml_dir = f'{args.sil_dir}/female/sil_s_raw/'
+    assert Path(sil_f_ml_dir).exists(), f'{sil_f_ml_dir} does not exist'
+    assert Path(sil_s_ml_dir).exists(), f'{sil_s_ml_dir} does not exist'
+    assert Path(sil_f_fml_dir).exists(), f'{sil_f_fml_dir} does not exist'
+    assert Path(sil_s_fml_dir).exists(), f'{sil_s_fml_dir} does not exist'
 
     os.makedirs(args.out_dir, exist_ok=True)
 
@@ -426,11 +432,11 @@ if __name__ == '__main__':
         tmp_sil_s_dir = os.path.join(*[tmp_dir, 'sil_s'])
 
         # merge both male and female to a tempt dir and make their file names distinctive
-        copy_file_prefix(args.sil_f_ml_dir, tmp_sil_f_dir, '_male', n_file=n_file)
-        copy_file_prefix(args.sil_s_ml_dir, tmp_sil_s_dir, '_male',n_file=n_file)
+        copy_file_prefix(sil_f_ml_dir, tmp_sil_f_dir, '_male', n_file=n_file)
+        copy_file_prefix(sil_s_ml_dir, tmp_sil_s_dir, '_male',n_file=n_file)
 
-        copy_file_prefix(args.sil_f_fml_dir, tmp_sil_f_dir, '_female',n_file=n_file)
-        copy_file_prefix(args.sil_s_fml_dir, tmp_sil_s_dir, '_female',n_file=n_file)
+        copy_file_prefix(sil_f_fml_dir, tmp_sil_f_dir, '_female',n_file=n_file)
+        copy_file_prefix(sil_s_fml_dir, tmp_sil_s_dir, '_female',n_file=n_file)
 
         #remove_missing_pair(tmp_sil_f_dir, tmp_sil_s_dir)
         #make sure that there is a complete pari: front-side for every images

@@ -19,7 +19,6 @@ from tensorboardX import SummaryWriter
 from pca.nn_vic_model import NNModelWrapper, NNHmModel, NNHmJointModel
 from pca.pca_vic_model import PcaModel
 from pca.losses import SMPLLoss
-import matplotlib.pyplot as plt
 import PIL
 from common.obj_util import import_mesh_tex_obj, export_mesh
 from scipy.misc import imread, imsave
@@ -48,7 +47,7 @@ def create_summary_writer(args, model, data_loader, log_dir, clean_old_log = Tru
         print("Failed to save model graph: {}".format(e))
     return writer
 
-def create_loaders(args, img_transform = None, target_trans = None, height_trans = None, n_pose_variant = 0):
+def create_loaders(args, img_transform = None, target_trans = None, height_trans = None, use_pose_variant = True):
     dir_sil_f = os.path.join(*[args.root_dir, 'sil_f'])
     dir_sil_s = os.path.join(*[args.root_dir, 'sil_s'])
 
@@ -62,7 +61,7 @@ def create_loaders(args, img_transform = None, target_trans = None, height_trans
 
     heights = load_height(args.height_path)
 
-    if n_pose_variant == 0:
+    if use_pose_variant == 0:
         train_ds= ImgFullDataSet(img_transform=img_transform,
                                       dir_f=train_f_dir, dir_s=train_s_dir,
                                       dir_target=args.target_dir, id_to_heights=heights, target_transform=target_trans, height_transform=height_trans, use_input_gender=args.use_gender)
@@ -81,17 +80,17 @@ def create_loaders(args, img_transform = None, target_trans = None, height_trans
         train_ds= ImgFullDataSetPoseVariants(img_transform=img_transform,
                                  dir_f=train_f_dir, dir_s=train_s_dir,
                                  dir_target=args.target_dir, id_to_heights=heights, target_transform=target_trans, height_transform=height_trans, use_input_gender=args.use_gender,
-                                             n_pose_variant=n_pose_variant, shuffle_front_side_pairs=True)
+                                            shuffle_front_side_pairs=True)
 
         valid_ds= ImgFullDataSetPoseVariants(img_transform=img_transform,
                                  dir_f=valid_f_dir, dir_s=valid_s_dir,
                                  dir_target=args.target_dir, id_to_heights=heights,  target_transform=target_trans,height_transform=height_trans, use_input_gender=args.use_gender,
-                                             n_pose_variant=n_pose_variant, shuffle_front_side_pairs=True)
+                                             shuffle_front_side_pairs=True)
 
         test_ds= ImgFullDataSetPoseVariants(img_transform=img_transform,
                                 dir_f=test_f_dir, dir_s=test_s_dir,
                                 dir_target=args.target_dir, id_to_heights=heights,  target_transform=target_trans,height_transform=height_trans, use_input_gender=args.use_gender,
-                                            n_pose_variant=n_pose_variant, shuffle_front_side_pairs=True)
+                                            shuffle_front_side_pairs=True)
 
     train_loader = torch.utils.data.DataLoader(train_ds, batch_size=args.batch_size, shuffle=True, num_workers=4)
     valid_loader = torch.utils.data.DataLoader(valid_ds, batch_size=args.batch_size, shuffle=True, num_workers=4)
@@ -429,8 +428,6 @@ def viz_prediction_dynamics(board_writer, model, model_type, pca_model_wrapper,
             export_mesh(f'{out_dir}/{fpath.stem}.obj', verts=verts, faces=faces)
 
             #glue all images into a big one for visualization
-            #img_f_pred, img_s_pred = project_silhouette_matplot(verts, faces)
-            #img_f_pred, img_s_pred = project_silhouette_plotly(verts, faces)
             img_f_pred, img_s_pred = project_silhouette_mayavi(verts, faces)
             #print(img_f_pred.shape)
             img_f_org = resize_height(np.array(img_f_org), img_f_pred)
@@ -463,7 +460,7 @@ def run(args):
     target_trans, aux_input_trans = load_transformations()
 
     print('create data loaders: train, valid, test')
-    train_loader, valid_loader, test_loader = create_loaders(args, img_transform=img_transform, target_trans=target_trans, height_trans=aux_input_trans, n_pose_variant=args.n_pose_variant)
+    train_loader, valid_loader, test_loader = create_loaders(args, img_transform=img_transform, target_trans=target_trans, height_trans=aux_input_trans, use_pose_variant=args.use_pose_variant)
 
     #clean log
     log_dir = os.path.join(*[args.root_dir, 'log', args.model_type])
@@ -508,7 +505,7 @@ def run(args):
     print(f'\theight_transform: {aux_input_trans is not None}')
     print(f'\tuse height input: {args.use_height}')
     print(f'\tuse gender input: {args.use_gender}')
-    print(f'\tnumber of pose variant: {args.n_pose_variant}')
+    print(f'\tuse pose variant: {args.use_pose_variant}')
     print(f'\tcolor image: {args.is_color}')
     print(f'\tmornitor with sparse vertex set: {len(args.mesh_loss_vert_idxs_path) != 0}')
 
@@ -662,13 +659,13 @@ if __name__ == '__main__':
     ap.add_argument("-is_scale_height",  default=0, type=int, required=True)
     ap.add_argument('-use_height',  default=1, type=int, required=True)
     ap.add_argument('-use_gender',  default=1, type=int, required=True)
-    ap.add_argument('-n_pose_variant', default=0, type=int, required=False, help='number of pose varaint per subject. man0_pose0, ..., man0_pose29')
+    ap.add_argument('-use_pose_variant', default=True, type=int, required=False, help='use pose varaint per subject. man0_pose0, ..., man0_pose29 for training o not. this should alawys be true. not sure if'
+                                                                                      'if False still work')
     ap.add_argument('-mesh_loss_vert_idxs_path', default='', type=str, required=False, help='normally, the mesh loss is calculated over the whole mesh vertices. if this field is not empty, '
                                                                                             'the mesh loss will be calculated on a subset of vertex. this must be a *.npy file')
 
     ap.add_argument("-is_color", action='store_true',help="train with color or binary image?")
     ap.add_argument("-in_test_file", default='', type=str, required=False, help="data.txt file that list the front/side/height/gender to predict mesh during training")
-    #ap.add_argument("-vic_mesh_path", default='', type=str, required=False, help="template victoria mesh. this must be provided when you want to ouput mesh during training")
     args = ap.parse_args()
     assert args.use_height == True, 'only support height input currently'
 
