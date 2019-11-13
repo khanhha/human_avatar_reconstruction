@@ -1,8 +1,3 @@
-## Next steps
-  - investigate the correctness of 3D landmarks on the deformed Victoria face
-  - check if it's possible to downsample the resolution of the PRN facelib output directly, instead of transferring its shape by the deformation algorithm like we're doing now.
-  - as a preprocessing step, try to apply a thin-plate warping to convert the default Blender texture map to match Facelib texture map. By doing this way, we can use the texture map from Facelib directly, which might help avoid the inconsistency betwene 3D and 2D
-  - will update later. please feel free to add more.
 ## head reconstruction Pipeline
 ### preprocessing stage
   - 3D face alignment

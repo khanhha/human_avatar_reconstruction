@@ -3,13 +3,14 @@
 
 - [Notation](#notation)
 - [Datasets](#datasets)
+- [Overview](#overview)
 - [Data Generation](#data-generation)
-  - [Overview](#overview)
+  - [Overview](#overview-1)
   - [PCA Model Training](#pca-model-training)
-  - [Silhouette Generation](#silhouette-generation)
+  - [Silhouette generation](#silhouette-generation)
   - [Post processing silhouette and prepare CNN training data](#post-processing-silhouette-and-prepare-cnn-training-data)
 - [Training process](#training-process)
-  - [Overview](#overview-1)
+  - [Overview](#overview-2)
   - [How to train](#how-to-train)
     - [Training](#training)
     - [Training error visualization](#training-error-visualization)
@@ -24,22 +25,38 @@
 # Datasets
 - Orginal MPII-Caesar [dataset](https://drive.google.com/open?id=1x1ChF_34GAA88lEMaybsPlghdk3DjKga) in OBJ format
 
-- MPII_caesae [dataset](https://drive.google.com/open?id=1dxneLcuc3m32EAgW_UjPv539pmX5ymVG) in Victoria's topology
-	- Due to Victoria's triangleo list is very big (each mesh is around 5mb), the dataset just contains the vertex array of each mesh. For visualization, please use [this script](https://github.com/khanhha/human_estimation/blob/master/src/pca/vic_vert_to_mesh.py) to convert vertex array to obj file.
+- MPII_Caesar [dataset](https://drive.google.com/open?id=1dxneLcuc3m32EAgW_UjPv539pmX5ymVG) in Victoria's topology
+  - This dataset is created by embedding the Maxplank Ceasar meshes to the Victoria's  topology. As far as I know, there are two main reasons for this: First, Oh says that Victoria is our standard topology, which is also used in other tasks as well. Second, we are not allowed to use Maxplank Caesar mesh topology for commercial project.
+
+  - Because Victoria's triangle list is very big (each mesh is around 5mb), and the triangle list is the same for all the meshes, the dataset just stores the vertex array of each mesh. For visualization, please use [this script](https://github.com/khanhha/human_estimation/blob/master/src/pca/vic_vert_to_mesh.py) to convert vertex array to obj file. This script just simplies attaches the vertex array of each mesh to the triangle list of Victoria.
+
+# Overview
+The input/output pair of our shape deep learning (dl) model are described below.
+- input: front silhouette, side silhouette, gender, height
+- output: 51 float values. the fist value is an indicator value for male/female PCA model. The remaining 50 values are PCA parameters to the corresponding male/female PCA model.   
+
+From the input, the shape dl model predicts 51 values, which are then used to pick the corresponding male/female model to reconstruct a Victoria mesh that represents the customer's shape. In the following sections, I will explain in detail the two main stages of the pipeline
+
+- the __data generation__ stage that prepares the training data for training shape dl model.
+
+- the __dl training__ stage that consists of 3 main phases: training the front model, side model and finally, the joint model.
 
 # Data Generation
 
+The training data generation stage consists of 3 main steps
+- __maxplank-to-vic embedding__: Embed Maxplank caesar meshes to Victoria topology.
+
+- __pca model training__: train male/female PCA models from the embedded vic-caeasr meshes. This step also does two more following things.
+
+  - __synthesis__ [optional]:  from the trained male/female PCA models, we can also synthesize new meshes by sampling the covariance matrix of PCA models.
+
+  - __PCA transformation__: transform all vic-caesar meshes to PCA parameters. Specifically, each mesh of 72526 vertices will be compressed to 50 PCA parameters. These PCA parameters will be the training target (y values in the pair (x->y)) for training shape dl models.
+
+- __silhouette projection__: in this stage, we load all the vic-caesar meshes into Blender, do pose variants synthesis, and project to front/side silhouettes
+
+In the following sections, I will describe each step in detail and provide instructions to bring them up.
+
 ## Overview
-- __What is a victoria-based PCA model?__
-    - a victoria-based PCA model of 50 principal components has dimension of 50x72576x3 where 72576 is the number of victoria vertices and 3 represents 3 dimension x,y,z
-    - each component of 72675x3 represents vertex devications from the mean victoria
-- __PCA models training__
-    - the PCA model is trained using [IncrementalPCA](https://scikit-learn.org/stable/auto_examples/decomposition/plot_incremental_pca.html#sphx-glr-auto-examples-decomposition-plot-incremental-pca-py) in sklearn.
-   The incremental PCA model is chosen because the normal PCA model requires the whole training data to be loaded on memory, which is impossible with a PC of 16GB Ram.
-
-&NewLine;
-   - <img src='https://g.gravizo.com/svg?%20digraph%20G%20{%20ml_mesh[label=%22male%20meshes:%202150x72576x3%22%20shape=box]%20fml_mesh[label=%22female%20meshes::%202150x72576x3%22%20shape=box]%20ml_pca_train[label=%22male%20pca%20training%22%20shape=box]%20fml_pca_train[label=%22female%20pca%20training%22%20shape=box]%20ml_pca[label=%22male%20PCA%20model:%2050x72576x3%22%20shape=box]%20fml_pca[label=%22female%20PCA%20model:%2050x72576x3%22%20shape=box]%20syn_ml_mesh[label=%22synthesized%20male%20mesh:%2030000x72576x3%22%20shape=box]%20syn_fml_mesh[label=%22synthesized%20male%20mesh:%2030000x72576x3%22%20shape=box]%20syn_ml_pca[label=%22male%20pca%20values:%2030000x50%22%20shape=box]%20syn_fml_pca[label=%22female%20pca%20values:%2030000x50%22%20shape=box]%20final_ds[label=%22final%20pca%20dataset:%2060000x51%20\n%20(+1%20indicator%20for%20male%20or%20female)%22%20shape=box]%20ml_mesh-%3Eml_pca_train%20fml_mesh-%3Efml_pca_train%20ml_pca_train%20-%3E%20ml_pca%20fml_pca_train%20-%3E%20fml_pca%20ml_pca%20-%3E%20syn_ml_mesh%20fml_pca%20-%3E%20syn_fml_mesh%20syn_ml_mesh%20-%3E%20syn_ml_pca%20syn_fml_mesh%20-%3E%20syn_fml_pca%20syn_ml_pca%20-%3E%20final_ds%20syn_fml_pca%20-%3E%20final_ds%20}'/>
-
 
 &NewLine;
 
@@ -47,42 +64,38 @@
     - <img src = 'https://g.gravizo.com/svg?%20digraph%20G%20{%20syn_ml_mesh[label=%22synthesized%20male%20mesh:%2030000x72576x3%22%20shape=box]%20syn_fml_mesh[label=%22synthesized%20female%20mesh:%2030000x72576x3%22%20shape=box]%20bl_ml_sil[label=%22blender:%20male%20sil%20projection%22%20shape=box]%20bl_fml_sil[label=%22blender:%20female%20sil%20projection%22%20shape=box]%20sil_fml_post[label=%22female%20sil%20post-processing%20\n%20binarization,%20height%20normalization%22%20shape=box]%20sil_ml_post[label=%22male%20sil%20post-processing%20\n%20binarization,%20height%20normalization%22%20shape=box]%20final_sil_ds[label=%22final%20sil%20dataset:%20\n%20male:%2030000x2x384x256%20\n%20female:%2030000x2x384x256%22%20shape=box]%20syn_ml_mesh%20-%3E%20bl_ml_sil%20syn_fml_mesh%20-%3E%20bl_fml_sil%20bl_ml_sil%20-%3E%20sil_ml_post%20bl_fml_sil%20-%3E%20sil_fml_post%20sil_ml_post%20-%3E%20final_sil_ds%20sil_fml_post%20-%3E%20final_sil_ds%20}'/>
 
 ## PCA Model Training
-The PCA model we use is a simplified version of [the SMPL model](http://files.is.tue.mpg.de/black/papers/SMPL2015.pdf), which encodes the shape and pose of human space. However, in our model, we ignore the pose parameters because out images just have A pose.  In our project, there are two separated PCA models for male and female. The male model is trained from around 2000 male meshes  and the female model is trained from the female meshes in the Caesar dataset. To train the models, run the following code
 
-download [the dataset](https://drive.google.com/open?id=1dxneLcuc3m32EAgW_UjPv539pmX5ymVG)
-```python
-export PYTHONPATH="${PYTHONPATH}:./"
-python ./pca/pca_vic_train.py -vert_dir CAESAR_VERT_DIR -vic_mesh_path VIC_OBJ_PATH -female_names_file TXT_FEMALE_NAMES_PATH -out_dir OUTPUT_DIR -n_synthesize_samples 0
-```
+Instruction to bring up [this step](./cnn_pipeline_instruction.md#PCA-training)
 
-For further information about the parameters, please refer to the help from the code. In general, the code performs the following tasks
-- train two pca models for male and femle
-- export the first 10 principal components for each PCA model for the sake of debugging.
-- synthesize more PCA values for each model, if the param __n_synthesize_samples__ is greater than zero. If you don't want to synthesize new meshes from the trained PCA model, set  __n_synthesize_samples__ = 0
-- export the mesh vertex arrays for all meshes to the folder PCA_MOEL_PATH/verts/. These vertex arrays will be the input for the Blender script to project mesh to silhouette.
-- export a number of OBJ debug meshes for PCA values.
+The PCA model we use is a simplified version of [the SMPL model](http://files.is.tue.mpg.de/black/papers/SMPL2015.pdf), which encodes the shape and pose of human space. However, in our model, we ignore the pose parameters because out images just have A pose. Please check the referenced paper for more detail about PCA human model.
 
-## Silhouette Generation
-After the origin meshes are transformed to PCA space and new PCA values are synthesized, we need to find the corresponding front/site silhouettes for PCA values. This is done by a Blender script which loads vertex arrays of caesar meshes generated from the previous step and project them to front/side silhouette.
+Our target in this step is two victoria-based PCA models for male/female, each of which consists of 50 principal components with dimension of 50x72576x3 where 72576 is the number of victoria vertices and 3 represents 3 dimension x,y,z. Intuitively, each principal component of 72675x3 represents vertex deviations from the mean victoria. For example, the first component will encode the variations of human subjects along the "height" direction. Adding the mean mesh with multiplication of the first "height" component will create new subjects of different heights.
 
-Do the following steps to generate silhouettes.
- - __notice__: it will take very long to generate silhouettes for all meshes; therefore, you should modify the script to test a few meshes first.
- - install Blender 2.79b. Other versions are not tested yet.
- - start [the blender file](https://drive.google.com/open?id=1zUyAl8Jz21NT5r3yHKhRQcC5XuU_jpL9): caesar_project_silhouette.blend
- - press NUMPAD key 0 to make sure that the 3D view is in projection camera mode. This step must be done; otherwise, the generated silhouettes will be rendered from the view manipulation camera matrix of Blender.
- - generate male silhouettes
-    - update the path variables in the script file (sorry for this inconveniece. Run the script from console with arguments doesn't work). PCA_MODEL_DIR points to the output folder in the previous training PCA stage.
-        - pca_co_dir: points to the path: PCA_MOEL_PATH/verts/male
-          - "pca_co_dir" here points to the folder that contains vertex arrays (49963 vertices) of caesar meshes, not the PCA params directory. Sorry about the naming convention.
-        - sil_root_dir: points to output male silhouette: TRAINIG_DATA_DIR/male_sil_raw
-    - press "Run Script".
+The below diagram illustrates the general flow of PCA training, which includes two branches: the left one for male PCA model and the right one for the female PCA model. Let's talk about the left branch; the right one is similar.
 
- - generate female silhouttes
-    - update the path variables:
-        - pca_co_dir: points to the path: PCA_MOEL_PATH/verts/female
-          - "pca_co_dir" here points to the folder that contains vertex arrays (49963 vertices) of caesar meshes, not the PCA params directory. Sorry about the naming convention.
-        - sil_root_dir: points to output female silhouette: TRAINIG_DATA_DIR/female_sil_raw
-    - press "Run Script"
+The input data to male pca training is 2150 vic-caesar meshes of 72567 (x,y,z) vertices. The output of male pca training are 50 PCA components of 72567 (x,y,z) principal deviations from the mean mesh.
+
+From the trained male PCA model, we can [optional] synthesize, for example, 30000 new meshes of 72576 vertices.
+
+These 2150 original meshes (or 30000 synthesized meshes) is then compressed from the mesh representation of 72576 vertices to the PCA representation of 50 PCA values: 2150x50 or 30000x50.
+
+Our final data has shape of 60.000x51 (50+1), where one additional value indicates which PCA model is used: male or female. If this value is 0, the target belongs to female PCA model; otherwise, it belongs to male PCA model.
+
+&NewLine;
+   - <img src='https://g.gravizo.com/svg?%20digraph%20G%20{%20ml_mesh[label=%22male%20meshes:%202150x72576x3%22%20shape=box]%20fml_mesh[label=%22female%20meshes::%202150x72576x3%22%20shape=box]%20ml_pca_train[label=%22male%20pca%20training%22%20shape=box]%20fml_pca_train[label=%22female%20pca%20training%22%20shape=box]%20ml_pca[label=%22male%20PCA%20model:%2050x72576x3%22%20shape=box]%20fml_pca[label=%22female%20PCA%20model:%2050x72576x3%22%20shape=box]%20syn_ml_mesh[label=%22synthesized%20male%20mesh:%2030000x72576x3%22%20shape=box]%20syn_fml_mesh[label=%22synthesized%20male%20mesh:%2030000x72576x3%22%20shape=box]%20syn_ml_pca[label=%22male%20pca%20values:%2030000x50%22%20shape=box]%20syn_fml_pca[label=%22female%20pca%20values:%2030000x50%22%20shape=box]%20final_ds[label=%22final%20pca%20dataset:%2060000x51%20\n%20(+1%20indicator%20for%20male%20or%20female)%22%20shape=box]%20ml_mesh-%3Eml_pca_train%20fml_mesh-%3Efml_pca_train%20ml_pca_train%20-%3E%20ml_pca%20fml_pca_train%20-%3E%20fml_pca%20ml_pca%20-%3E%20syn_ml_mesh%20fml_pca%20-%3E%20syn_fml_mesh%20syn_ml_mesh%20-%3E%20syn_ml_pca%20syn_fml_mesh%20-%3E%20syn_fml_pca%20syn_ml_pca%20-%3E%20final_ds%20syn_fml_pca%20-%3E%20final_ds%20}'/>
+
+
+## Silhouette generation
+Instruction for [this step](./cnn_pipeline_instruction.md#silhouette-generation)
+
+In this step, we use Blender to project original/synthesized meshes to silhouettes. Given a vic-caesar mesh, we also create around 30 pose variants per mesh. Specifically, for front silhouette projection, we rig the mesh by randomly changing the angle between two leg bones or two arm bones. For side silhouette projection, we randomly change spine and neck angles.  
+
+The zoom-in flow of the step is described in below.
+- Load a new vertex array that represent a new human subject.
+- Estimate all joint locations based on Victoria's topology. For example, the left shoulder joint is estimated as the average of the vertex group [0,20,99,800,250,..], or the right hip joint is the average of the vertex group [90, 600, 6500, 40000,...]
+- From the estimated skeleton and the mesh, compute rigging weights using Blender python APIs.
+- For front silhouettes, randomly change arm, leg bone angles and project to front silhouettes.
+- For side silhouettes, randomly change spine, neck angles and project to side silhouettes.
 
 ## Post processing silhouette and prepare CNN training data
 the code in this stage performs the following tasks
@@ -94,20 +107,6 @@ the code in this stage performs the following tasks
 
 Below are the commands to run the code
 
-```python
-export PYTHONPATH="${PYTHONPATH}:./"
-python ./pca/tool_prepare_train_data_ml_fml.py
--sil_f_fml_dir SILOUHETTE_FEMALE_DIR/sil_f_raw/
--sil_s_fml_dir SILOUHETTE_FEMALE_DIR/sil_s_raw/
--sil_f_ml_dir SILOUHETTE_MALE_DIR/sil_f_raw/
--sil_s_ml_dir SILOUHETTE_MALE_DIR/sil_s_raw/
--target_ml_dir PCA_MODEL_DIR/pca_coords/male/
--target_fml_dir PCA_MODEL_DIR/pca_coords/female/
--pca_ml_model_path PCA_MODEL_DIR/vic_male_pca_model.jlb
--pca_fml_model_path PCA_MODEL_DIR/vic_female_pca_model.jlb
--resize_size 384x256
--out_dir OUPUT_CNN_DATA_DIR
-```
 
 # Training process
 
