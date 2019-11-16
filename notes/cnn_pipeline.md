@@ -1,3 +1,5 @@
+This document explains in detail the general steps of the training pipeline. It's about explanation, not about instructions to bring up the pipeline; however, the link to the corresponding instructions will be added at each section.   
+
 <!-- @import "[TOC]" {cmd="toc" depthFrom=1 depthTo=6 orderedList=false} -->
 <!-- code_chunk_output -->
 
@@ -10,11 +12,7 @@
   - [Silhouette generation](#silhouette-generation)
   - [Post processing silhouette and prepare CNN training data](#post-processing-silhouette-and-prepare-cnn-training-data)
 - [Training process](#training-process)
-  - [Overview](#overview-2)
-  - [How to train](#how-to-train)
-    - [Training](#training)
-    - [Training error visualization](#training-error-visualization)
-- [CNN architectures](#cnn-architectures)
+- [shape model architectures](#shape-model-architectures)
 
 <!-- /code_chunk_output -->
 
@@ -58,14 +56,10 @@ In the following sections, I will describe each step in detail and provide instr
 
 ## Overview
 
-&NewLine;
-
-  - __silhouette generation__
-    - <img src = 'https://g.gravizo.com/svg?%20digraph%20G%20{%20syn_ml_mesh[label=%22synthesized%20male%20mesh:%2030000x72576x3%22%20shape=box]%20syn_fml_mesh[label=%22synthesized%20female%20mesh:%2030000x72576x3%22%20shape=box]%20bl_ml_sil[label=%22blender:%20male%20sil%20projection%22%20shape=box]%20bl_fml_sil[label=%22blender:%20female%20sil%20projection%22%20shape=box]%20sil_fml_post[label=%22female%20sil%20post-processing%20\n%20binarization,%20height%20normalization%22%20shape=box]%20sil_ml_post[label=%22male%20sil%20post-processing%20\n%20binarization,%20height%20normalization%22%20shape=box]%20final_sil_ds[label=%22final%20sil%20dataset:%20\n%20male:%2030000x2x384x256%20\n%20female:%2030000x2x384x256%22%20shape=box]%20syn_ml_mesh%20-%3E%20bl_ml_sil%20syn_fml_mesh%20-%3E%20bl_fml_sil%20bl_ml_sil%20-%3E%20sil_ml_post%20bl_fml_sil%20-%3E%20sil_fml_post%20sil_ml_post%20-%3E%20final_sil_ds%20sil_fml_post%20-%3E%20final_sil_ds%20}'/>
-
 ## PCA Model Training
 
-Instruction to bring up [this step](./cnn_pipeline_instruction.md#PCA-training)
+
+For instructions to bring up this step, please check [this document](./cnn_pipeline_instruction.md#PCA-training). Below is just the explanation.
 
 The PCA model we use is a simplified version of [the SMPL model](http://files.is.tue.mpg.de/black/papers/SMPL2015.pdf), which encodes the shape and pose of human space. However, in our model, we ignore the pose parameters because out images just have A pose. Please check the referenced paper for more detail about PCA human model.
 
@@ -86,7 +80,8 @@ Our final data has shape of 60.000x51 (50+1), where one additional value indicat
 
 
 ## Silhouette generation
-Instruction for [this step](./cnn_pipeline_instruction.md#silhouette-generation)
+
+For instructions to bring up this step, please check [this document](./cnn_pipeline_instruction.md#silhouette-generation). Below is just for explanation.
 
 In this step, we use Blender to project original/synthesized meshes to silhouettes. Given a vic-caesar mesh, we also create around 30 pose variants per mesh. Specifically, for front silhouette projection, we rig the mesh by randomly changing the angle between two leg bones or two arm bones. For side silhouette projection, we randomly change spine and neck angles.  
 
@@ -97,20 +92,25 @@ The zoom-in flow of the step is described in below.
 - For front silhouettes, randomly change arm, leg bone angles and project to front silhouettes.
 - For side silhouettes, randomly change spine, neck angles and project to side silhouettes.
 
+&NewLine;
+<img src = 'https://g.gravizo.com/svg?%20digraph%20G%20{%20syn_ml_mesh[label=%22synthesized%20male%20mesh:%2030000x72576x3%22%20shape=box]%20syn_fml_mesh[label=%22synthesized%20female%20mesh:%2030000x72576x3%22%20shape=box]%20bl_ml_sil[label=%22blender:%20male%20sil%20projection%22%20shape=box]%20bl_fml_sil[label=%22blender:%20female%20sil%20projection%22%20shape=box]%20sil_fml_post[label=%22female%20sil%20post-processing%20\n%20binarization,%20height%20normalization%22%20shape=box]%20sil_ml_post[label=%22male%20sil%20post-processing%20\n%20binarization,%20height%20normalization%22%20shape=box]%20final_sil_ds[label=%22final%20sil%20dataset:%20\n%20male:%2030000x2x384x256%20\n%20female:%2030000x2x384x256%22%20shape=box]%20syn_ml_mesh%20-%3E%20bl_ml_sil%20syn_fml_mesh%20-%3E%20bl_fml_sil%20bl_ml_sil%20-%3E%20sil_ml_post%20bl_fml_sil%20-%3E%20sil_fml_post%20sil_ml_post%20-%3E%20final_sil_ds%20sil_fml_post%20-%3E%20final_sil_ds%20}'/>
+
+
 ## Post processing silhouette and prepare CNN training data
-the code in this stage performs the following tasks
+
+For instructions to bring up this step, please check [this document](./cnn_pipeline_instruction.md#silhouette-post-processing). Below is just for explanation.
+
+This stage performs the following tasks
 - transform silhouette projected by Blender to binary image
 - do height normalization:
     + rescale all silhouette to the same height
     + center silhouette within the image
 - split dataset including silhouettes and PCA values into train, valid, test set
 
-Below are the commands to run the code
-
-
 # Training process
 
-## Overview
+For instructions to bring up this step, please check [this document](./cnn_pipeline_instruction.md#training). Below is just for explanation.
+
 Training consists of two main steps. First we train the front and side CNN models and then we train the joint model with the pre-trained weights from the front and side models. Training front and side model separately is required because it would help create better than models that learn distinctive features in front and side silhouettes. If we group all the training into one step, the model will bias toward the front silhouette while ignore the side silhouettes.
 
 - train front model
@@ -134,33 +134,8 @@ Training consists of two main steps. First we train the front and side CNN model
   - target:
     - NX51: 1 gender indicator + 50 pca values
 
-## How to train
-### Training
-- download the original dataset (4301 meshes) from [this link](https://drive.google.com/open?id=1c9eHv9NBo4PkfpRCHWix1wzCKumsICG3),
-or the synthesized dataset (62000) from [this link](https://drive.google.com/open?id=18Kaj8A18wEMiZmmi7y9k9QDmSsFrcQO_)
-- denote DATA_DIR point to the root directory of the dataset. For example, ```root_dir/sil_384_256_ml_fml_nosyn```
-- run the following commands: this shell script will sequentially train front, side and then the joint model. The final joint model
-will be converted from Pytorch to Tensorflow graph and wrapped with additional information for inference.
-    ```python
-    cd ./src
-    sh train_cnn.sh DATA_DIR
-    ```
-- for more stable training,you can comment the code in the sn_train_cnn.sh to train modes one by one
-### Training error visualization
-- run tensorboard
-    ```python
-    cd DATASET_DIR/log
-    tensorboard ./f #for the front model
-    tensorboard ./s #for the side model
-    tensorboard ./joint #for the side model
-    ```
-- open the web brower to check the error
-![traing_error](notes/images/training_error.jpg)
 
-- run inference on the model: copy the shape_model.jlb file to the deploy model directory and go back to the "run the pre-trained models" step
-
-
-# CNN architectures
+# shape model architectures
 There are two types of architectures: front/side architecture and joint architecture. The front/side architecture just takes in front or side images with auxiliary inputs (height, gender) and the joint architecture takes in both front and side images. The joint architecture reuses the trained weights from the front/side architectures to extract features from the front and side silhouettes.  This separation is needed is just for the purpose of training the joint model. If we train the joint model from scratch, there is a high change that the model will bias toward the front silhouette while neglecting the side silhouettes. Therefore, we have to train the front/side mode independently before combining their weights in the joint model.
 &NewLine;
 - Front/Side Architecture

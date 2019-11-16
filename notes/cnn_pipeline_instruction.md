@@ -1,3 +1,5 @@
+This note describe the steps to train the shape models. Doing all the steps are unnecessary because the output data of each step could be downloaded from google drive.
+
 ## 1. PCA male/female models training
 
 Follow the following steps to train male/female PCA models
@@ -16,6 +18,8 @@ For further information about the parameters, please refer to the help from the 
 - export the mesh vertex arrays for all meshes to the folder PCA_MOEL_PATH/verts/. These vertex arrays will be the input for the Blender script to generate silhouette images.
 - export a number of random OBJ meshes (original or synthesized mesh) for the sake of visualization.
 
+The output data for this stage can be downloaded here.
+
 ## 2. Silhouette generation
 Do the following steps to generate silhouettes. __Notice__ that it will take very long to generate silhouettes/poses for all meshes; it is recommended to  change the script to test a few meshes first.
 
@@ -29,6 +33,8 @@ Do the following steps to generate silhouettes. __Notice__ that it will take ver
     - __verts_co_root_dir__ points to the root folder of male/female vertices. Specifically, '__verts_co_root_dir/male__' will contains *.npy male mesh vertex arrays and '__verts_co_root_dir/female/__' will contains female vertex arrays.
 
     - __out_sil_root_dir__: the output root directory for storing front/side silhouettes of pose variants. Specifically, the blender script will export male silhouettes to the folder "__out_sil_root_dir/male/sil_f_raw__" and the folder ""__out_sil_root_dir/female/sil_f_raw__". The same goes for female silhouettes.
+
+The output data for this step can be downloaded here
 
 ## 3. Silhouette post processing
 
@@ -52,6 +58,8 @@ python ./pca/tool_prepare_train_data_ml_fml.py
   - __OUTPUT_CNN_DATA_DIR/sil_f__: processed front silhouettes of both male and female.
   - __OUTPUT_CNN_DATA_DIR/sil_s__: processed side silhouettes of both male and female.
   - __OUTPUT_CNN_DATA_DIR/target__:  final PCA target with male/female indicator for training.s
+
+The output data for this stage can be downloaded here
 
 ## 4. Training
 we need 3 kinds of data for this stage.
@@ -77,4 +85,4 @@ sh train_cnn.sh CNN_DATA_ROOT_DIR META_DATA_DIR TEST_DATA_PATH
 - Follows the instructions from tensorboard output to open the logging browser, where we can see the training loss graph and visualization of prediction mesh during training. Below is a simple output from Tensorboard.
 ![](images/.cnn_pipeline_instruction_images/a4c73c6e.png)
 
-- Note that we can only see the visualization after a few epoches because we only export the prediction mesh visualization every 4 epoches.
+- Note that we can only see the visualization after a few epochs because we only export the prediction mesh visualization every 4 epochs.
