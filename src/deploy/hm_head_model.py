@@ -11,9 +11,7 @@ from deformation.ffdt_deformation_lib import  TemplateMeshDeform
 from prn_facelib.prn_face_wrapper import PrnFaceWrapper
 from deploy.data_config import config_get_data_path
 import sys
-#sys.path.insert(0, '/home/khanhhh/data_1/sample_codes/libigl/python')
-sys.path.insert(0, '../../third_parties/libigl/python/')
-import pyigl as igl
+from libigl.python import pyigl as igl
 
 def embbed_neck_seam_to_tpl_head(ctm_verts, tpl_head_verts, vneck_seam_map, vneck_seam_map_in_head):
     """
