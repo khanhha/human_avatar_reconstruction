@@ -268,7 +268,7 @@ if __name__ == '__main__':
             # we just take the best one
             assert len(skin_colors) == 1
             best_color = skin_colors[0]
-            texture = face_texture_processor.embed(prn_remap_tex, img_face, img_face_seg, img_face_landmarks, best_color, fix_nostril=True)
+            texture = face_texture_processor.embed(prn_remap_tex, img_face, img_face_seg, img_face_landmarks, best_color, fix_nostril=True, fix_hair_and_background=True)
 
             out_mesh = {'v': verts, 'vt': tex_mesh['vt'], 'f': tex_mesh['f'], 'ft': tex_mesh['ft']}
 

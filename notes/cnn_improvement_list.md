@@ -1,7 +1,26 @@
-# table of content
+
+<!-- @import "[TOC]" {cmd="toc" depthFrom=1 depthTo=6 orderedList=false} -->
+<!-- code_chunk_output -->
+
+- [Synthesize shapes using MB-lab add-on](#synthesize-shapes-using-mb-lab-add-on)
+- [UCSC dataset integration](#ucsc-dataset-integration)
 - [perspective distortion](#perspective-distortion)
 - [cnn part segmentation input](#cnn-part-segmentation-input)
-- [A pose variant](#A-pose-variant)
+- [A pose variant (done)](#a-pose-variant-done)
+- [Influence of front/side silhouette location on result (done)](#influence-of-frontside-silhouette-location-on-result-done)
+  - [Experiment description](#experiment-description)
+  - [Result](#result)
+
+<!-- /code_chunk_output -->
+
+# Synthesize shapes using MB-lab add-on
+- [MB-lab addon](https://mb-lab-community.github.io/MB-Lab.github.io)
+- Write MB-lab script to synthesze new meshes
+- Following [the instruction](./vic_mpii_deformation_pipeline.md) to transfer the synthesized shapes to Victoria.
+
+# UCSC dataset integration
+- Download the dataset [here](https://graphics.soe.ucsc.edu/data/BodyModels/index.html)
+- Following [the instruction](./vic_mpii_deformation_pipeline.md) to transfer the shapes to Victoria.
 
 # perspective distortion
 - __There are 3 camera factors that we could cause perspective distortion__
@@ -29,6 +48,9 @@
 
 
 # cnn part segmentation input
+
+__Notice__: check [this repository](https://github.com/tensorflow/tfjs-models/tree/master/body-pix) for body-part segmentation implementation.
+
 - instead of passing binary silhouettes to the CNN model, we pass in part segmentation color images as depicted in below.
 - ![front_silhouette](./images/sil_f_part_segmentation.jpg)
 - ![side_silhouette](./images/sil_s_part_segmentation.jpg)
@@ -42,7 +64,7 @@
 
   - As mentioned in figures of our CNN architectures, we reuse the Densenet architecture in the standard Pytorch library. However, this architecture just take in an RGB image while we just pass in binary image; therefore, we have to customize the first layer of the standard Densenet architecture to force it to take in binary input. With this customized architecture, we have to train the weight of Densenet from scratch instead of fine-tuning it with the pre-trained weights from the Pytorch library.      
 
-# A pose variant
+# A pose variant (done)
 - [link to experiment result](https://drive.google.com/open?id=1p_SLMMV-UEoSdD8sJaX9JmLGnQpe7Qpf)
 - __below figures depicts the effect of A pose variants on the result__. It seems that the torso pose affects the results the most.
     - torso lean forward
@@ -61,7 +83,7 @@
     - https://www.youtube.com/watch?v=P9fqm8vgdB8
     - https://libigl.github.io/tutorial/#bounded-biharmonic-weights
 
-# Influence of front/side silhouete location on result
+# Influence of front/side silhouette location on result (done)
 
 ## Experiment description
 In this experiment, the front and side silhouettes are shifted to the left and side direction to see how does the result
@@ -84,7 +106,7 @@ will change.
 ![](images/.cnn_improvement_list_images/2aae2f93.png)
 
 ## Result
-in both cases where side and front silhouettes are shifted, the 3D prediction meshes are exactly the same. 
+in both cases where side and front silhouettes are shifted, the 3D prediction meshes are exactly the same.
 - shifted side silhouette result: 3 meshes are drawn over each other, and there is not difference
 in the side profile
 

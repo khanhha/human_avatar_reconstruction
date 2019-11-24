@@ -1,6 +1,67 @@
 This note describe the steps to train the shape models. Doing all the steps are unnecessary because the output data of each step could be downloaded from google drive.
 
-## 1. PCA male/female models training
+# Install requirements
+
+manually remove libraries from environment.yml: tf-pose, pycoco
+
+```python
+conda env create -f environment.yml
+```
+
+__tf-openpose__
+```bat
+conda activate environment_name
+cd /third_parties/tf-pose-estimation/
+RUN python setup.py install
+```
+__libigl__
+```bat
+conda activate environment_name
+cd third_parties/libigl/build
+cmake .. -DLIBIGL_WITH_EMBREE=OFF
+make
+```
+check the folder **third_parties/libigl/python** to see if **pyigl.so** is built successfully.
+
+__additional libraries__
+```
+conda activate environment_name
+conda install -c conda-forge shapely
+pip install triangle
+```
+
+Before trying to bring up the training, please try to run infernece to test if everything is ok.
+
+# Run inference
+
+Download the following data folders
+
+[MODEL_DIR](https://drive.google.com/open?id=1DodUpuB2jQVyft2actWVWASY5adJtLXE)
+
+[META_DATA_DIR](https://drive.google.com/open?id=1ZeY6ymkUFzuKW0gBoXTcPHblvpIOVlbr)
+
+[TEST_INFERENCE_DATA](https://drive.google.com/open?id=1k6H-gYbKx-qX90PHs1s-YvUOhndFvLgt)
+
+```bat
+cd /human_estimation/src/
+export PYTHONPATH="${PYTHONPATH}:./"
+export PYTHONPATH="${PYTHONPATH}:../third_parties/"
+
+python deploy/hm_pipeline_full_demo.py
+-model_dir MODEL_DIR
+-meta_data_dir META_DATA_DIR
+-in_txt_file
+TEST_INFERENCE_DATA/data_measurement.xlsx
+-out_dir
+TEST_INFERENCE_DATA/result_mesh/
+-out_viz_dir
+TEST_INFERENCE_DATA/result_visualization/
+-out_measure_dir
+TEST_INFERENCE_DATA/result_measurement/
+```
+
+
+# 1. PCA male/female models training
 
 Follow the following steps to train male/female PCA models
 
@@ -20,7 +81,7 @@ For further information about the parameters, please refer to the help from the 
 
 The output data for this stage can be downloaded here.
 
-## 2. Silhouette generation
+# 2. Silhouette generation
 Do the following steps to generate silhouettes. __Notice__ that it will take very long to generate silhouettes/poses for all meshes; it is recommended to  change the script to test a few meshes first.
 
  - install Blender 2.79b. Other versions are not tested yet.
@@ -36,7 +97,7 @@ Do the following steps to generate silhouettes. __Notice__ that it will take ver
 
 The output data for this step can be downloaded here
 
-## 3. Silhouette post processing
+# 3. Silhouette post processing
 
 ```bat
 export PYTHONPATH="${PYTHONPATH}:./"
@@ -61,7 +122,7 @@ python ./pca/tool_prepare_train_data_ml_fml.py
 
 The output data for this stage can be downloaded here
 
-## 4. Training
+# 4. Training
 we need 3 kinds of data for this stage.
 
 - __CNN_DATA_ROOT_DIR__: the output folder from the previous stage ![](#Silhouette-post-processing). Under this folder, we should find 3 sub-folders: __sil_f__, __sil_s__ and __target__ that contanis front/side silhouettes and training targets and files __height.txt__, __pca_model.jlb__
@@ -76,7 +137,7 @@ cd to the folder /src and run the train_cnn.sh bash script that trains front, si
 sh train_cnn.sh CNN_DATA_ROOT_DIR META_DATA_DIR TEST_DATA_PATH
 ```
 
-## 5. Training visualization
+# 5. Training visualization
 - Start the tensorboard
     ```bat
     cd __CNN_DATA_ROOT_DIR__

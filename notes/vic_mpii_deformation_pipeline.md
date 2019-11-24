@@ -1,9 +1,12 @@
 # Overview
+
 - to deform all Victoria to match all mpii-caesar meshes, first we need to calculate a parameterization of victoria mesh with respect to the mpii template mesh. Specifically, one vertex of Victoria will be represented with respect to multiple close triangles of MPII mesh.
 
 - The calculation of parameterization requires two template meshes are well aligned. Vertices of one mesh should be exactly on the surface of the other mesh and landmark vertices should be as close as possible to the corresponding landmark vertices.
 
 # Alignment procedure
+__Warning__: this procedure is very manual and error-prone, new a more effective method, please check the blender add-on [Softwrap](https://blendermarket.com/products/softwrap).
+
 - __Apply skeleto-based deformation to coarsely match Victoria mesh with mpii mesh__
   - turn on the "rigging:Rigify" add-in Blender
     - Files -> User Preferences -> Add-Ons -> Search for "rigging"

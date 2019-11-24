@@ -2,7 +2,7 @@ This document explains in detail the general steps of the training pipeline. It'
 
 <!-- @import "[TOC]" {cmd="toc" depthFrom=1 depthTo=6 orderedList=false} -->
 <!-- code_chunk_output -->
-
+- [Notation](#notation)
 - [Notation](#notation)
 - [Datasets](#datasets)
 - [Overview](#overview)
