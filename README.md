@@ -5,11 +5,12 @@
 - [Web portal](#web-portal)
 - [Quick inference](#quick-inference)
 - [Training](#training)
-- [documentation index](#documentation-index)
-  - [body reconstruction](#body-reconstruction)
-  - [head reconstruction](#head-reconstruction)
-  - [head reconstruction](#head-reconstruction)
+- [Documentation index](#documentation-index)
+  - [Body reconstruction](#body-reconstruction)
+  - [Head reconstruction](#head-reconstruction)
+
 <!-- /code_chunk_output -->
+
 
 # Web portal
 The web portal demo contains features
@@ -26,8 +27,8 @@ To bring up the web portal with the pre-trained models (stored in google drive),
 # Training
 To bring up the training, please follow [the instructions](notes/cnn_pipeline_instruction.md)
 
-# documentation index
-## body reconstruction
+# Documentation index
+## Body reconstruction
 - [explanation of stages in shape model training](./notes/cnn_pipeline.md)
 - [improvement ideas for training the shape model ](./notes/cnn_improvement_list.md)
 - [the instructions of transferring shapes to Victoria](./notes/vic_mpii_deformation_pipeline.md)
@@ -36,6 +37,6 @@ To bring up the training, please follow [the instructions](notes/cnn_pipeline_in
 - [a summary of the slice-based method](./notes/slice_method_summary.md)
 - [victoria-caesar deformatin pipeline](./notes/vic_mpii_deformation_pipeline.md)
 
-## head reconstruction
+## Head reconstruction
 - [explanation of the head reconstruction pipelin](./notes/head_reconstruction.md)
 - [head reconstruction paper list](./notes/head_reconstruction_paper_list.md)
