@@ -28,7 +28,7 @@ add the public IP address of the AWS server to the variable, like this: ALLOWED_
 
 build docker image
 ```bat
-docker image build -t human:web
+docker image build -t human:web .
 ```
 
 run docker container (the argument -it is for interactive mode. For the first time, please use it for checking initialization errors)
