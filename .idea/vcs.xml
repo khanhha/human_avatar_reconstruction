@@ -2,5 +2,25 @@
 <project version="4">
   <component name="VcsDirectoryMappings">
     <mapping directory="$PROJECT_DIR$" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/third_parties/libigl" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/third_parties/libigl/external/CoMISo" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/third_parties/libigl/external/catch2" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/third_parties/libigl/external/eigen" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/third_parties/libigl/external/embree" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/third_parties/libigl/external/glad" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/third_parties/libigl/external/glfw" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/third_parties/libigl/external/imgui" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/third_parties/libigl/external/libigl-imgui" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/third_parties/libigl/external/predicates" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/third_parties/libigl/external/pybind11" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/third_parties/libigl/external/pybind11/tools/clang" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/third_parties/libigl/external/stb" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/third_parties/libigl/external/tetgen" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/third_parties/libigl/external/tinyxml2" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/third_parties/libigl/external/triangle" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/third_parties/libigl/tests/data" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/third_parties/libigl/tutorial/data" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/third_parties/tf-pose-estimation" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/web_body" vcs="Git" />
   </component>
 </project>

@@ -1,2 +1,10 @@
 /data/*
 *.pyc
+.idea/vcs.xml
+.idea/*
+/web_body/media/*
+third_parties/libigl/build/
+third_parties/libigl/external/
+third_parties/libigl/python/pyigl.so
+third_parties/libigl/tests/data/
+third_parties/libigl/tutorial/data/
