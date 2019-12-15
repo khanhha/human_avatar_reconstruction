@@ -76,11 +76,13 @@ if __name__ == '__main__':
             for i, path in enumerate(paths[start:end]):
                 ctl_df_verts, ctl_df_faces = import_mesh_obj(fpath=path)
                 # this scale is for MPII
-                ctl_df_verts *= 0.01 #rescale to the same approximation of the paramiterization to increase accuracy
+                #ctl_df_verts *= 0.01 #rescale to the same approximation of the paramiterization to increase accuracy
 
+                # this scale is for UCSC
+                #ctl_df_verts *= 10.0
                 tpl_new_verts = deform.deform(ctl_df_verts)
 
-                tpl_new_verts *= 100 #scale back
+                #tpl_new_verts *= 0.1 #scale the final mesh down, so that all the meshes have the height in meter: 1.7 for example
 
                 out_path = join(*[args.out_dir, f'{path.stem}.pkl'])
                 with open(out_path, 'wb') as file:

@@ -79,8 +79,6 @@ For further information about the parameters, please refer to the help from the 
 - export the mesh vertex arrays for all meshes to the folder PCA_MOEL_PATH/verts/. These vertex arrays will be the input for the Blender script to generate silhouette images.
 - export a number of random OBJ meshes (original or synthesized mesh) for the sake of visualization.
 
-The output data for this stage can be downloaded here.
-
 # 2. Silhouette generation
 Do the following steps to generate silhouettes. __Notice__ that it will take very long to generate silhouettes/poses for all meshes; it is recommended to  change the script to test a few meshes first.
 

@@ -158,9 +158,9 @@ def main():
 
     os.makedirs(args.out_dir, exist_ok=True)
 
-    vpaths = [path for path in Path(args.vert_dir).glob('*.*')]
+    vpaths = [path for path in Path(args.vert_dir).glob('*.pkl')]
     extensions = set([path.suffix for path in vpaths])
-    assert len(extensions) ==1, f'vertex folder contains more than one file type: {extensions}'
+    #assert len(extensions) ==1, f'vertex folder contains more than one file type: {extensions}'
 
     male_paths = None
     female_paths = None
