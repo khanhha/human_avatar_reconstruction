@@ -2,41 +2,14 @@
 <!-- @import "[TOC]" {cmd="toc" depthFrom=1 depthTo=6 orderedList=false} -->
 <!-- code_chunk_output -->
 
-- [Web portal](#web-portal)
-- [Quick inference](#quick-inference)
-- [Training](#training)
-- [Documentation index](#documentation-index)
-  - [Body reconstruction](#body-reconstruction)
-  - [Head reconstruction](#head-reconstruction)
+# 3D human avatar from simple images. 
 
-<!-- /code_chunk_output -->
+This repos contains the implementation of deep learning pipelines that generates a 3D human avatar with 22 body measurements from just a pair of input front side human images within seconds.
+
+![demo](./assets/images/overview_demo.jpg)
 
 
-# Web portal
-The web portal demo contains features
-- manage and store multiple subjects in a SQL database
-- predict 3D human shapes for subject
-- calculate measurements on the predicted 3D body shapes.
-- support compare the measurement error given the groundtruth measurements.
+# web-app
+The system also comes with a web portal where the user can upload a pair of front-side images and get back their avatar aftera just a few seconds.
+![web-demo](./assets/images/web_demo.jpg)
 
-To bring up the web portal with the pre-trained models (stored in google drive), please follows [the instructions](/notes/web_portal_instruction.md)
-
-# Quick inference
-[The instructions](notes/cnn_pipeline_instruction.md)
-
-# Training
-To bring up the training, please follow [the instructions](notes/cnn_pipeline_instruction.md)
-
-# Documentation index
-## Body reconstruction
-- [explanation of stages in shape model training](./notes/cnn_pipeline.md)
-- [improvement ideas for training the shape model ](./notes/cnn_improvement_list.md)
-- [the instructions of transferring shapes to Victoria](./notes/vic_mpii_deformation_pipeline.md)
-- [a summary of the effect of camera properties on silhouette](./notes/cnn_camera_effect.md)
-- [testing ideas for the cnn-based method](notes/testing_ideas.md)
-- [a summary of the slice-based method](./notes/slice_method_summary.md)
-- [victoria-caesar deformatin pipeline](./notes/vic_mpii_deformation_pipeline.md)
-
-## Head reconstruction
-- [explanation of the head reconstruction pipelin](./notes/head_reconstruction.md)
-- [head reconstruction paper list](./notes/head_reconstruction_paper_list.md)
